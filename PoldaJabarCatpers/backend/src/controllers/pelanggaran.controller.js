@@ -23,10 +23,9 @@ const createPelanggaran = async (req, res) => {
             personelId, jenisDasar, nomorSurat, tanggalSurat, wujudPerbuatan, keteranganDasar,
             jenisSidang, hukuman, banding, statusPenyelesaian,
             nomorSuratSelesai, tanggalSuratSelesai, keteranganSelesai, tanggalRekomendasi,
-            nomorSkep, tanggalSkep, nomorRekomendasi, tanggalBisaAjukanRps
+            nomorSkep, tanggalSkep, nomorRekomendasi, tanggalBisaAjukanRps,
+            pangkatSaatMelanggar, satkerSaatMelanggar, jabatanSaatMelanggar
         } = req.body;
-
-        // Cek Akses
         const access = await checkOperatorAccess(req, personelId);
         if (!access.allowed) return res.status(access.statusCode || 403).json({ message: access.message });
 
@@ -59,6 +58,9 @@ const createPelanggaran = async (req, res) => {
                 nomorSurat,
                 tanggalSurat: tglSuratObj,
                 wujudPerbuatan,
+                pangkatSaatMelanggar: pangkatSaatMelanggar || null,
+                jabatanSaatMelanggar: jabatanSaatMelanggar || null,
+                satkerSaatMelanggar: satkerSaatMelanggar || null,
                 keteranganDasar,
                 fileDasarUrl,
                 jenisSidang: jenisSidang || null,
@@ -94,7 +96,8 @@ const updatePelanggaran = async (req, res) => {
             statusPenyelesaian, nomorSuratSelesai, tanggalSuratSelesai, keteranganSelesai, tanggalRekomendasi,
             jenisDasar, nomorSurat, tanggalSurat, wujudPerbuatan, keteranganDasar,
             jenisSidang, hukuman, banding,
-            nomorSkep, tanggalSkep, nomorRekomendasi, tanggalBisaAjukanRps
+            nomorSkep, tanggalSkep, nomorRekomendasi, tanggalBisaAjukanRps,
+            pangkatSaatMelanggar, satkerSaatMelanggar, jabatanSaatMelanggar
         } = req.body;
 
         const existingCatpers = await prisma.pelanggaran.findUnique({ where: { id } });
@@ -141,6 +144,9 @@ const updatePelanggaran = async (req, res) => {
                 nomorSurat: nomorSurat || existingCatpers.nomorSurat,
                 tanggalSurat: tglSuratObj,
                 wujudPerbuatan: wujudPerbuatan || existingCatpers.wujudPerbuatan,
+                pangkatSaatMelanggar: pangkatSaatMelanggar !== undefined ? (pangkatSaatMelanggar || null) : existingCatpers.pangkatSaatMelanggar,
+                jabatanSaatMelanggar: jabatanSaatMelanggar !== undefined ? (jabatanSaatMelanggar || null) : existingCatpers.jabatanSaatMelanggar,
+                satkerSaatMelanggar: satkerSaatMelanggar !== undefined ? (satkerSaatMelanggar || null) : existingCatpers.satkerSaatMelanggar,
                 keteranganDasar: keteranganDasar || existingCatpers.keteranganDasar,
                 statusPenyelesaian: statusPenyelesaian || existingCatpers.statusPenyelesaian,
                 nomorSuratSelesai: nomorSuratSelesai || existingCatpers.nomorSuratSelesai,

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Users, UserMinus, AlertCircle, History, Clock, Handshake, Search, X, ChevronLeft, ChevronRight, Eye, Plus, Edit2, Trash2 } from 'lucide-react';
+import { format } from 'date-fns';
 import api from '../utils/api';
 import { Toaster } from 'sonner';
 import './Dashboard.css';
@@ -337,8 +338,23 @@ const Dashboard = () => {
                                     <div><strong style={{ color: 'var(--text-muted)' }}>Kesatuan</strong><br />{selectedPersonelDetail.satker?.nama}</div>
                                 </div>
 
-                                <h3>Riwayat Catatan Personel ({selectedPersonelDetail.pelanggaran?.length || 0})</h3>
-                                <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                    <h3 style={{ margin: 0 }}>Riwayat Catatan Personel ({selectedPersonelDetail.pelanggaran?.length || 0})</h3>
+                                    {(user?.role === 'ADMIN_POLDA' || selectedPersonelDetail.satkerId === user?.satkerId) && (
+                                        <button
+                                            className="btn-primary"
+                                            style={{ padding: '0.4rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                                            onClick={() => {
+                                                setSelectedPelanggaran(null);
+                                                setIsEditPelanggaran(false);
+                                                setIsPelanggaranModalOpen(true);
+                                            }}
+                                        >
+                                            <Plus size={15} /> Tambah Catatan
+                                        </button>
+                                    )}
+                                </div>
+                                <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
                                     <table className="data-table" style={{ fontSize: '0.85em' }}>
                                         <thead>
                                             <tr>
@@ -355,7 +371,7 @@ const Dashboard = () => {
                                             ) : (
                                                 selectedPersonelDetail.pelanggaran?.map(pel => (
                                                     <tr key={pel.id}>
-                                                        <td>{new Date(pel.tanggalSurat || pel.createdAt).toLocaleDateString('id-ID')}</td>
+                                                        <td>{pel.tanggalSurat ? format(new Date(pel.tanggalSurat), 'dd/MM/yyyy') : format(new Date(pel.createdAt), 'dd/MM/yyyy')}</td>
                                                         <td>
                                                             <div style={{ fontWeight: 600 }}>{pel.wujudPerbuatan}</div>
                                                             {['TIDAK_TERBUKTI', 'PERDAMAIAN'].includes(pel.statusPenyelesaian) ? null : (
@@ -370,7 +386,7 @@ const Dashboard = () => {
                                                         <td>
                                                             {pel.tanggalRekomendasi ? (
                                                                 <div>
-                                                                    <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>Terbit {new Date(pel.tanggalRekomendasi).toLocaleDateString('id-ID')}</span>
+                                                                    <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>Terbit {format(new Date(pel.tanggalRekomendasi), 'dd/MM/yyyy')}</span>
                                                                     {pel.nomorRekomendasi && <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>No: {pel.nomorRekomendasi}</div>}
                                                                     {pel.fileRekomendasiUrl && <div style={{ fontSize: '0.8em', marginTop: '2px' }}><a href={`http://localhost:5000${pel.fileRekomendasiUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-color)' }}>Lihat Berkas</a></div>}
                                                                 </div>
@@ -378,7 +394,7 @@ const Dashboard = () => {
                                                                 pel.tanggalBisaAjukanRps && new Date() < new Date(pel.tanggalBisaAjukanRps) ? (
                                                                     <div>
                                                                         <span style={{ color: 'var(--warning)', fontWeight: 600 }}>&#9203; Menunggu Waktu RPS</span>
-                                                                        <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>Bisa diajukan pasca: {new Date(pel.tanggalBisaAjukanRps).toLocaleDateString('id-ID')}</div>
+                                                                        <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>Bisa diajukan pasca: {format(new Date(pel.tanggalBisaAjukanRps), 'dd/MM/yyyy')}</div>
                                                                     </div>
                                                                 ) : (
                                                                     <span style={{ color: 'var(--danger)' }}>Belum Ada RPS</span>

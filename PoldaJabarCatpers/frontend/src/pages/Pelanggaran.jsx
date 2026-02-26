@@ -187,7 +187,7 @@ const Pelanggaran = () => {
 
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.9rem', marginBottom: '1rem' }}>
                                             <div>
-                                                <p><strong>Dasar Surat:</strong> {pel.nomorSurat} ({format(new Date(pel.tanggalSurat), 'dd MMM yyyy')})</p>
+                                                <p><strong>Dasar Surat:</strong> {pel.nomorSurat} ({format(new Date(pel.tanggalSurat), 'dd/MM/yyyy')})</p>
                                                 {pel.fileDasarUrl && <a href={`http://localhost:5000${pel.fileDasarUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)', fontSize: '0.8rem' }}>&#128206; Lihat Berkas Dasar</a>}
                                             </div>
                                             <div>
@@ -201,7 +201,7 @@ const Pelanggaran = () => {
 
                                         {(pel.fileSelesaiUrl || pel.tanggalRekomendasi) && (
                                             <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '4px', fontSize: '0.85rem', borderLeft: '3px solid var(--success)' }}>
-                                                {pel.tanggalRekomendasi && <p style={{ margin: '0 0 0.25rem 0' }}><strong>Bisa rekomendasi sejak:</strong> {format(new Date(pel.tanggalRekomendasi), 'dd MMM yyyy')}</p>}
+                                                {pel.tanggalRekomendasi && <p style={{ margin: '0 0 0.25rem 0' }}><strong>Bisa rekomendasi sejak:</strong> {format(new Date(pel.tanggalRekomendasi), 'dd/MM/yyyy')}</p>}
                                                 {pel.fileSelesaiUrl && <a href={`http://localhost:5000${pel.fileSelesaiUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)' }}>&#128206; Lihat Berkas Putusan/Selesai</a>}
                                             </div>
                                         )}

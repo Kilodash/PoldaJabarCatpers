@@ -65,6 +65,9 @@ model Pelanggaran {
   nomorSurat       String
   tanggalSurat     DateTime
   wujudPerbuatan   String
+  pangkatSaatMelanggar String? // Pangkat personel pada saat pelanggaran terjadi
+  jabatanSaatMelanggar String? // Jabatan personel pada saat pelanggaran terjadi
+  satkerSaatMelanggar  String? // Satker personel pada saat pelanggaran terjadi
   keteranganDasar  String?
   fileDasarUrl     String?
   

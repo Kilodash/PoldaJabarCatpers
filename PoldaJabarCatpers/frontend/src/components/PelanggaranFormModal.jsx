@@ -29,6 +29,9 @@ const sanksiKeppOptions = [
     "PTDH (Pemberhentian Tidak Dengan Hormat) sebagai anggota Polri"
 ];
 
+const pangkatPolri = ["Bharada", "Bharatu", "Bharaka", "Abripda", "Abriptu", "Abrip", "Bripda", "Briptu", "Brigadir", "Bripka", "Aipda", "Aiptu", "Ipda", "Iptu", "AKP", "Kompol", "AKBP", "Kombes Pol", "Brigjen Pol", "Irjen Pol", "Komjen Pol", "Jenderal Pol"];
+const pangkatPns = ["Pengatur Muda (II/a)", "Pengatur Muda Tk. I (II/b)", "Pengatur (II/c)", "Pengatur Tk. I (II/d)", "Penata Muda (III/a)", "Penata Muda Tk. I (III/b)", "Penata (III/c)", "Penata Tk. I (III/d)", "Pembina (IV/a)", "Pembina Tk. I (IV/b)", "Pembina Utama Muda (IV/c)", "Pembina Utama Madya (IV/d)", "Pembina Utama (IV/e)"];
+
 const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initialData = null, targetPersonel = null }) => {
     const defaultFormState = {
         id: '',
@@ -39,6 +42,9 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
         nomorSurat: '',
         tanggalSurat: '',
         wujudPerbuatan: '',
+        pangkatSaatMelanggar: '',
+        jabatanSaatMelanggar: '',
+        satkerSaatMelanggar: '',
         keteranganDasar: '',
 
         // 2. Penyelesaian & 3. Sidang
@@ -62,13 +68,22 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
     const [formData, setFormData] = useState(defaultFormState);
     const [fileDasar, setFileDasar] = useState(null);
-    const [fileSelesai, setFileSelesai] = useState(null); // File perdamaian / tidak terbukti
-    const [filePutusan, setFilePutusan] = useState(null); // File sidang
-    const [fileRekomendasi, setFileRekomendasi] = useState(null); // File RPS
+    const [fileSelesai, setFileSelesai] = useState(null);
+    const [filePutusan, setFilePutusan] = useState(null);
+    const [fileRekomendasi, setFileRekomendasi] = useState(null);
+    const [satkerList, setSatkerList] = useState([]);
+    const [nomorSuratError, setNomorSuratError] = useState('');
 
     // State untuk multi-select Array Sanksi Hukuman
     const [selectedHukumanDisiplin, setSelectedHukumanDisiplin] = useState([]);
     const [selectedHukumanKepp, setSelectedHukumanKepp] = useState([]);
+
+    // Fetch satker list saat form dibuka
+    useEffect(() => {
+        if (isOpen) {
+            api.get('/satker').then(res => setSatkerList(res.data)).catch(() => { });
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         if (isOpen) {
@@ -109,12 +124,18 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                     hukuman: initialData.jenisSidang === 'PIDANA' ? rawHukuman : '', // hanya Pidana yang murni teks utuh
                     nomorSkep: initialData.nomorSkep || '',
                     tanggalSkep: initialData.tanggalSkep ? format(new Date(initialData.tanggalSkep), 'yyyy-MM-dd') : '',
-                    tanggalBisaAjukanRps: initialData.tanggalBisaAjukanRps ? format(new Date(initialData.tanggalBisaAjukanRps), 'yyyy-MM-dd') : ''
+                    tanggalBisaAjukanRps: initialData.tanggalBisaAjukanRps ? format(new Date(initialData.tanggalBisaAjukanRps), 'yyyy-MM-dd') : '',
+                    pangkatSaatMelanggar: initialData.pangkatSaatMelanggar || '',
+                    jabatanSaatMelanggar: initialData.jabatanSaatMelanggar || '',
+                    satkerSaatMelanggar: initialData.satkerSaatMelanggar || ''
                 });
             } else {
                 setFormData({
                     ...defaultFormState,
-                    personelId: targetPersonel?.id || ''
+                    personelId: targetPersonel?.id || '',
+                    pangkatSaatMelanggar: targetPersonel?.pangkat || '',
+                    jabatanSaatMelanggar: targetPersonel?.jabatan || '',
+                    satkerSaatMelanggar: targetPersonel?.satker?.nama || ''
                 });
                 setSelectedHukumanDisiplin([]);
                 setSelectedHukumanKepp([]);
@@ -127,9 +148,59 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, isEdit, initialData, targetPersonel]);
 
+    // Helper: angka -> angka Romawi
+    const toRoman = (month) => {
+        const r = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+        return r[month - 1] || '';
+    };
+
+    // Validasi format Nomor Surat berdasarkan jenisDasar
+    const validateNomorSurat = (nomor, jenis) => {
+        if (!nomor) return '';
+        if (jenis === 'Hasil Lidik Terbukti') {
+            // Format: R/LHP-{angka}/{romawi}/HUK.12.10./{tahun}/Paminal
+            const ok = /^R\/LHP-\d+\/[IVX]+\/HUK\.12\.10\.\d{4}\/Paminal$/.test(nomor) ||
+                /^R\/LHP-\s*\d*\s*\/[IVX]+\/HUK\.12\.10\.\s*\/\d{4}\/Paminal$/.test(nomor) ||
+                nomor.startsWith('R/LHP-');
+            if (!ok) return 'Format tidak sesuai. Contoh: R/LHP-01/IV/HUK.12.10./2025/Paminal';
+        }
+        if (jenis === 'LP Pidana') {
+            // Format: LP/A-{angka}/{romawi}/{tahun}
+            const ok = /^LP\/A-\d+\/[IVX]+\/\d{4}$/.test(nomor) ||
+                nomor.startsWith('LP/A-');
+            if (!ok) return 'Format tidak sesuai. Contoh: LP/A-01/IV/2025';
+        }
+        return '';
+    };
+
+    const generateNomorSurat = (jenis, tgl) => {
+        if (!tgl) return '';
+        const d = new Date(tgl);
+        const bulan = toRoman(d.getMonth() + 1);
+        const tahun = d.getFullYear();
+        if (jenis === 'Hasil Lidik Terbukti') return `R/LHP-   /${bulan}/HUK.12.10./${tahun}/Paminal`;
+        if (jenis === 'LP Pidana') return `LP/A-   /${bulan}/${tahun}`;
+        return '';
+    };
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+
+        // Auto-format nomor surat saat tanggal atau jenis berubah
+        if (name === 'tanggalSurat') {
+            const generated = generateNomorSurat(formData.jenisDasar, value);
+            if (generated) setFormData(prev => ({ ...prev, [name]: value, nomorSurat: generated }));
+        }
+        if (name === 'jenisDasar') {
+            const generated = generateNomorSurat(value, formData.tanggalSurat);
+            if (generated) setFormData(prev => ({ ...prev, [name]: value, nomorSurat: generated }));
+            // Re-validasi nomor surat jika jenis berubah
+            setNomorSuratError(validateNomorSurat(formData.nomorSurat, value));
+        }
+        if (name === 'nomorSurat') {
+            setNomorSuratError(validateNomorSurat(value, formData.jenisDasar));
+        }
 
         // Reset state bawah ketika mengubah cabang pilihan Atas
         if (name === 'statusPenyelesaian') {
@@ -152,6 +223,15 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // Blokir submit jika nomor surat format salah
+        const nomorErr = validateNomorSurat(formData.nomorSurat, formData.jenisDasar);
+        if (nomorErr) {
+            setNomorSuratError(nomorErr);
+            toast.error('Periksa kembali format Nomor Surat Dasar.');
+            return;
+        }
+
         try {
             const submitData = new FormData();
 
@@ -232,10 +312,38 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                     <legend style={{ padding: '0 0.75rem', fontWeight: 700, color: 'var(--primary-color)', fontSize: '1.05rem', background: 'white', border: '1px solid var(--border)', borderRadius: '20px' }}>1. Dasar Catpers / Legalitas</legend>
 
                     <div className="form-group">
-                        <label>Wujud Perbuatan Pelanggaran (Deskripsi Kasus)</label>
+                        <label>Wujud Perbuatan Pelanggaran (Deskripsi Kasus) <span style={{ color: 'var(--danger)' }}>*</span></label>
                         <textarea className="form-input" name="wujudPerbuatan" value={formData.wujudPerbuatan} onChange={handleChange} rows={2} required placeholder="Gambarkan pelanggaran yang dilakukan..."></textarea>
                     </div>
 
+                    {/* Row 1: Pangkat + Jabatan + Satker saat melanggar */}
+                    <div className="flex gap-4">
+                        <div className="form-group w-full">
+                            <label>Pangkat Saat Melanggar <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <select className="form-input" name="pangkatSaatMelanggar" value={formData.pangkatSaatMelanggar || ''} onChange={handleChange} required>
+                                <option value="">-- Pilih Pangkat --</option>
+                                <optgroup label="POLRI">
+                                    {pangkatPolri.map(p => <option key={p} value={p}>{p}</option>)}
+                                </optgroup>
+                                <optgroup label="PNS">
+                                    {pangkatPns.map(p => <option key={p} value={p}>{p}</option>)}
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div className="form-group w-full">
+                            <label>Jabatan Saat Melanggar <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <input type="text" className="form-input" name="jabatanSaatMelanggar" value={formData.jabatanSaatMelanggar || ''} onChange={handleChange} required placeholder="Jabatan saat kejadian..." />
+                        </div>
+                        <div className="form-group w-full">
+                            <label>Satker Saat Melanggar <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <select className="form-input" name="satkerSaatMelanggar" value={formData.satkerSaatMelanggar || ''} onChange={handleChange} required>
+                                <option value="">-- Pilih Satker --</option>
+                                {satkerList.map(s => <option key={s.id} value={s.nama}>{s.nama}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Row 2: Jenis Dasar + Tanggal Surat */}
                     <div className="flex gap-4">
                         <div className="form-group w-full">
                             <label>Jenis Dasar Surat</label>
@@ -247,26 +355,46 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                             </select>
                         </div>
                         <div className="form-group w-full">
-                            <label>Nomor Surat Dasar</label>
-                            <input type="text" className="form-input" name="nomorSurat" value={formData.nomorSurat} onChange={handleChange} required />
-                        </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                        <div className="form-group w-full">
                             <label>Tanggal Surat Dasar</label>
                             <input type="date" className="form-input" name="tanggalSurat" value={formData.tanggalSurat} onChange={handleChange} required />
                         </div>
+                    </div>
+
+                    {/* Row 3: Nomor Surat (auto-format) */}
+                    <div className="form-group">
+                        <label>Nomor Surat Dasar <span style={{ color: 'var(--danger)' }}>*</span>
+                            {formData.tanggalSurat && ['Hasil Lidik Terbukti', 'LP Pidana'].includes(formData.jenisDasar) && (
+                                <span style={{ fontSize: '0.78rem', color: 'var(--info)', marginLeft: '0.5rem', fontWeight: 400 }}>Format otomatis — edit angka urut di bagian kosong</span>
+                            )}
+                        </label>
+                        <input
+                            type="text"
+                            className="form-input"
+                            name="nomorSurat"
+                            value={formData.nomorSurat}
+                            onChange={handleChange}
+                            required
+                            placeholder="Isi / koreksi nomor surat..."
+                            style={nomorSuratError ? { borderColor: 'var(--danger)', background: '#fff5f5' } : {}}
+                        />
+                        {nomorSuratError && (
+                            <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ fontWeight: 700 }}>&#9888;</span> {nomorSuratError}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Row 4: Upload Berkas + Keterangan */}
+                    <div className="flex gap-4">
                         <div className="form-group w-full">
                             <label>Unggah Berkas Dasar (PDF/IMG, Max 5MB)</label>
                             <input type="file" className="form-input" accept=".pdf,image/*" onChange={(e) => setFileDasar(e.target.files[0])} />
                             {isEdit && initialData?.fileDasarUrl && <div style={{ fontSize: '0.8rem', color: 'var(--info)', marginTop: '4px' }}>&#10003; Berkas lama sudah tersimpan di server.</div>}
                         </div>
-                    </div>
-
-                    <div className="form-group mb-0">
-                        <label>Keterangan Dasar (Opsional)</label>
-                        <input type="text" className="form-input" name="keteranganDasar" value={formData.keteranganDasar || ''} onChange={handleChange} />
+                        <div className="form-group w-full">
+                            <label>Keterangan Dasar (Opsional)</label>
+                            <input type="text" className="form-input" name="keteranganDasar" value={formData.keteranganDasar || ''} onChange={handleChange} />
+                        </div>
                     </div>
                 </fieldset>
 
@@ -402,7 +530,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                         {isRpsLocked && (
                             <div style={{ background: '#fff3cd', color: '#856404', padding: '0.75rem', borderRadius: '4px', marginBottom: '1rem', fontSize: '0.9rem', border: '1px solid #ffeeba' }}>
                                 <strong>&#9888; Pengajuan RPS Terkunci.</strong><br />
-                                Personel masih dalam masa hukuman dan hanya bisa mengajukan RPS setelah tanggal <strong>{new Date(formData.tanggalBisaAjukanRps).toLocaleDateString('id-ID')}</strong>.
+                                Personel masih dalam masa hukuman dan hanya bisa mengajukan RPS setelah tanggal <strong>{format(new Date(formData.tanggalBisaAjukanRps), 'dd/MM/yyyy')}</strong>.
                             </div>
                         )}
 

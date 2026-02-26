@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Settings, Users, Building, ShieldCheck, Plus, Edit2, Trash2, FileText } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
+import { format } from 'date-fns';
 import api from '../utils/api';
 import Modal from '../components/Modal';
 
@@ -182,7 +183,7 @@ const Pengaturan = () => {
                                             <td style={{ fontWeight: 500 }}>{u.email}</td>
                                             <td><span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '20px', background: u.role === 'ADMIN_POLDA' ? 'var(--accent-color)' : 'var(--border-color)', color: u.role === 'ADMIN_POLDA' ? 'white' : 'var(--text-color)' }}>{u.role.replace('_', ' ')}</span></td>
                                             <td>{u.satker?.nama || <span className="text-gray-400 italic">Polda Utama (Semua Akses)</span>}</td>
-                                            <td style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>{new Date(u.createdAt).toLocaleDateString('id-ID')}</td>
+                                            <td style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>{format(new Date(u.createdAt), 'dd/MM/yyyy')}</td>
                                             <td>
                                                 <div className="action-btns">
                                                     <button className="btn-icon" onClick={() => handleOpenModal('user', u)} title="Edit"><Edit2 size={18} /></button>
@@ -217,7 +218,7 @@ const Pengaturan = () => {
                                         <tr key={s.id}>
                                             <td style={{ color: 'var(--text-muted)' }}>#{s.id}</td>
                                             <td style={{ fontWeight: 600 }}>{s.nama}</td>
-                                            <td style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>{new Date(s.createdAt).toLocaleDateString('id-ID')}</td>
+                                            <td style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>{format(new Date(s.createdAt), 'dd/MM/yyyy')}</td>
                                             <td>
                                                 <div className="action-btns">
                                                     <button className="btn-icon" onClick={() => handleOpenModal('satker', s)} title="Edit"><Edit2 size={18} /></button>
