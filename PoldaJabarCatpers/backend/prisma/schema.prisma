@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Satker {
+  id        Int      @id @default(autoincrement())
+  nama      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users    User[]
+  personel Personel[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      String   @default("OPERATOR_SATKER") // Dulu Enum
+  satkerId  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  satker Satker? @relation(fields: [satkerId], references: [id])
+  auditLogs AuditLog[]
+}
+
+model Pengaturan {
+  key       String   @id
+  value     String
+  deskripsi String?
+  updatedAt DateTime @updatedAt
+}
+
+model Personel {
+  id            String   @id @default(uuid())
+  jenisPegawai  String   // Dulu Enum
+  nrpNip        String   @unique
+  namaLengkap   String
+  pangkat       String 
+  jabatan       String
+  satkerId      Int
+  tanggalLahir  DateTime
+  tanggalPensiun DateTime
+  statusKeaktifan String   @default("AKTIF") // BISA: 'AKTIF', 'MENINGGAL_DUNIA', 'PENSIUN', 'DIHAPUS'
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime? // Soft Delete
+
+  satker      Satker        @relation(fields: [satkerId], references: [id])
+  pelanggaran Pelanggaran[]
+}
+
+model Pelanggaran {
+  id               String   @id @default(uuid())
+  personelId       String
+  
+  // Dasar
+  jenisDasar       String?
+  nomorSurat       String
+  tanggalSurat     DateTime
+  wujudPerbuatan   String
+  keteranganDasar  String?
+  fileDasarUrl     String?
+  
+  // Sanksi & Sidang
+  jenisSidang      String? // Dulu Enum
+  hukuman          String?
+  banding          Boolean?
+  nomorSkep        String?
+  tanggalSkep      DateTime?
+  
+  // Penyelesaian
+  statusPenyelesaian String // Dulu Enum
+  nomorSuratSelesai  String?
+  tanggalSuratSelesai DateTime?
+  keteranganSelesai  String?
+  fileSelesaiUrl     String?
+  filePutusanUrl     String?
+  
+  // Rekomendasi
+  nomorRekomendasi   String?
+  tanggalBisaAjukanRps DateTime?
+  tanggalRekomendasi DateTime?
+  fileRekomendasiUrl String?
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime? // Soft Delete
+
+  personel Personel @relation(fields: [personelId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    Int
+  aksi      String   // Misalnya: 'DELETE_PERSONEL'
+  targetId  String?  // ID data yang terdampak
+  deskripsi String   // Keterangan 'Menghapus NRP xxx'
+  alasan    String   // Alasan wajib dari form
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+}
