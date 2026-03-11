@@ -13,6 +13,7 @@ import Modal from '../components/Modal';
 import PersonelFormModal from '../components/PersonelFormModal';
 import PelanggaranFormModal from '../components/PelanggaranFormModal';
 import PersonelHistoryModal from '../components/PersonelHistoryModal';
+import Loading from '../components/Loading';
 import { exportPersonelPDF } from '../utils/pdfGenerator';
 
 
@@ -326,7 +327,7 @@ const Dashboard = () => {
             toast.success('Personel berhasil dipulihkan menjadi status Aktif.');
             setRestoreModal({ isOpen: false, id: null, alasan: '' });
             fetchStats();
-            fetchModalList(); 
+            fetchModalList();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Terjadi kesalahan saat memulihkan personel.');
         }
@@ -338,28 +339,7 @@ const Dashboard = () => {
 
 
     if (loading) {
-        return (
-            <div className="dashboard animate-fade-in">
-                <div className="dashboard-header mb-4">
-                    <div className="skeleton-block" style={{ width: '250px', height: '32px', marginBottom: '8px' }}></div>
-                    <div className="skeleton-block" style={{ width: '400px', height: '20px' }}></div>
-                </div>
-                <div className="skeleton-grid" style={{ marginBottom: '2rem' }}>
-                    {[1, 2, 3, 4].map(i => (
-                        <div key={i} className="skeleton-card">
-                            <div className="skeleton-row">
-                                <div className="flex-col gap-2 w-full" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
-                                    <div className="skeleton-block" style={{ width: '60%', height: '36px' }}></div>
-                                    <div className="skeleton-block" style={{ width: '80%', height: '16px' }}></div>
-                                </div>
-                                <div className="skeleton-block" style={{ width: '48px', height: '48px', borderRadius: '8px', flexShrink: 0 }}></div>
-                            </div>
-                            <div className="skeleton-block" style={{ width: '100%', height: '4px', marginTop: '12px' }}></div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
+        return <Loading variant="full" text="Menyiapkan Dashboard ..." />;
     }
 
     return (
@@ -524,7 +504,7 @@ const Dashboard = () => {
                         <h3 style={{ margin: 0, color: '#444' }}>{modalData.title}</h3>
                         <p style={{ marginTop: '0.2rem', fontSize: '0.9rem', color: '#666' }}>Dicetak pada: {new Date().toLocaleString('id-ID')}</p>
                     </div>
-                        
+
                     <div className="only-print modal-table-container" style={{ width: '100%' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', textAlign: 'left', tableLayout: 'auto' }}>
                             <thead>
@@ -582,7 +562,12 @@ const Dashboard = () => {
                     </div>
 
                     {modalLoading ? (
-                        <div className="loading-state py-8">Mensinkronisasi Data...</div>
+                        <div className="loading-state py-8">
+                            <Loading variant="inline" text="Mensinkronisasi Data..." />
+                            <div style={{ marginTop: '1rem', width: '100%' }}>
+                                <Loading variant="skeleton-list" />
+                            </div>
+                        </div>
                     ) : (
                         <>
                             {/* Batasan Tinggi Tabel List Mengikuti Dimensi Layar (Max Height & Overflow y) */}

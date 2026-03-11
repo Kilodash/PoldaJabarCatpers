@@ -1,30 +1,8 @@
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 
-// Create uploads directory if it doesn't exist
-const uploadDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-        const { personelNama, personelNrp } = req.body;
-        const timestamp = Date.now();
-        const ext = path.extname(file.originalname);
-
-        if (personelNama && personelNrp) {
-            cb(null, `${personelNama}_${personelNrp}_${file.fieldname}_${timestamp}${ext}`);
-        } else {
-            const uniqueSuffix = timestamp + '-' + Math.round(Math.random() * 1e9);
-            cb(null, file.fieldname + '-' + uniqueSuffix + ext);
-        }
-    }
-});
+// Use memory storage for serverless execution / Supabase upload
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
     // Hanya menerima PDF dan gambar

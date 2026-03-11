@@ -137,7 +137,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                         <div key={index} style={{ fontSize: '0.8rem', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', background: '#e0f2fe', padding: '4px 8px', borderRadius: '4px' }}>
                             <span style={{ color: 'var(--primary-color)', fontWeight: 600 }}>File {index + 1}: {getFilename(url)}</span>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                                <a href={`${API_BASE}${url}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline' }}>[Lihat]</a>
+                                <a href={url.startsWith('http') ? url : `${API_BASE}${url}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline' }}>[Lihat]</a>
                                 <button type="button" onClick={() => handleRemoveServerFile(url)} style={{ color: 'var(--danger)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600 }}>[Hapus]</button>
                             </div>
                         </div>
@@ -1117,7 +1117,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                                 <div style={{ fontSize: '0.8rem', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '4px', background: '#dbeafe', padding: '4px 8px', borderRadius: '4px' }}>
                                     <span style={{ color: 'var(--info)', fontWeight: 600 }}>File: {getFilename(currentRecord.fileRekomendasiUrl)}</span>
                                     <div style={{ display: 'flex', gap: '8px' }}>
-                                        <a href={`${API_BASE}${currentRecord.fileRekomendasiUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline' }}>[Lihat]</a>
+                                        <a href={currentRecord.fileRekomendasiUrl.startsWith('http') ? currentRecord.fileRekomendasiUrl : `${API_BASE}${currentRecord.fileRekomendasiUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline' }}>[Lihat]</a>
                                         {user?.role === 'ADMIN_POLDA' && (
                                             <button type="button" onClick={() => setDeletedFiles(prev => [...prev, 'fileRekomendasi'])} style={{ color: 'var(--danger)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600 }}>[Hapus]</button>
                                         )}

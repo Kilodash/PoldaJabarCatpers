@@ -171,7 +171,8 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
 
     const renderAttachment = (url, title) => {
         if (!url) return null;
-        const fullUrl = `http://localhost:5000${url}`;
+        const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
         const isPdf = url.toLowerCase().endsWith('.pdf');
         return (
             <div style={{ marginTop: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>

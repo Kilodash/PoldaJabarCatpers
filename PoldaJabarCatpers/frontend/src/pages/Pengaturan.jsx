@@ -59,6 +59,7 @@ import { Toaster, toast } from 'sonner';
 import { format } from 'date-fns';
 import api from '../utils/api';
 import Modal from '../components/Modal';
+import Loading from '../components/Loading';
 
 const Pengaturan = () => {
     const { user } = useAuth();
@@ -632,11 +633,13 @@ const Pengaturan = () => {
                                         <h2 style={{ margin: 0 }}>Pindai Anggota Pensiun</h2>
                                     </div>
                                     <button 
-                                        onClick={handleScanPensiun} 
                                         className="btn-primary" 
+                                        onClick={handleScanPensiun} 
                                         disabled={scanLoading}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                                     >
-                                        <Search size={18} /> {scanLoading ? 'Memindai...' : 'Pindai Database'}
+                                        <Search size={18} /> 
+                                        {scanLoading ? <Loading variant="inline" text="Memindai..." /> : 'Mulai Pindai Anggota Pensiun'}
                                     </button>
                                 </div>
                                 <p className="text-muted mb-4">Cari data personel yang telah mencapai atau melewati Tanggal Pensiun namun statusnya masih AKTIF.</p>
@@ -678,12 +681,12 @@ const Pengaturan = () => {
                                                 />
                                             </div>
                                             <button 
-                                                onClick={handleBulkUpdatePensiun} 
                                                 className="btn-primary" 
-                                                style={{ background: 'var(--success-color)', height: '42px' }}
+                                                onClick={handleBulkUpdatePensiun} 
                                                 disabled={bulkUpdateLoading}
+                                                style={{ background: 'var(--success-color)', height: '42px', display: 'flex', alignItems: 'center', gap: '8px' }}
                                             >
-                                                {bulkUpdateLoading ? 'Memproses...' : `Pindahkan ${retiringPersonnel.length} Anggota ke Pensiun`}
+                                                {bulkUpdateLoading ? <Loading variant="inline" text="Memproses..." /> : 'Pindahkan Semua ke PENSIUN'}
                                             </button>
                                             <button 
                                                 onClick={() => { setRetiringPersonnel([]); setRetiringAlasan(''); }} 

@@ -1,8 +1,12 @@
 const prisma = require('../prisma');
+const { uploadFileToSupabase, deleteFileFromSupabase } = require('../utils/supabaseStorage');
 
-// Helper untuk format path file (menghilangkan prefix path lokal agar bisa diakses lewat URL)
-const formatFilePath = (file) => {
-    return file ? `/uploads/${file.filename}` : null;
+// Helper untuk format/upload array file dari memory (buffer) ke Supabase Storage
+const uploadMultipleFiles = async (filesArray, folderName = 'pelanggaran') => {
+    if (!filesArray || filesArray.length === 0) return null;
+    const uploadPromises = filesArray.map(file => uploadFileToSupabase(file, folderName));
+    const urls = await Promise.all(uploadPromises);
+    return urls.join(',');
 };
 
 // Validasi Akses Operator ke Personel
@@ -31,38 +35,15 @@ const createPelanggaran = async (req, res) => {
         const access = await checkOperatorAccess(req, personelId);
         if (!access.allowed) return res.status(access.statusCode || 403).json({ message: access.message });
 
-        // Handle Multiple Files
-        const fileDasarUrl = req.files?.fileDasar
-            ? req.files.fileDasar.map(formatFilePath).join(',')
-            : null;
-
-        const fileSelesaiUrl = req.files?.fileSelesai
-            ? req.files.fileSelesai.map(formatFilePath).join(',')
-            : null;
-
-        const filePutusanUrl = req.files?.filePutusan
-            ? req.files.filePutusan.map(formatFilePath).join(',')
-            : null;
-
-        const fileRekomendasiUrl = req.files?.fileRekomendasi
-            ? req.files.fileRekomendasi.map(formatFilePath).join(',')
-            : null;
-
-        const fileSkttUrl = req.files?.fileSktt
-            ? req.files.fileSktt.map(formatFilePath).join(',')
-            : null;
-
-        const fileSktbUrl = req.files?.fileSktb
-            ? req.files.fileSktb.map(formatFilePath).join(',')
-            : null;
-
-        const fileSp3Url = req.files?.fileSp3
-            ? req.files.fileSp3.map(formatFilePath).join(',')
-            : null;
-
-        const fileBandingUrl = req.files?.fileBanding
-            ? req.files.fileBanding.map(formatFilePath).join(',')
-            : null;
+        // Handle Multiple Files using Supabase
+        const fileDasarUrl = await uploadMultipleFiles(req.files?.fileDasar);
+        const fileSelesaiUrl = await uploadMultipleFiles(req.files?.fileSelesai);
+        const filePutusanUrl = await uploadMultipleFiles(req.files?.filePutusan);
+        const fileRekomendasiUrl = await uploadMultipleFiles(req.files?.fileRekomendasi);
+        const fileSkttUrl = await uploadMultipleFiles(req.files?.fileSktt);
+        const fileSktbUrl = await uploadMultipleFiles(req.files?.fileSktb);
+        const fileSp3Url = await uploadMultipleFiles(req.files?.fileSp3);
+        const fileBandingUrl = await uploadMultipleFiles(req.files?.fileBanding);
 
         // Helper untuk parsing json hukuman
         const hasPtdh = (jenisSidang === 'KEPP' && hukuman) ? hukuman.includes('PTDH') : false;
@@ -206,83 +187,46 @@ const updatePelanggaran = async (req, res) => {
             deletedItems = [];
         }
 
-        // Helper fungsi untuk handle penambahan file array ke string eksisting
-        const appendFiles = (existingUrls, newFiles, isAllDeleted, deletedItems = []) => {
+        // Helper fungsi untuk handle upload baru dan penghapusan link dari eksisting file
+        const handleFilesUpdate = async (existingUrls, newFiles, isAllDeleted, deletedItems = [], folderName = 'pelanggaran') => {
             let urls = [];
             
-            // Jika tidak dihapus semua, mulai dengan URL yang sudah ada
             if (!isAllDeleted) {
                 urls = existingUrls ? existingUrls.split(',').filter(u => u) : [];
-                
-                // Remove individually deleted items
                 if (deletedItems && deletedItems.length > 0) {
+                    // Coba hapus file secara fisik dari bucket jika dia dihapus dari UI
+                    for (const urlToDelete of deletedItems) {
+                        if (urls.includes(urlToDelete)) {
+                            await deleteFileFromSupabase(urlToDelete).catch(console.error);
+                        }
+                    }
                     urls = urls.filter(url => !deletedItems.includes(url));
+                }
+            } else if (existingUrls) { // Jika semua file ditiadakan, hapus semuanya dari Storage
+                const oldUrls = existingUrls.split(',').filter(u => u);
+                for (const oldUrl of oldUrls) {
+                     await deleteFileFromSupabase(oldUrl).catch(console.error);
                 }
             }
 
-            // SELALU tambahkan file baru jika ada (meskipun yang lama dihapus semua)
+            // Upload dan gabungkan url file yang baru masuk
             if (newFiles && newFiles.length > 0) {
-                const newUrls = newFiles.map(formatFilePath);
-                urls = [...urls, ...newUrls];
+                const newUrlsStr = await uploadMultipleFiles(newFiles, folderName);
+                if (newUrlsStr) {
+                    urls = [...urls, ...newUrlsStr.split(',')];
+                }
             }
             return urls.length > 0 ? urls.join(',') : null;
         };
 
-        const fileDasarUrl = appendFiles(
-            existingCatpers.fileDasarUrl,
-            req.files?.fileDasar,
-            deletedFiles.includes('fileDasar'),
-            deletedItems
-        );
-
-        const fileSelesaiUrl = appendFiles(
-            existingCatpers.fileSelesaiUrl,
-            req.files?.fileSelesai,
-            deletedFiles.includes('fileSelesai'),
-            deletedItems
-        );
-
-        const filePutusanUrl = appendFiles(
-            existingCatpers.filePutusanUrl,
-            req.files?.filePutusan,
-            deletedFiles.includes('filePutusan'),
-            deletedItems
-        );
-
-        const fileRekomendasiUrl = appendFiles(
-            existingCatpers.fileRekomendasiUrl,
-            req.files?.fileRekomendasi,
-            deletedFiles.includes('fileRekomendasi'),
-            deletedItems
-        );
-
-        const fileSkttUrl = appendFiles(
-            existingCatpers.fileSkttUrl,
-            req.files?.fileSktt,
-            deletedFiles.includes('fileSktt'),
-            deletedItems
-        );
-
-        const fileSktbUrl = appendFiles(
-            existingCatpers.fileSktbUrl,
-            req.files?.fileSktb,
-            deletedFiles.includes('fileSktb'),
-            deletedItems
-        );
-
-        const fileSp3Url = appendFiles(
-            existingCatpers.fileSp3Url,
-            req.files?.fileSp3,
-            deletedFiles.includes('fileSp3'),
-            deletedItems
-        );
-
-        const fileBandingUrl = appendFiles(
-            existingCatpers.fileBandingUrl,
-            req.files?.fileBanding,
-            deletedFiles.includes('fileBanding'),
-            deletedItems
-        );
+        const fileDasarUrl = await handleFilesUpdate(existingCatpers.fileDasarUrl, req.files?.fileDasar, deletedFiles.includes('fileDasar'), deletedItems);
+        const fileSelesaiUrl = await handleFilesUpdate(existingCatpers.fileSelesaiUrl, req.files?.fileSelesai, deletedFiles.includes('fileSelesai'), deletedItems);
+        const filePutusanUrl = await handleFilesUpdate(existingCatpers.filePutusanUrl, req.files?.filePutusan, deletedFiles.includes('filePutusan'), deletedItems);
+        const fileRekomendasiUrl = await handleFilesUpdate(existingCatpers.fileRekomendasiUrl, req.files?.fileRekomendasi, deletedFiles.includes('fileRekomendasi'), deletedItems);
+        const fileSkttUrl = await handleFilesUpdate(existingCatpers.fileSkttUrl, req.files?.fileSktt, deletedFiles.includes('fileSktt'), deletedItems);
+        const fileSktbUrl = await handleFilesUpdate(existingCatpers.fileSktbUrl, req.files?.fileSktb, deletedFiles.includes('fileSktb'), deletedItems);
+        const fileSp3Url = await handleFilesUpdate(existingCatpers.fileSp3Url, req.files?.fileSp3, deletedFiles.includes('fileSp3'), deletedItems);
+        const fileBandingUrl = await handleFilesUpdate(existingCatpers.fileBandingUrl, req.files?.fileBanding, deletedFiles.includes('fileBanding'), deletedItems);
 
         const tglSuratObj = tanggalSurat ? new Date(tanggalSurat) : existingCatpers.tanggalSurat;
 

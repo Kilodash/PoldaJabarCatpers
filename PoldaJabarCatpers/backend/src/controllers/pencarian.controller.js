@@ -91,7 +91,7 @@ const searchPersonelManual = async (req, res) => {
                     { nrpNip: { in: nrpNips }, deletedAt: null },
                     {
                         OR: nrpNips.map(nrp => ({
-                            nrpNip: { contains: `_${nrp}` },
+                            nrpNip: { contains: `_${nrp}`, mode: 'insensitive' },
                             deletedAt: { not: null }
                         }))
                     }
@@ -145,15 +145,10 @@ const searchPersonelDocument = async (req, res) => {
             return res.status(400).json({ message: 'File dokumen harus diunggah.' });
         }
 
-        const filePath = req.file.path;
-
-        // Ekstraksi teks dari PDF
-        const dataBuffer = fs.readFileSync(filePath);
+        // Ekstraksi teks dari PDF menggunakan buffer (memoryStorage)
+        const dataBuffer = req.file.buffer;
         const data = await pdfParse(dataBuffer);
         const pdfText = data.text;
-
-        // Hapus file sementara setelah diekstrak
-        fs.unlinkSync(filePath);
 
         if (!pdfText || pdfText.trim() === '') {
             return res.status(400).json({ message: 'Gagal mengekstrak teks atau dokumen kosong.' });
@@ -180,7 +175,7 @@ const searchPersonelDocument = async (req, res) => {
                     { nrpNip: { in: uniqueNrpNips }, deletedAt: null },
                     {
                         OR: uniqueNrpNips.map(nrp => ({
-                            nrpNip: { contains: `_${nrp}` },
+                            nrpNip: { contains: `_${nrp}`, mode: 'insensitive' },
                             deletedAt: { not: null }
                         }))
                     }

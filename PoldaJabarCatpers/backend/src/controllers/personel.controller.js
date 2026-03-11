@@ -179,9 +179,9 @@ const getAllPersonel = async (req, res) => {
         if (req.query.search) {
             delete whereClause.deletedAt; // Biarkan cari yang sudah tidak aktif / deleted juga jika pencarian spesifik
             whereClause.OR = [
-                { namaLengkap: { contains: req.query.search } },
-                { nrpNip: { contains: req.query.search } },
-                { nrpNip: { contains: `_${req.query.search}` } } // Cari juga yang sudah ber-prefix DEL_
+                { namaLengkap: { contains: req.query.search, mode: 'insensitive' } },
+                { nrpNip: { contains: req.query.search, mode: 'insensitive' } },
+                { nrpNip: { contains: `_${req.query.search}`, mode: 'insensitive' } } // Cari juga yang sudah ber-prefix DEL_
             ]
         }
 

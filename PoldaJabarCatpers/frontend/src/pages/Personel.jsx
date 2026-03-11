@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import PersonelFormModal from '../components/PersonelFormModal';
 import PelanggaranFormModal from '../components/PelanggaranFormModal';
 import PersonelHistoryModal from '../components/PersonelHistoryModal';
+import Loading from '../components/Loading';
 
 const Personel = () => {
     const { user } = useAuth();
@@ -181,7 +182,12 @@ const Personel = () => {
             </div>
 
             {loading ? (
-                <div className="loading-state">Memuat Data...</div>
+                <div className="loading-state py-8">
+                    <Loading variant="inline" text="Sinkronisasi Database..." />
+                    <div style={{ marginTop: '1.5rem', width: '100%' }}>
+                        <Loading variant="skeleton-list" />
+                    </div>
+                </div>
             ) : (
                 <>
                     {/* Top Pagination Summary */}

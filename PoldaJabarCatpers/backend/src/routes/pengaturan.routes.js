@@ -15,10 +15,10 @@ router.get('/export', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), pengatura
 router.get('/template', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), pengaturanController.downloadTemplate);
 router.post('/import', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), upload.single('file'), pengaturanController.importData);
 
-router.get('/:key', authMiddleware, pengaturanController.getPengaturanByKey);
-
 router.get('/scan-pensiun', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), pengaturanController.scanPensiun);
 router.post('/bulk-pensiun', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), pengaturanController.bulkUpdatePensiun);
+
+router.get('/:key', authMiddleware, pengaturanController.getPengaturanByKey);
 
 // Hanya ADMIN_POLDA yang bisa menyimpan perubahannya
 router.put('/:key', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), pengaturanController.updatePengaturan);
