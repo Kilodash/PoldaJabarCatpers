@@ -12,6 +12,11 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files for uploads - DISABLED for Supabase
 // app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// Health Check
+app.get('/', (req, res) => {
+    res.json({ message: 'CDS Polda Jabar API is running', status: 'OK' });
+});
+
 // Routes
 const authRoutes = require('./routes/auth.routes');
 const satkerRoutes = require('./routes/satker.routes');
