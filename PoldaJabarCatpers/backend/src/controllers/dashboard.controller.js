@@ -143,130 +143,99 @@ const getDashboardStats = async (req, res) => {
 
 const getSatkerStats = async (req, res) => {
     try {
-        let satkerFilter = {};
-        if (req.user.role === 'OPERATOR_SATKER') {
-            satkerFilter = { id: req.user.satkerId };
-        } else if (req.query.satkerId) {
-            satkerFilter = { id: parseInt(req.query.satkerId) };
-        }
-
         const listSatker = await prisma.satker.findMany({
-            where: satkerFilter,
             select: { id: true, nama: true, urutan: true }
         });
 
         const currentDate = new Date();
 
-        const satkerStatsPromises = listSatker.map(async (satker) => {
-            const satkerId = satker.id;
-
-            const totalPersonel = await prisma.personel.count({ where: { satkerId, deletedAt: null, isDraft: false, statusKeaktifan: 'AKTIF' } });
-
-            const tidakAktif = await prisma.personel.count({
-                where: {
-                    satkerId,
-                    OR: [
-                        { tanggalPensiun: { lte: currentDate } },
-                        { statusKeaktifan: { not: 'AKTIF' } },
-                        { deletedAt: { not: null } }
-                    ],
-                    isDraft: false
+        // Fetch all personnel with their violations in one go
+        const allPersonel = await prisma.personel.findMany({
+            where: { deletedAt: null },
+            include: {
+                pelanggaran: {
+                    where: { deletedAt: null }
                 }
-            });
-
-            const perdamaian = await prisma.pelanggaran.count({
-                where: { deletedAt: null, isDraft: false, personel: { satkerId, deletedAt: null, statusKeaktifan: 'AKTIF' }, statusPenyelesaian: 'PERDAMAIAN' }
-            });
-
-            const pernahTercatat = await prisma.pelanggaran.count({
-                where: {
-                    deletedAt: null,
-                    isDraft: false,
-                    personel: { satkerId, deletedAt: null, statusKeaktifan: 'AKTIF' },
-                    statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
-                    tanggalRekomendasi: { not: null }
-                }
-            });
-
-            const tidakTerbukti = await prisma.pelanggaran.count({
-                where: {
-                    deletedAt: null,
-                    isDraft: false,
-                    personel: { satkerId, deletedAt: null, statusKeaktifan: 'AKTIF' },
-                    statusPenyelesaian: 'TIDAK_TERBUKTI'
-                }
-            });
-
-            const belumSktt = await prisma.pelanggaran.count({
-                where: {
-                    deletedAt: null,
-                    isDraft: false,
-                    personel: { satkerId, deletedAt: null, statusKeaktifan: 'AKTIF' },
-                    statusPenyelesaian: 'Belum ada SKTT'
-                }
-            });
-
-            const belumSktb = await prisma.pelanggaran.count({
-                where: {
-                    deletedAt: null,
-                    isDraft: false,
-                    personel: { satkerId, deletedAt: null, statusKeaktifan: 'AKTIF' },
-                    statusPenyelesaian: 'Belum ada SKTB'
-                }
-            });
-
-            const belumRps = await prisma.pelanggaran.count({
-                where: {
-                    deletedAt: null,
-                    isDraft: false,
-                    personel: { satkerId, deletedAt: null, statusKeaktifan: 'AKTIF' },
-                    statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
-                    tanggalRekomendasi: null,
-                    tanggalBisaAjukanRps: { lte: currentDate }
-                }
-            });
-
-            const catpersAktif = await prisma.pelanggaran.count({
-                where: {
-                    deletedAt: null,
-                    isDraft: false,
-                    personel: { satkerId, deletedAt: null, statusKeaktifan: 'AKTIF' },
-                    OR: [
-                        { statusPenyelesaian: 'PROSES' },
-                        {
-                            statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
-                            tanggalRekomendasi: null,
-                            OR: [
-                                { tanggalBisaAjukanRps: null },
-                                { tanggalBisaAjukanRps: { gt: currentDate } }
-                            ]
-                        }
-                    ]
-                }
-            });
-
-            const butuhApproval = (await prisma.personel.count({ where: { satkerId, isDraft: true, deletedAt: null } })) +
-                (await prisma.pelanggaran.count({ where: { isDraft: true, deletedAt: null, personel: { satkerId, deletedAt: null, statusKeaktifan: 'AKTIF' } } }));
-
-            return {
-                id: satker.id,
-                nama: satker.nama,
-                urutan: satker.urutan,
-                totalPersonel,
-                tidakAktif,
-                catpersAktif,
-                pernahTercatat,
-                belumRekomendasi: belumRps, // frontend expects belumRekomendasi
-                belumRps,
-                perdamaian,
-                tidakTerbukti,
-                belumSktt,
-                belumSktb,
-                butuhApproval
-            };
+            }
         });
 
-        let data = await Promise.all(satkerStatsPromises);
+        const statsMap = listSatker.reduce((acc, s) => {
+            acc[s.id] = {
+                id: s.id,
+                nama: s.nama,
+                urutan: s.urutan,
+                totalPersonel: 0,
+                tidakAktif: 0,
+                catpersAktif: 0,
+                pernahTercatat: 0,
+                belumRekomendasi: 0,
+                belumRps: 0,
+                perdamaian: 0,
+                tidakTerbukti: 0,
+                belumSktt: 0,
+                belumSktb: 0,
+                butuhApproval: 0
+            };
+            return acc;
+        }, {});
+
+        allPersonel.forEach(p => {
+            const s = statsMap[p.satkerId];
+            if (!s) return;
+
+            const isAktif = p.statusKeaktifan === 'AKTIF' && !p.isDraft && p.tanggalPensiun > currentDate;
+
+            if (isAktif) {
+                s.totalPersonel++;
+            } else if (!p.isDraft) {
+                s.tidakAktif++;
+            }
+
+            if (p.isDraft) {
+                s.butuhApproval++;
+            }
+
+            p.pelanggaran.forEach(pl => {
+                if (pl.isDraft) {
+                    s.butuhApproval++;
+                }
+
+                if (!isAktif || pl.isDraft) return;
+
+                const status = pl.statusPenyelesaian;
+                
+                if (status === 'PERDAMAIAN') s.perdamaian++;
+                if (status === 'TIDAK_TERBUKTI') s.tidakTerbukti++;
+                if (status === 'Belum ada SKTT') s.belumSktt++;
+                if (status === 'Belum ada SKTB') s.belumSktb++;
+
+                if (['MENJALANI_HUKUMAN', 'SIDANG'].includes(status)) {
+                    if (pl.tanggalRekomendasi) {
+                        s.pernahTercatat++;
+                    } else {
+                        // Belum RPS
+                        if (pl.tanggalBisaAjukanRps && pl.tanggalBisaAjukanRps <= currentDate) {
+                            s.belumRps++;
+                            s.belumRekomendasi++;
+                        } else {
+                            // Masih proses atau belum lewat waktu
+                            s.catpersAktif++;
+                        }
+                    }
+                } else if (status === 'PROSES') {
+                    s.catpersAktif++;
+                }
+            });
+        });
+
+        let data = Object.values(statsMap);
+
+        // Filter if requested
+        if (req.user.role === 'OPERATOR_SATKER') {
+            data = data.filter(d => d.id === req.user.satkerId);
+        } else if (req.query.satkerId) {
+            data = data.filter(d => d.id === parseInt(req.query.satkerId));
+        }
 
         // Custom sort hierarchy following specific order 
         const priority = (nama) => {
