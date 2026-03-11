@@ -19,9 +19,9 @@ const getAllAuditLogs = async (req, res) => {
             deskripsi: log.deskripsi,
             alasan: log.alasan,
             createdAt: log.createdAt,
-            userEmail: log.user.email,
-            userRole: log.user.role,
-            satker: log.user.satker ? log.user.satker.nama : 'Polda Jabar'
+            userEmail: log.user ? log.user.email : 'Sistem/Unknown',
+            userRole: log.user ? log.user.role : '-',
+            satker: log.user && log.user.satker ? log.user.satker.nama : 'Polda Jabar'
         }));
 
         res.json(formattedLogs);

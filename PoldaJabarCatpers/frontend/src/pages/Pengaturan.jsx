@@ -115,8 +115,10 @@ const Pengaturan = () => {
             setSatkerList(resSatker.data);
             setPengaturanList(resPengaturan.data);
             setAuditList(resAudit.data);
-        } catch {
-            toast.error('Gagal memuat data pengaturan. Pastikan Anda memiliki hak akses Admin.');
+        } catch (error) {
+            console.error('Pengaturan Fetch Error:', error);
+            const msg = error.response?.data?.message || 'Gagal memuat data pengaturan.';
+            toast.error(`${msg} Pastikan Anda memiliki hak akses Admin.`);
         } finally {
             setLoading(false);
         }
