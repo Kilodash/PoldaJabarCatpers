@@ -14,7 +14,31 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health Check
 app.get('/', (req, res) => {
-    res.json({ message: 'CDS Polda Jabar API is running', status: 'OK' });
+    res.json({ 
+        message: 'CDS Polda Jabar API is running', 
+        status: 'OK',
+        time: new Date().toISOString()
+    });
+});
+
+// Database & Connectivity Test
+const prisma = require('./prisma');
+app.get('/api/health-check', async (req, res) => {
+    try {
+        // Test database connection
+        await prisma.$queryRaw`SELECT 1`;
+        res.json({ 
+            database: 'CONNECTED', 
+            environment: process.env.NODE_ENV,
+            supabase_url: process.env.SUPABASE_URL ? 'CONFIGURED' : 'MISSING'
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            database: 'ERROR', 
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
 });
 
 // Routes
