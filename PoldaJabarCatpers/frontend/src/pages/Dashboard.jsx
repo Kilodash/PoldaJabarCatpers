@@ -65,10 +65,14 @@ const renderBadge = (value, colorVar, condition = value > 0, onClick = null) => 
 const Dashboard = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [stats, setStats] = useState({
-        totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRekomendasi: 0
+    const [stats, setStats] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('dashboard_stats')) || { totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRekomendasi: 0 }; }
+        catch { return { totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRekomendasi: 0 }; }
     });
-    const [satkerStatsList, setSatkerStatsList] = useState([]);
+    const [satkerStatsList, setSatkerStatsList] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('dashboard_satker_stats')) || []; }
+        catch { return []; }
+    });
     const [globalSearch, setGlobalSearch] = useState('');
     const [satkerSearch, setSatkerSearch] = useState(''); // Search for Satker table
     const [loading, setLoading] = useState(true);
@@ -98,10 +102,9 @@ const Dashboard = () => {
         const fetchMainStats = async () => {
             try {
                 const res = await api.get('/dashboard/stats');
-                setStats({
-                    ...res.data.stats,
-                    belumRekomendasi: res.data.stats.belumRps
-                });
+                const newStats = { ...res.data.stats, belumRekomendasi: res.data.stats.belumRps };
+                setStats(newStats);
+                localStorage.setItem('dashboard_stats', JSON.stringify(newStats));
             } catch (error) {
                 console.error("Gagal mengambil statistik utama", error);
             }
@@ -110,7 +113,9 @@ const Dashboard = () => {
         const fetchSatkerStats = async () => {
             try {
                 const res = await api.get('/dashboard/satker-stats');
-                setSatkerStatsList(res.data.map(s => ({ ...s, belumRekomendasi: s.belumRps })));
+                const newSatkerStats = res.data.map(s => ({ ...s, belumRekomendasi: s.belumRps }));
+                setSatkerStatsList(newSatkerStats);
+                localStorage.setItem('dashboard_satker_stats', JSON.stringify(newSatkerStats));
             } catch (error) {
                 console.error("Gagal mengambil statistik satker", error);
             }
@@ -351,6 +356,22 @@ const Dashboard = () => {
     return (
         <>
             <Toaster position="top-right" richColors />
+            {loading && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(255,255,255,0.55)',
+                    backdropFilter: 'blur(2px)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '1rem',
+                }}>
+                    <Loading variant="inline" text="Memperbarui data ..." />
+                </div>
+            )}
             <div className="dashboard animate-fade-in">
                 <div className="page-header mb-8 no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
                     <div style={{ flex: '1 1 auto', minWidth: '300px' }}>
