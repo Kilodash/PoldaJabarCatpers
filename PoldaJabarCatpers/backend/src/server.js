@@ -25,18 +25,28 @@ app.get('/', (req, res) => {
 const prisma = require('./prisma');
 app.get('/api/health-check', async (req, res) => {
     try {
+        console.log('--- Health Check Started ---');
+        console.log('DATABASE_URL defined:', !!process.env.DATABASE_URL);
+        
         // Test database connection
         await prisma.$queryRaw`SELECT 1`;
+        console.log('Database Connection: OK');
+        
         res.json({ 
             database: 'CONNECTED', 
             environment: process.env.NODE_ENV,
-            supabase_url: process.env.SUPABASE_URL ? 'CONFIGURED' : 'MISSING'
+            supabase_url: process.env.SUPABASE_URL ? 'CONFIGURED' : 'MISSING',
+            server_time: new Date().toISOString()
         });
     } catch (error) {
+        console.error('--- Health Check Error ---');
+        console.error('Message:', error.message);
+        console.error('Stack:', error.stack);
+        
         res.status(500).json({ 
             database: 'ERROR', 
             message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            hint: 'Check Vercel Environment Variables and Supabase IP allowlist.'
         });
     }
 });
