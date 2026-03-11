@@ -40,16 +40,10 @@
 }
 
 .logo-container {
-    width: 80px;
-    height: 80px;
-    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     margin: 0 auto 1rem;
-    box-shadow: var(--shadow-glow);
-    color: white;
 }
 
 .login-header h2 {

@@ -95,21 +95,30 @@ const Dashboard = () => {
     const [restoreModal, setRestoreModal] = useState({ isOpen: false, id: null, alasan: '' });
 
     const fetchStats = async () => {
-        try {
-            const [resStats, resSatkerStats] = await Promise.all([
-                api.get('/dashboard/stats'),
-                api.get('/dashboard/satker-stats')
-            ]);
-            setStats({
-                ...resStats.data.stats,
-                belumRekomendasi: resStats.data.stats.belumRps
-            });
-            setSatkerStatsList(resSatkerStats.data.map(s => ({ ...s, belumRekomendasi: s.belumRps })));
-        } catch (error) {
-            console.error("Gagal mengambil statistik dashboard", error);
-        } finally {
-            setLoading(false);
-        }
+        const fetchMainStats = async () => {
+            try {
+                const res = await api.get('/dashboard/stats');
+                setStats({
+                    ...res.data.stats,
+                    belumRekomendasi: res.data.stats.belumRps
+                });
+            } catch (error) {
+                console.error("Gagal mengambil statistik utama", error);
+            }
+        };
+
+        const fetchSatkerStats = async () => {
+            try {
+                const res = await api.get('/dashboard/satker-stats');
+                setSatkerStatsList(res.data.map(s => ({ ...s, belumRekomendasi: s.belumRps })));
+            } catch (error) {
+                console.error("Gagal mengambil statistik satker", error);
+            }
+        };
+
+        setLoading(true);
+        await Promise.allSettled([fetchMainStats(), fetchSatkerStats()]);
+        setLoading(false);
     };
 
     const requestSort = (key) => {
@@ -338,9 +347,6 @@ const Dashboard = () => {
     const currentList = modalList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
 
-    if (loading) {
-        return <Loading variant="full" text="Menyiapkan Dashboard ..." />;
-    }
 
     return (
         <>
