@@ -51,9 +51,12 @@ const createPelanggaran = async (req, res) => {
         const tglSkepObj = tanggalSkep ? new Date(tanggalSkep) : null;
         const tglBisaAjukanRpsObj = tanggalBisaAjukanRps ? new Date(tanggalBisaAjukanRps) : null;
 
+        const isDraft = req.user.role === 'OPERATOR_SATKER';
+
         const pelanggaran = await prisma.pelanggaran.create({
             data: {
                 personelId,
+                isDraft,
                 jenisDasar: jenisDasar || null,
                 nomorSurat,
                 tanggalSurat: tglSuratObj,
@@ -81,7 +84,10 @@ const createPelanggaran = async (req, res) => {
             }
         });
 
-        res.status(201).json({ message: 'Catatan pelanggaran ditambahkan', data: pelanggaran });
+        res.status(201).json({
+            message: isDraft ? 'Catatan pelanggaran diajukan sebagai Draft. Menunggu persetujuan Admin Polda.' : 'Catatan pelanggaran ditambahkan',
+            data: pelanggaran
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
@@ -162,7 +168,8 @@ const updatePelanggaran = async (req, res) => {
                 tanggalSkep: tglSkepObj,
                 nomorRekomendasi: nomorRekomendasi || existingCatpers.nomorRekomendasi,
                 tanggalBisaAjukanRps: tglBisaAjukanRpsObj,
-                fileRekomendasiUrl
+                fileRekomendasiUrl,
+                catatanRevisi: null // Reset catatan revisi setelah diperbaiki operator
             }
         });
 
@@ -232,9 +239,51 @@ const deletePelanggaran = async (req, res) => {
     }
 }
 
+// Admin Approval: Setujui Pelanggaran
+const approvePelanggaran = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (req.user.role !== 'ADMIN_POLDA') return res.status(403).json({ message: 'Hanya Admin Polda yang dapat menyetujui data.' });
+
+        await prisma.pelanggaran.update({
+            where: { id },
+            data: {
+                isDraft: false,
+                catatanRevisi: null
+            }
+        });
+
+        res.json({ message: 'Catatan pelanggaran berhasil disetujui.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal menyetujui data.' });
+    }
+}
+
+// Reject/Revision Draft
+const rejectPelanggaran = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { catatanRevisi } = req.body;
+
+        if (req.user.role !== 'ADMIN_POLDA') return res.status(403).json({ message: 'Hanya Admin Polda yang dapat menolak data.' });
+        if (!catatanRevisi) return res.status(400).json({ message: 'Catatan revisi wajib diisi jika menolak data.' });
+
+        await prisma.pelanggaran.update({
+            where: { id },
+            data: { catatanRevisi }
+        });
+
+        res.json({ message: 'Draft catatan pelanggaran dikembalikan untuk revisi.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal memproses penolakan.' });
+    }
+}
+
 module.exports = {
     createPelanggaran,
     updatePelanggaran,
     getPelanggaranById,
-    deletePelanggaran
+    deletePelanggaran,
+    approvePelanggaran,
+    rejectPelanggaran
 };

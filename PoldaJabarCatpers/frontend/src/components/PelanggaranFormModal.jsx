@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import api from '../utils/api';
 import Modal from './Modal';
+import { useAuth } from '../context/AuthContext';
+
 
 // Opsi Sanksi
 const sanksiDisiplinOptions = [
@@ -33,6 +35,7 @@ const pangkatPolri = ["Bharada", "Bharatu", "Bharaka", "Abripda", "Abriptu", "Ab
 const pangkatPns = ["Pengatur Muda (II/a)", "Pengatur Muda Tk. I (II/b)", "Pengatur (II/c)", "Pengatur Tk. I (II/d)", "Penata Muda (III/a)", "Penata Muda Tk. I (III/b)", "Penata (III/c)", "Penata Tk. I (III/d)", "Pembina (IV/a)", "Pembina Tk. I (IV/b)", "Pembina Utama Muda (IV/c)", "Pembina Utama Madya (IV/d)", "Pembina Utama (IV/e)"];
 
 const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initialData = null, targetPersonel = null }) => {
+    const { user } = useAuth();
     const defaultFormState = {
         id: '',
         personelId: '',
@@ -44,7 +47,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
         wujudPerbuatan: '',
         pangkatSaatMelanggar: '',
         jabatanSaatMelanggar: '',
-        satkerSaatMelanggar: '',
+        satkerSaatMelanggar: user?.satker?.nama || '',
         keteranganDasar: '',
 
         // 2. Penyelesaian & 3. Sidang
@@ -72,7 +75,6 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
     const [filePutusan, setFilePutusan] = useState(null);
     const [fileRekomendasi, setFileRekomendasi] = useState(null);
     const [satkerList, setSatkerList] = useState([]);
-    const [nomorSuratError, setNomorSuratError] = useState('');
 
     // State untuk multi-select Array Sanksi Hukuman
     const [selectedHukumanDisiplin, setSelectedHukumanDisiplin] = useState([]);
@@ -125,9 +127,9 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                     nomorSkep: initialData.nomorSkep || '',
                     tanggalSkep: initialData.tanggalSkep ? format(new Date(initialData.tanggalSkep), 'yyyy-MM-dd') : '',
                     tanggalBisaAjukanRps: initialData.tanggalBisaAjukanRps ? format(new Date(initialData.tanggalBisaAjukanRps), 'yyyy-MM-dd') : '',
-                    pangkatSaatMelanggar: initialData.pangkatSaatMelanggar || '',
-                    jabatanSaatMelanggar: initialData.jabatanSaatMelanggar || '',
-                    satkerSaatMelanggar: initialData.satkerSaatMelanggar || ''
+                    pangkatSaatMelanggar: initialData.pangkatSaatMelanggar || targetPersonel?.pangkat || '',
+                    jabatanSaatMelanggar: initialData.jabatanSaatMelanggar || targetPersonel?.jabatan || '',
+                    satkerSaatMelanggar: initialData.satkerSaatMelanggar || targetPersonel?.satker?.nama || ''
                 });
             } else {
                 setFormData({
@@ -135,7 +137,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                     personelId: targetPersonel?.id || '',
                     pangkatSaatMelanggar: targetPersonel?.pangkat || '',
                     jabatanSaatMelanggar: targetPersonel?.jabatan || '',
-                    satkerSaatMelanggar: targetPersonel?.satker?.nama || ''
+                    satkerSaatMelanggar: targetPersonel?.satker?.nama || user?.satker?.nama || ''
                 });
                 setSelectedHukumanDisiplin([]);
                 setSelectedHukumanKepp([]);
@@ -154,53 +156,11 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
         return r[month - 1] || '';
     };
 
-    // Validasi format Nomor Surat berdasarkan jenisDasar
-    const validateNomorSurat = (nomor, jenis) => {
-        if (!nomor) return '';
-        if (jenis === 'Hasil Lidik Terbukti') {
-            // Format: R/LHP-{angka}/{romawi}/HUK.12.10./{tahun}/Paminal
-            const ok = /^R\/LHP-\d+\/[IVX]+\/HUK\.12\.10\.\d{4}\/Paminal$/.test(nomor) ||
-                /^R\/LHP-\s*\d*\s*\/[IVX]+\/HUK\.12\.10\.\s*\/\d{4}\/Paminal$/.test(nomor) ||
-                nomor.startsWith('R/LHP-');
-            if (!ok) return 'Format tidak sesuai. Contoh: R/LHP-01/IV/HUK.12.10./2025/Paminal';
-        }
-        if (jenis === 'LP Pidana') {
-            // Format: LP/A-{angka}/{romawi}/{tahun}
-            const ok = /^LP\/A-\d+\/[IVX]+\/\d{4}$/.test(nomor) ||
-                nomor.startsWith('LP/A-');
-            if (!ok) return 'Format tidak sesuai. Contoh: LP/A-01/IV/2025';
-        }
-        return '';
-    };
 
-    const generateNomorSurat = (jenis, tgl) => {
-        if (!tgl) return '';
-        const d = new Date(tgl);
-        const bulan = toRoman(d.getMonth() + 1);
-        const tahun = d.getFullYear();
-        if (jenis === 'Hasil Lidik Terbukti') return `R/LHP-   /${bulan}/HUK.12.10./${tahun}/Paminal`;
-        if (jenis === 'LP Pidana') return `LP/A-   /${bulan}/${tahun}`;
-        return '';
-    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-
-        // Auto-format nomor surat saat tanggal atau jenis berubah
-        if (name === 'tanggalSurat') {
-            const generated = generateNomorSurat(formData.jenisDasar, value);
-            if (generated) setFormData(prev => ({ ...prev, [name]: value, nomorSurat: generated }));
-        }
-        if (name === 'jenisDasar') {
-            const generated = generateNomorSurat(value, formData.tanggalSurat);
-            if (generated) setFormData(prev => ({ ...prev, [name]: value, nomorSurat: generated }));
-            // Re-validasi nomor surat jika jenis berubah
-            setNomorSuratError(validateNomorSurat(formData.nomorSurat, value));
-        }
-        if (name === 'nomorSurat') {
-            setNomorSuratError(validateNomorSurat(value, formData.jenisDasar));
-        }
 
         // Reset state bawah ketika mengubah cabang pilihan Atas
         if (name === 'statusPenyelesaian') {
@@ -223,14 +183,6 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        // Blokir submit jika nomor surat format salah
-        const nomorErr = validateNomorSurat(formData.nomorSurat, formData.jenisDasar);
-        if (nomorErr) {
-            setNomorSuratError(nomorErr);
-            toast.error('Periksa kembali format Nomor Surat Dasar.');
-            return;
-        }
 
         try {
             const submitData = new FormData();
@@ -307,6 +259,13 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                     </div>
                 )}
 
+                {initialData?.catatanRevisi && (
+                    <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '8px', color: '#c53030', fontSize: '0.9rem' }}>
+                        <strong style={{ display: 'block', marginBottom: '4px', fontSize: '1rem' }}>⚠️ Instruksi Perbaikan dari Admin:</strong>
+                        {initialData.catatanRevisi}
+                    </div>
+                )}
+
                 {/* 1. DASAR CATPERS */}
                 <fieldset style={{ border: '2px solid var(--border)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', background: '#f8fafc' }}>
                     <legend style={{ padding: '0 0.75rem', fontWeight: 700, color: 'var(--primary-color)', fontSize: '1.05rem', background: 'white', border: '1px solid var(--border)', borderRadius: '20px' }}>1. Dasar Catpers / Legalitas</legend>
@@ -336,7 +295,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                         </div>
                         <div className="form-group w-full">
                             <label>Satker Saat Melanggar <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <select className="form-input" name="satkerSaatMelanggar" value={formData.satkerSaatMelanggar || ''} onChange={handleChange} required>
+                            <select className="form-input" name="satkerSaatMelanggar" value={formData.satkerSaatMelanggar || ''} onChange={handleChange} required disabled={user?.role === 'OPERATOR_SATKER'}>
                                 <option value="">-- Pilih Satker --</option>
                                 {satkerList.map(s => <option key={s.id} value={s.nama}>{s.nama}</option>)}
                             </select>
@@ -362,11 +321,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
                     {/* Row 3: Nomor Surat (auto-format) */}
                     <div className="form-group">
-                        <label>Nomor Surat Dasar <span style={{ color: 'var(--danger)' }}>*</span>
-                            {formData.tanggalSurat && ['Hasil Lidik Terbukti', 'LP Pidana'].includes(formData.jenisDasar) && (
-                                <span style={{ fontSize: '0.78rem', color: 'var(--info)', marginLeft: '0.5rem', fontWeight: 400 }}>Format otomatis — edit angka urut di bagian kosong</span>
-                            )}
-                        </label>
+                        <label>Nomor Surat Dasar <span style={{ color: 'var(--danger)' }}>*</span></label>
                         <input
                             type="text"
                             className="form-input"
@@ -374,14 +329,8 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                             value={formData.nomorSurat}
                             onChange={handleChange}
                             required
-                            placeholder="Isi / koreksi nomor surat..."
-                            style={nomorSuratError ? { borderColor: 'var(--danger)', background: '#fff5f5' } : {}}
+                            placeholder="Contoh: R/LHP-01/IV/HUK.12.10./2025/Paminal"
                         />
-                        {nomorSuratError && (
-                            <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ fontWeight: 700 }}>&#9888;</span> {nomorSuratError}
-                            </div>
-                        )}
                     </div>
 
                     {/* Row 4: Upload Berkas + Keterangan */}
@@ -445,16 +394,16 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
                         <div className="flex gap-4">
                             <div className="form-group w-full">
-                                <label>Jenis Peradilan/Sidang</label>
-                                <select className="form-input" name="jenisSidang" value={formData.jenisSidang || ''} onChange={handleChange} style={{ fontWeight: 600 }}>
+                                <label>Jenis Peradilan/Sidang <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <select className="form-input" name="jenisSidang" value={formData.jenisSidang || ''} onChange={handleChange} style={{ fontWeight: 600 }} required>
                                     <option value="DISIPLIN">Sidang DISIPLIN</option>
                                     <option value="KEPP">Sidang Kode Etik (KKEPP)</option>
                                     <option value="PIDANA">Sidang PIDANA / Umum</option>
                                 </select>
                             </div>
                             <div className="form-group w-full">
-                                <label>Status Banding Terdakwa</label>
-                                <select className="form-input" name="banding" value={formData.banding} onChange={handleChange}>
+                                <label>Status Banding Terdakwa <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <select className="form-input" name="banding" value={formData.banding} onChange={handleChange} required>
                                     <option value="false">Tidak Mengajukan Banding (Inkracht)</option>
                                     <option value="true">Mengajukan Banding</option>
                                 </select>
@@ -463,19 +412,19 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
                         <div className="flex gap-4 mb-4">
                             <div className="form-group w-full">
-                                <label>Nomor SKEP Hukuman</label>
-                                <input type="text" className="form-input" name="nomorSkep" value={formData.nomorSkep || ''} onChange={handleChange} required={formData.statusPenyelesaian === 'SIDANG'} />
+                                <label>Nomor SKEP Hukuman <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <input type="text" className="form-input" name="nomorSkep" value={formData.nomorSkep || ''} onChange={handleChange} required />
                             </div>
                             <div className="form-group w-full">
-                                <label>Tanggal SKEP Hukuman</label>
-                                <input type="date" className="form-input" name="tanggalSkep" value={formData.tanggalSkep || ''} onChange={handleChange} required={formData.statusPenyelesaian === 'SIDANG'} />
+                                <label>Tanggal SKEP Hukuman <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <input type="date" className="form-input" name="tanggalSkep" value={formData.tanggalSkep || ''} onChange={handleChange} required />
                             </div>
                         </div>
 
                         <div className="form-group mb-4">
-                            <label>Saran Tanggal Bisa Mengajukan RPS (Opsional)</label>
-                            <input type="date" className="form-input" name="tanggalBisaAjukanRps" value={formData.tanggalBisaAjukanRps || ''} onChange={handleChange} style={{ border: '1px solid var(--info)' }} />
-                            <small style={{ color: 'var(--text-muted)' }}>* Form Penginputan RPS (Bagian 4) akan ditutup sampai tanggal ini terlewati, jika diisi.</small>
+                            <label>Saran Tanggal Bisa Mengajukan RPS <span style={{ color: 'var(--danger)' }}>*</span></label>
+                            <input type="date" className="form-input" name="tanggalBisaAjukanRps" value={formData.tanggalBisaAjukanRps || ''} onChange={handleChange} required style={{ border: '1px solid var(--info)' }} />
+                            <small style={{ color: 'var(--text-muted)' }}>* Form Penginputan RPS (Bagian 4) akan ditutup sampai tanggal ini terlewati.</small>
                         </div>
 
                         {/* Rendering Format Sanksi Sesuai Jenis Sidang */}
@@ -536,12 +485,12 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
                         <div className="flex gap-4">
                             <div className="form-group w-full">
-                                <label>Nomor Surat RPS</label>
-                                <input type="text" className="form-input" name="nomorRekomendasi" value={formData.nomorRekomendasi || ''} onChange={handleChange} placeholder="Kosongkan jika RPS belum turun" disabled={isRpsLocked} />
+                                <label>Nomor Surat RPS <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <input type="text" className="form-input" name="nomorRekomendasi" value={formData.nomorRekomendasi || ''} onChange={handleChange} placeholder="Masukkan nomor surat RPS" disabled={isRpsLocked} required={!isRpsLocked} />
                             </div>
                             <div className="form-group w-full">
-                                <label>Tanggal Surat RPS</label>
-                                <input type="date" className="form-input" name="tanggalRekomendasi" value={formData.tanggalRekomendasi || ''} onChange={handleChange} disabled={isRpsLocked} />
+                                <label>Tanggal Surat RPS <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                <input type="date" className="form-input" name="tanggalRekomendasi" value={formData.tanggalRekomendasi || ''} onChange={handleChange} disabled={isRpsLocked} required={!isRpsLocked} />
                             </div>
                         </div>
 

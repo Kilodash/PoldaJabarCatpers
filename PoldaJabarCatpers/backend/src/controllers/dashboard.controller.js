@@ -16,13 +16,10 @@ const getDashboardStats = async (req, res) => {
 
         // 1. Jumlah Personel (Yang Masih Aktif)
         const totalPersonel = await prisma.personel.count({
-            where: { ...satkerFilter, deletedAt: null }
+            where: { ...satkerFilter, deletedAt: null, isDraft: false }
         });
 
         // 2. Personel Tidak Aktif
-        // Personel dihitung "Tidak Aktif" jika:
-        // a. Sudah masuk usia pensiun (tanggalPensiun <= currentDate)
-        // ATAU b. Telah di-SoftDelete (statusKeaktifan != 'AKTIF')
         const tidakAktif = await prisma.personel.count({
             where: {
                 ...satkerFilter,
@@ -30,18 +27,21 @@ const getDashboardStats = async (req, res) => {
                     { tanggalPensiun: { lte: currentDate } },
                     { statusKeaktifan: { not: 'AKTIF' } },
                     { deletedAt: { not: null } }
-                ]
+                ],
+                isDraft: false
             }
         });
 
         const pelanggaranFilter = req.user.role === 'OPERATOR_SATKER' || req.query.satkerId ? {
             deletedAt: null,
+            isDraft: false,
             personel: {
                 satkerId: req.user.role === 'OPERATOR_SATKER' ? req.user.satkerId : parseInt(req.query.satkerId),
                 deletedAt: null
             }
         } : {
             deletedAt: null,
+            isDraft: false,
             personel: { deletedAt: null }
         };
 
@@ -50,7 +50,7 @@ const getDashboardStats = async (req, res) => {
             where: { ...pelanggaranFilter, statusPenyelesaian: 'PERDAMAIAN' }
         });
 
-        // 4. Pernah Tercatat (Sudah Menjalankan Hukuman)
+        // 4. Pernah Tercatat
         const pernahTercatat = await prisma.pelanggaran.count({
             where: {
                 ...pelanggaranFilter,
@@ -82,6 +82,21 @@ const getDashboardStats = async (req, res) => {
             }
         });
 
+        // 7. Butuh Approval (Hanya Personel & Pelanggaran yang isDraft=true)
+        const butuhApprovalPersonel = await prisma.personel.count({
+            where: { ...satkerFilter, isDraft: true, deletedAt: null }
+        });
+        const butuhApprovalPelanggaran = await prisma.pelanggaran.count({
+            where: {
+                deletedAt: null,
+                isDraft: true,
+                personel: {
+                    ...satkerFilter,
+                    deletedAt: null
+                }
+            }
+        });
+
         res.json({
             stats: {
                 totalPersonel,
@@ -89,7 +104,8 @@ const getDashboardStats = async (req, res) => {
                 catpersAktif,
                 pernahTercatat,
                 belumRps,
-                perdamaian
+                perdamaian,
+                butuhApproval: butuhApprovalPersonel + butuhApprovalPelanggaran
             }
         });
 
@@ -118,7 +134,7 @@ const getSatkerStats = async (req, res) => {
         const satkerStatsPromises = listSatker.map(async (satker) => {
             const satkerId = satker.id;
 
-            const totalPersonel = await prisma.personel.count({ where: { satkerId, deletedAt: null } });
+            const totalPersonel = await prisma.personel.count({ where: { satkerId, deletedAt: null, isDraft: false } });
 
             const tidakAktif = await prisma.personel.count({
                 where: {
@@ -127,17 +143,19 @@ const getSatkerStats = async (req, res) => {
                         { tanggalPensiun: { lte: currentDate } },
                         { statusKeaktifan: { not: 'AKTIF' } },
                         { deletedAt: { not: null } }
-                    ]
+                    ],
+                    isDraft: false
                 }
             });
 
             const perdamaian = await prisma.pelanggaran.count({
-                where: { deletedAt: null, personel: { satkerId, deletedAt: null }, statusPenyelesaian: 'PERDAMAIAN' }
+                where: { deletedAt: null, isDraft: false, personel: { satkerId, deletedAt: null }, statusPenyelesaian: 'PERDAMAIAN' }
             });
 
             const pernahTercatat = await prisma.pelanggaran.count({
                 where: {
                     deletedAt: null,
+                    isDraft: false,
                     personel: { satkerId, deletedAt: null },
                     statusPenyelesaian: 'MENJALANI_HUKUMAN',
                     tanggalRekomendasi: { not: null }
@@ -147,6 +165,7 @@ const getSatkerStats = async (req, res) => {
             const belumRps = await prisma.pelanggaran.count({
                 where: {
                     deletedAt: null,
+                    isDraft: false,
                     personel: { satkerId, deletedAt: null },
                     statusPenyelesaian: { in: ['TIDAK_TERBUKTI', 'MENJALANI_HUKUMAN'] },
                     tanggalRekomendasi: null
@@ -156,6 +175,7 @@ const getSatkerStats = async (req, res) => {
             const catpersAktif = await prisma.pelanggaran.count({
                 where: {
                     deletedAt: null,
+                    isDraft: false,
                     personel: { satkerId, deletedAt: null },
                     OR: [
                         { statusPenyelesaian: 'PROSES' },
@@ -167,6 +187,9 @@ const getSatkerStats = async (req, res) => {
                 }
             });
 
+            const butuhApproval = (await prisma.personel.count({ where: { satkerId, isDraft: true, deletedAt: null } })) +
+                (await prisma.pelanggaran.count({ where: { isDraft: true, deletedAt: null, personel: { satkerId, deletedAt: null } } }));
+
             return {
                 id: satker.id,
                 nama: satker.nama,
@@ -175,7 +198,8 @@ const getSatkerStats = async (req, res) => {
                 catpersAktif,
                 pernahTercatat,
                 belumRps,
-                perdamaian
+                perdamaian,
+                butuhApproval
             };
         });
 

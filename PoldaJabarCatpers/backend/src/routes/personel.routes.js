@@ -12,4 +12,8 @@ router.get('/:id', personelController.getPersonelById);
 router.put('/:id', personelController.updatePersonel);
 router.delete('/:id', personelController.deletePersonel);
 
+// Approval System
+router.post('/approve/:id', personelController.approvePersonel);
+router.post('/reject/:id', personelController.rejectPersonel);
+
 module.exports = router;

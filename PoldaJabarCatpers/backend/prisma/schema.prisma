@@ -51,6 +51,8 @@ model Personel {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   deletedAt     DateTime? // Soft Delete
+  isDraft       Boolean   @default(false)
+  catatanRevisi String?
 
   satker      Satker        @relation(fields: [satkerId], references: [id])
   pelanggaran Pelanggaran[]
@@ -59,6 +61,7 @@ model Personel {
 model Pelanggaran {
   id               String   @id @default(uuid())
   personelId       String
+  isDraft          Boolean  @default(false)
   
   // Dasar
   jenisDasar       String?
@@ -95,6 +98,7 @@ model Pelanggaran {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   deletedAt        DateTime? // Soft Delete
+  catatanRevisi    String?
 
   personel Personel @relation(fields: [personelId], references: [id], onDelete: Cascade)
 }

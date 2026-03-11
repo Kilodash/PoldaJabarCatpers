@@ -19,4 +19,8 @@ router.get('/:id', pelanggaranController.getPelanggaranById);
 router.put('/:id', cpUpload, pelanggaranController.updatePelanggaran);
 router.delete('/:id', pelanggaranController.deletePelanggaran);
 
+// Approval System
+router.post('/approve/:id', pelanggaranController.approvePelanggaran);
+router.post('/reject/:id', pelanggaranController.rejectPelanggaran);
+
 module.exports = router;

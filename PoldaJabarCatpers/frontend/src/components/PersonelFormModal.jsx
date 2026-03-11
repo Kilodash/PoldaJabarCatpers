@@ -42,7 +42,7 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
                     namaLengkap: initialData.namaLengkap,
                     pangkat: initialData.pangkat,
                     jabatan: initialData.jabatan,
-                    satkerId: initialData.satkerId.toString(),
+                    satkerId: initialData.satkerId ? initialData.satkerId.toString() : '',
                     tanggalLahir: initialData.tanggalLahir ? format(new Date(initialData.tanggalLahir), 'yyyy-MM-dd') : ''
                 });
                 setNrpStatus({ isValid: true, message: '' });
@@ -54,7 +54,7 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
                     namaLengkap: '',
                     pangkat: '',
                     jabatan: '',
-                    satkerId: user?.role === 'OPERATOR_SATKER' ? user?.satkerId.toString() : '',
+                    satkerId: user?.satker?.id ? user.satker.id.toString() : '',
                     tanggalLahir: ''
                 });
                 setNrpStatus({ isValid: true, message: '' });
@@ -210,6 +210,12 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
         <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? "Edit Data Personel" : "Tambah Personel Baru"}>
             {loading ? <div className="loading-state">Memuat Konfigurasi...</div> : (
                 <form onSubmit={handleSubmit}>
+                    {initialData?.catatanRevisi && (
+                        <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '8px', color: '#c53030', fontSize: '0.9rem' }}>
+                            <strong style={{ display: 'block', marginBottom: '4px', fontSize: '1rem' }}>⚠️ Instruksi Perbaikan dari Admin:</strong>
+                            {initialData.catatanRevisi}
+                        </div>
+                    )}
                     <div className="flex gap-4">
                         <div className="form-group w-full">
                             <label>Jenis Pegawai</label>

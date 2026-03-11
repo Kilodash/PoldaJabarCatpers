@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Users, UserMinus, AlertCircle, History, Clock, Handshake, Search, X, ChevronLeft, ChevronRight, Eye, Plus, Edit2, Trash2 } from 'lucide-react';
+import {
+    Users, AlertCircle, History, UserPlus, Search, Edit2, Trash2, Eye, LayoutGrid, FileText, Settings, LogOut, ChevronRight, ChevronLeft,
+    Clock, UserMinus, Handshake, CheckCircle, XCircle, Plus, Download, ExternalLink
+} from 'lucide-react';
 import { format } from 'date-fns';
 import api from '../utils/api';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import './Dashboard.css';
 import Modal from '../components/Modal';
 import PersonelFormModal from '../components/PersonelFormModal';
 import PelanggaranFormModal from '../components/PelanggaranFormModal';
+import { exportPersonelPDF } from '../utils/pdfGenerator';
+
 
 const StatCard = ({ title, value, icon, colorClass, onClick }) => (
     <div className={`stat-card ${colorClass}`} onClick={onClick} style={{ cursor: 'pointer', transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-2px)' } }}>
@@ -82,6 +87,8 @@ const Dashboard = () => {
     const [selectedPersonel, setSelectedPersonel] = useState(null);
     const [isEditPersonel, setIsEditPersonel] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, alasan: '', statusKeaktifan: '' });
+    const [rejectModal, setRejectModal] = useState({ isOpen: false, id: null, type: null, catatan: '' });
+    const [viewingPelanggaran, setViewingPelanggaran] = useState(null);
 
     const fetchStats = async () => {
         try {
@@ -102,29 +109,30 @@ const Dashboard = () => {
         fetchStats();
     }, []);
 
+    const fetchModalList = async () => {
+        if (!modalData.isOpen) return;
+        setModalLoading(true);
+        try {
+            let url = `/personel?search=${modalSearch}`;
+            if (modalData.category) url += `&category=${modalData.category}`;
+            if (modalData.satkerId) url += `&satkerId=${modalData.satkerId}`;
+
+            const res = await api.get(url);
+            setModalList(res.data);
+        } catch (error) {
+            console.error("Gagal mengambil data list personel", error);
+        } finally {
+            setModalLoading(false);
+        }
+    };
+
     // Scroll to Top effect whenever Modal is opened
     useEffect(() => {
         if (modalData.isOpen) {
-            const fetchDetailedPersonel = async () => {
-                setModalLoading(true);
-                try {
-                    let url = `/personel?search=${modalSearch}`;
-                    if (modalData.category) url += `&category=${modalData.category}`;
-                    if (modalData.satkerId) url += `&satkerId=${modalData.satkerId}`;
-
-                    const res = await api.get(url);
-                    setModalList(res.data);
-                    // Reset to page 1 every time search changes
-                    setCurrentPage(1);
-                } catch (error) {
-                    console.error("Gagal mengambil data list personel", error);
-                } finally {
-                    setModalLoading(false);
-                }
-            };
             // Debounce for search
             const delayDebounceFn = setTimeout(() => {
-                fetchDetailedPersonel();
+                fetchModalList();
+                setCurrentPage(1);
             }, 500);
             return () => clearTimeout(delayDebounceFn);
         }
@@ -140,6 +148,7 @@ const Dashboard = () => {
         setModalData({ ...modalData, isOpen: false });
         setModalList([]);
         setSelectedPersonelDetail(null);
+        fetchStats(); // Refresh data utama saat modal ditutup
     };
 
     const handleGlobalSearch = (e) => {
@@ -179,10 +188,61 @@ const Dashboard = () => {
                 handleViewDetail(selectedPersonelDetail.id);
             }
             fetchStats();
+            fetchModalList(); // Refresh data list modal agar status update
         } catch (error) {
             toast.error(error.response?.data?.message || 'Gagal menghapus pelanggaran.');
         }
     };
+
+    const handleApprovePelanggaran = async (id) => {
+        try {
+            await api.post(`/pelanggaran/approve/${id}`);
+            toast.success('Catatan pelanggaran telah disetujui.');
+            if (selectedPersonelDetail) handleViewDetail(selectedPersonelDetail.id);
+            fetchStats();
+            fetchModalList();
+        } catch (error) {
+            toast.error('Gagal menyetujui data.');
+        }
+    }
+
+    const handleRejectPelanggaran = (id) => {
+        setRejectModal({ isOpen: true, id, type: 'pelanggaran', catatan: '' });
+    }
+
+    const confirmReject = async () => {
+        if (!rejectModal.catatan.trim()) {
+            toast.error('Gagal: Catatan revisi wajib diisi.');
+            return;
+        }
+        try {
+            const url = rejectModal.type === 'personel' ? `/personel/reject/${rejectModal.id}` : `/pelanggaran/reject/${rejectModal.id}`;
+            await api.post(url, { catatanRevisi: rejectModal.catatan });
+            toast.success('Draft berhasil dikembalikan untuk revisi.');
+            setRejectModal({ isOpen: false, id: null, type: null, catatan: '' });
+
+            if (selectedPersonelDetail) handleViewDetail(selectedPersonelDetail.id);
+            fetchStats();
+            fetchModalList();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Gagal memproses penolakan.');
+        }
+    }
+
+    const handleApprovePersonel = async (id) => {
+        try {
+            await api.post(`/personel/approve/${id}`);
+            toast.success('Data personel telah disetujui.');
+            fetchStats();
+            fetchModalList();
+        } catch (error) {
+            toast.error('Gagal menyetujui data.');
+        }
+    }
+
+    const handleRejectPersonel = (id) => {
+        setRejectModal({ isOpen: true, id, type: 'personel', catatan: '' });
+    }
 
     const handleEditPersonel = (personel) => {
         setSelectedPersonel(personel);
@@ -205,13 +265,7 @@ const Dashboard = () => {
             toast.success('Personel berhasil dinonaktifkan / dihapus dari sistem (soft delete).');
             setDeleteModal({ isOpen: false, id: null, alasan: '', statusKeaktifan: '' });
             fetchStats();
-
-            // Refresh modal list agar baris yang terhapus hilang
-            if (modalData.isOpen) {
-                const url = `/personel?search=${modalSearch}${modalData.category ? `&category=${modalData.category}` : ''}${modalData.satkerId ? `&satkerId=${modalData.satkerId}` : ''}`;
-                const res = await api.get(url);
-                setModalList(res.data);
-            }
+            fetchModalList(); // Refresh modal list agar baris yang terhapus hilang
         } catch (error) {
             toast.error(error.response?.data?.message || 'Terjadi kesalahan saat menghapus personel.');
         }
@@ -220,6 +274,32 @@ const Dashboard = () => {
     // Pagination Logic
     const totalPages = Math.ceil(modalList.length / itemsPerPage);
     const currentList = modalList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    const renderAttachment = (url, title) => {
+        if (!url) return null;
+        const fullUrl = `http://localhost:5000${url}`;
+        const isPdf = url.toLowerCase().endsWith('.pdf');
+
+        return (
+            <div style={{ marginTop: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--bg-color)', padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{title}</span>
+                    <a href={fullUrl} target="_blank" rel="noreferrer" className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.8rem' }}>
+                        Buka di Tab Baru <ExternalLink size={14} style={{ marginLeft: '4px' }} />
+                    </a>
+                </div>
+                <div style={{ width: '100%', height: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#f8fafc' }}>
+                    {isPdf ? (
+                        <object data={fullUrl} type="application/pdf" width="100%" height="100%">
+                            <p>Browser tidak mendukung tampilan PDF. <a href={fullUrl} target="_blank" rel="noreferrer">Unduh PDF</a>.</p>
+                        </object>
+                    ) : (
+                        <img src={fullUrl} alt={title} style={{ maxWidth: '100%', maxHeight: '400px', objectFit: 'contain' }} />
+                    )}
+                </div>
+            </div>
+        );
+    };
 
     if (loading) return <div className="loading-state">Memuat Statistik...</div>;
 
@@ -259,65 +339,72 @@ const Dashboard = () => {
                     <StatCard title="Catpers Aktif" value={stats?.catpersAktif || 0} icon={AlertCircle} colorClass="card-danger" onClick={() => handleOpenModal('Personel Dengan Catatan Aktif', 'catpersAktif')} />
                 </div>
 
-                <h2 className="section-title mt-2">Penyelesaian</h2>
-                <div className="stats-grid">
+                <h2 className="section-title mt-2">Penyelesaian & Administrasi</h2>
+                <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
                     <StatCard title="Pernah Tercatat" value={stats?.pernahTercatat || 0} icon={History} colorClass="card-warning" onClick={() => handleOpenModal('Personel Pernah Tercatat', 'pernahTercatat')} />
                     <StatCard title="Belum Mengajukan RPS" value={stats?.belumRps || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Tanggungan RPS Terbuka', 'belumRps')} />
                     <StatCard title="Perdamaian" value={stats?.perdamaian || 0} icon={Handshake} colorClass="card-success" onClick={() => handleOpenModal('Kasus Selesai (Perdamaian)', 'perdamaian')} />
+                    <StatCard title="Butuh Persetujuan" value={stats?.butuhApproval || 0} icon={UserPlus} colorClass="card-secondary" onClick={() => handleOpenModal('Menunggu Persetujuan Admin', 'butuhApproval')} />
                 </div>
 
-                <div className="table-container mt-4">
-                    <div className="card-header mb-4">
-                        <h3>Rekap Data Per Satker</h3>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Klik baris tabel untuk melihat rincian personel pada Kesatuan tersebut.</p>
+                {user?.role === 'ADMIN_POLDA' && (
+                    <div className="table-container mt-4">
+                        <div className="card-header mb-4">
+                            <h3>Rekap Data Per Satker</h3>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Klik baris tabel untuk melihat rincian personel pada Kesatuan tersebut.</p>
+                        </div>
+                        <div style={{ overflowX: 'auto', maxHeight: '500px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                            <table className="data-table" style={{ margin: 0, border: 'none' }}>
+                                <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'white', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+                                    <tr>
+                                        <th>Satuan Kerja (Satker)</th>
+                                        <th style={{ textAlign: 'center' }}>Total Personel</th>
+                                        <th style={{ textAlign: 'center' }}>Tidak Aktif</th>
+                                        <th style={{ textAlign: 'center' }}>Catpers Aktif</th>
+                                        <th style={{ textAlign: 'center' }}>Pernah Tercatat</th>
+                                        <th style={{ textAlign: 'center' }}>Belum RPS</th>
+                                        <th style={{ textAlign: 'center' }}>Perdamaian</th>
+                                        <th style={{ textAlign: 'center' }}>Approval</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {satkerStatsList.length === 0 ? (
+                                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>Data kesatuan tidak ditemukan</td></tr>
+                                    ) : (
+                                        satkerStatsList.map(s => (
+                                            <tr key={s.id} className="hover-row">
+                                                <td style={{ fontWeight: 600, cursor: 'pointer' }} onClick={() => handleOpenModal(`Semua Personel: ${s.nama}`, '', s.id)}>
+                                                    <span style={{ color: 'var(--primary-color)' }}>{s.nama}</span>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {renderBadge(s.totalPersonel, 'primary-color', s.totalPersonel > 0, () => handleOpenModal(`Semua Personel (${s.nama})`, '', s.id))}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {renderBadge(s.tidakAktif, 'secondary-color', s.tidakAktif > 0, () => handleOpenModal(`Personel Tidak Aktif (${s.nama})`, 'tidakAktif', s.id))}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {renderBadge(s.catpersAktif, 'danger', s.catpersAktif > 0, () => handleOpenModal(`Catatan Aktif (${s.nama})`, 'catpersAktif', s.id))}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {renderBadge(s.pernahTercatat, 'warning', s.pernahTercatat > 0, () => handleOpenModal(`Pernah Tercatat (${s.nama})`, 'pernahTercatat', s.id))}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {renderBadge(s.belumRps, 'info', s.belumRps > 0, () => handleOpenModal(`Belum RPS (${s.nama})`, 'belumRps', s.id))}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {renderBadge(s.perdamaian, 'success', s.perdamaian > 0, () => handleOpenModal(`Perdamaian (${s.nama})`, 'perdamaian', s.id))}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {renderBadge(s.butuhApproval, 'secondary-color', s.butuhApproval > 0, () => handleOpenModal(`Menunggu Approval (${s.nama})`, 'butuhApproval', s.id))}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div style={{ overflowX: 'auto', maxHeight: '500px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                        <table className="data-table" style={{ margin: 0, border: 'none' }}>
-                            <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'white', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
-                                <tr>
-                                    <th>Satuan Kerja (Satker)</th>
-                                    <th style={{ textAlign: 'center' }}>Total Personel</th>
-                                    <th style={{ textAlign: 'center' }}>Tidak Aktif</th>
-                                    <th style={{ textAlign: 'center' }}>Catpers Aktif</th>
-                                    <th style={{ textAlign: 'center' }}>Pernah Tercatat</th>
-                                    <th style={{ textAlign: 'center' }}>Belum RPS</th>
-                                    <th style={{ textAlign: 'center' }}>Perdamaian</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {satkerStatsList.length === 0 ? (
-                                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>Data kesatuan tidak ditemukan</td></tr>
-                                ) : (
-                                    satkerStatsList.map(s => (
-                                        <tr key={s.id} className="hover-row">
-                                            <td style={{ fontWeight: 600, cursor: 'pointer' }} onClick={() => handleOpenModal(`Semua Personel: ${s.nama}`, '', s.id)}>
-                                                <span style={{ color: 'var(--primary-color)' }}>{s.nama}</span>
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {renderBadge(s.totalPersonel, 'primary-color', s.totalPersonel > 0, () => handleOpenModal(`Semua Personel (${s.nama})`, '', s.id))}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {renderBadge(s.tidakAktif, 'secondary-color', s.tidakAktif > 0, () => handleOpenModal(`Personel Tidak Aktif (${s.nama})`, 'tidakAktif', s.id))}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {renderBadge(s.catpersAktif, 'danger', s.catpersAktif > 0, () => handleOpenModal(`Catatan Aktif (${s.nama})`, 'catpersAktif', s.id))}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {renderBadge(s.pernahTercatat, 'warning', s.pernahTercatat > 0, () => handleOpenModal(`Pernah Tercatat (${s.nama})`, 'pernahTercatat', s.id))}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {renderBadge(s.belumRps, 'info', s.belumRps > 0, () => handleOpenModal(`Belum RPS (${s.nama})`, 'belumRps', s.id))}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                {renderBadge(s.perdamaian, 'success', s.perdamaian > 0, () => handleOpenModal(`Perdamaian (${s.nama})`, 'perdamaian', s.id))}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                )}
             </div>
 
             <Modal isOpen={modalData.isOpen} onClose={handleCloseModal} title={selectedPersonelDetail ? `Catatan: ${selectedPersonelDetail.namaLengkap}` : `Detail Data: ${modalData.title}`} maxWidth="90%">
@@ -325,34 +412,49 @@ const Dashboard = () => {
                 {selectedPersonelDetail ? (
                     // VIEW DETAIL HISTORI PELANGGARAN
                     <div>
-                        <button className="btn-secondary mb-4" onClick={() => setSelectedPersonelDetail(null)}>
+                        <button className="btn-secondary mb-4" onClick={() => {
+                            setSelectedPersonelDetail(null);
+                            fetchStats(); // Refresh data utama (dashboard card)
+                            fetchModalList(); // Refresh data list modal agar status terbaru muncul
+                        }}>
                             <ChevronLeft size={16} /> Kembali ke Daftar
                         </button>
 
                         {detailLoading ? <div className="loading-state py-4">Memuat Rekam Jejak...</div> : (
                             <div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'var(--bg-color)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', background: 'var(--bg-color)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
                                     <div><strong style={{ color: 'var(--text-muted)' }}>NRP / NIP</strong><br />{selectedPersonelDetail.nrpNip}</div>
                                     <div><strong style={{ color: 'var(--text-muted)' }}>Pangkat / Gol.</strong><br />{selectedPersonelDetail.pangkat}</div>
+                                    <div><strong style={{ color: 'var(--text-muted)' }}>Jenis Pegawai</strong><br />{selectedPersonelDetail.jenisPegawai}</div>
                                     <div><strong style={{ color: 'var(--text-muted)' }}>Jabatan</strong><br />{selectedPersonelDetail.jabatan}</div>
                                     <div><strong style={{ color: 'var(--text-muted)' }}>Kesatuan</strong><br />{selectedPersonelDetail.satker?.nama}</div>
+                                    <div><strong style={{ color: 'var(--text-muted)' }}>Tanggal Lahir</strong><br />{format(new Date(selectedPersonelDetail.tanggalLahir), 'dd/MM/yyyy')}</div>
                                 </div>
 
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                                     <h3 style={{ margin: 0 }}>Riwayat Catatan Personel ({selectedPersonelDetail.pelanggaran?.length || 0})</h3>
-                                    {(user?.role === 'ADMIN_POLDA' || selectedPersonelDetail.satkerId === user?.satkerId) && (
+                                    <div className="flex gap-2">
                                         <button
-                                            className="btn-primary"
+                                            className="btn-secondary"
                                             style={{ padding: '0.4rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                                            onClick={() => {
-                                                setSelectedPelanggaran(null);
-                                                setIsEditPelanggaran(false);
-                                                setIsPelanggaranModalOpen(true);
-                                            }}
+                                            onClick={() => exportPersonelPDF(selectedPersonelDetail)}
                                         >
-                                            <Plus size={15} /> Tambah Catatan
+                                            <Download size={15} /> Cetak Laporan (PDF)
                                         </button>
-                                    )}
+                                        {(user?.role === 'ADMIN_POLDA' || selectedPersonelDetail.satkerId === user?.satkerId) && (
+                                            <button
+                                                className="btn-primary"
+                                                style={{ padding: '0.4rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                                                onClick={() => {
+                                                    setSelectedPelanggaran(null);
+                                                    setIsEditPelanggaran(false);
+                                                    setIsPelanggaranModalOpen(true);
+                                                }}
+                                            >
+                                                <Plus size={15} /> Tambah Catatan
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
                                     <table className="data-table" style={{ fontSize: '0.85em' }}>
@@ -370,10 +472,18 @@ const Dashboard = () => {
                                                 <tr><td colSpan="4" style={{ textAlign: 'center', padding: '1rem', color: 'var(--success)' }}>Personel ini bersih dari catatan pelanggaran.</td></tr>
                                             ) : (
                                                 selectedPersonelDetail.pelanggaran?.map(pel => (
-                                                    <tr key={pel.id}>
-                                                        <td>{pel.tanggalSurat ? format(new Date(pel.tanggalSurat), 'dd/MM/yyyy') : format(new Date(pel.createdAt), 'dd/MM/yyyy')}</td>
+                                                    <tr key={pel.id} style={{ background: pel.isDraft ? 'rgba(255, 0, 0, 0.05)' : 'transparent' }}>
+                                                        <td>
+                                                            {pel.tanggalSurat ? format(new Date(pel.tanggalSurat), 'dd/MM/yyyy') : format(new Date(pel.createdAt), 'dd/MM/yyyy')}
+                                                            {pel.isDraft && <div style={{ color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', display: 'inline-block', padding: '1px 3px', borderRadius: '3px', marginLeft: '5px' }}>DRAFT</div>}
+                                                        </td>
                                                         <td>
                                                             <div style={{ fontWeight: 600 }}>{pel.wujudPerbuatan}</div>
+                                                            {pel.catatanRevisi && (
+                                                                <div style={{ marginTop: '5px', padding: '6px 10px', background: '#fff5f5', borderLeft: '3px solid var(--danger)', fontSize: '0.8rem', color: 'var(--danger)', borderRadius: '4px' }}>
+                                                                    <strong>⚠️ Alasan Revisi:</strong> {pel.catatanRevisi}
+                                                                </div>
+                                                            )}
                                                             {['TIDAK_TERBUKTI', 'PERDAMAIAN'].includes(pel.statusPenyelesaian) ? null : (
                                                                 <div style={{ marginTop: '4px' }}>
                                                                     {pel.jenisSidang && <><strong style={{ color: 'var(--danger)', fontSize: '0.85em' }}>Sidang {pel.jenisSidang}</strong><br /></>}
@@ -390,6 +500,8 @@ const Dashboard = () => {
                                                                     {pel.nomorRekomendasi && <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>No: {pel.nomorRekomendasi}</div>}
                                                                     {pel.fileRekomendasiUrl && <div style={{ fontSize: '0.8em', marginTop: '2px' }}><a href={`http://localhost:5000${pel.fileRekomendasiUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-color)' }}>Lihat Berkas</a></div>}
                                                                 </div>
+                                                            ) : pel.statusPenyelesaian === 'PERDAMAIAN' ? (
+                                                                <span style={{ color: 'var(--success)', fontStyle: 'italic', fontWeight: 600 }}>Selesai (RJ)</span>
                                                             ) : (
                                                                 pel.tanggalBisaAjukanRps && new Date() < new Date(pel.tanggalBisaAjukanRps) ? (
                                                                     <div>
@@ -404,8 +516,18 @@ const Dashboard = () => {
                                                         {user?.role === 'ADMIN_POLDA' && (
                                                             <td>
                                                                 <div className="flex gap-2">
-                                                                    <button className="btn-icon" onClick={() => handleEditPelanggaran(pel)} title="Revisi/Edit Pelanggaran"><Edit2 size={16} /></button>
-                                                                    <button className="btn-icon delete" onClick={() => setDeletePelanggaranModal({ isOpen: true, id: pel.id, alasan: '' })} title="Hapus Data (Soft Delete)"><Trash2 size={16} /></button>
+                                                                    <button className="btn-icon" style={{ color: 'var(--info)' }} onClick={() => setViewingPelanggaran(pel)} title="Lihat Detail Lengkap"><Eye size={18} /></button>
+                                                                    {pel.isDraft ? (
+                                                                        <>
+                                                                            <button className="btn-icon" style={{ color: 'var(--success)' }} onClick={() => handleApprovePelanggaran(pel.id)} title="Setujui Draft"><CheckCircle size={18} /></button>
+                                                                            <button className="btn-icon" style={{ color: 'var(--danger)' }} onClick={() => handleRejectPelanggaran(pel.id)} title="Tolak & Hapus"><XCircle size={18} /></button>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <button className="btn-icon" onClick={() => handleEditPelanggaran(pel)} title="Revisi/Edit Pelanggaran"><Edit2 size={16} /></button>
+                                                                            <button className="btn-icon delete" onClick={() => setDeletePelanggaranModal({ isOpen: true, id: pel.id, alasan: '' })} title="Hapus Data (Soft Delete)"><Trash2 size={16} /></button>
+                                                                        </>
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                         )}
@@ -457,7 +579,16 @@ const Dashboard = () => {
                                                 currentList.map(p => (
                                                     <tr key={p.id}>
                                                         <td><span style={{ fontWeight: 600 }}>{p.nrpNip}</span><br /><small>{p.jenisPegawai}</small></td>
-                                                        <td>{p.namaLengkap}</td>
+                                                        <td>
+                                                            {p.namaLengkap}
+                                                            {p.isDraft && <span style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', padding: '1px 4px', borderRadius: '4px' }}>DRAFT</span>}
+                                                            {p.hasDraftViolation && <span style={{ marginLeft: '8px', color: 'var(--warning)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--warning)', padding: '1px 4px', borderRadius: '4px' }}>CATATAN DRAFT</span>}
+                                                            {p.catatanRevisi && (
+                                                                <div style={{ marginTop: '5px', padding: '5px 8px', background: '#fff5f5', borderLeft: '3px solid var(--danger)', fontSize: '0.75rem', color: 'var(--danger)', borderRadius: '4px' }}>
+                                                                    <strong>⚠️ Perlu Perbaikan:</strong> {p.catatanRevisi}
+                                                                </div>
+                                                            )}
+                                                        </td>
                                                         <td>{p.pangkat}</td>
                                                         <td>{p.satker?.nama || '-'}</td>
                                                         <td>
@@ -478,7 +609,13 @@ const Dashboard = () => {
                                                             >
                                                                 <Eye size={18} /> Lihat Catatan
                                                             </button>
-                                                            {(user?.role === 'ADMIN_POLDA' || p.satkerId === user?.satkerId) && (
+                                                            {user?.role === 'ADMIN_POLDA' && p.isDraft && (
+                                                                <>
+                                                                    <button className="btn-icon" style={{ color: 'var(--success)' }} onClick={() => handleApprovePersonel(p.id)} title="Setujui Personel Baru"><CheckCircle size={20} /></button>
+                                                                    <button className="btn-icon" style={{ color: 'var(--danger)' }} onClick={() => handleRejectPersonel(p.id)} title="Tolak & Hapus Draft"><XCircle size={20} /></button>
+                                                                </>
+                                                            )}
+                                                            {(user?.role === 'ADMIN_POLDA' || p.satkerId === user?.satkerId) && !p.isDraft && (
                                                                 <>
                                                                     <button className="btn-icon" onClick={() => handleEditPersonel(p)} title="Edit Data Dasar Personel"><Edit2 size={18} /></button>
                                                                     <button className="btn-icon delete" onClick={() => triggerDeletePersonel(p.id)} title="Nonaktifkan / Hapus"><Trash2 size={18} /></button>
@@ -525,13 +662,9 @@ const Dashboard = () => {
             <PersonelFormModal
                 isOpen={isAddPersonelOpen}
                 onClose={() => { setIsAddPersonelOpen(false); setIsEditPersonel(false); setSelectedPersonel(null); }}
-                onSuccess={async () => {
+                onSuccess={() => {
                     fetchStats();
-                    if (modalData.isOpen) {
-                        const url = `/personel?search=${modalSearch}${modalData.category ? `&category=${modalData.category}` : ''}${modalData.satkerId ? `&satkerId=${modalData.satkerId}` : ''}`;
-                        const res = await api.get(url);
-                        setModalList(res.data);
-                    }
+                    fetchModalList();
                 }}
                 isEdit={isEditPersonel}
                 initialData={selectedPersonel}
@@ -542,6 +675,7 @@ const Dashboard = () => {
                 onClose={() => { setIsPelanggaranModalOpen(false); setSelectedPelanggaran(null); }}
                 onSuccess={() => {
                     fetchStats();
+                    fetchModalList();
                     if (selectedPersonelDetail) handleViewDetail(selectedPersonelDetail.id);
                 }}
                 isEdit={isEditPelanggaran}
@@ -608,6 +742,147 @@ const Dashboard = () => {
                     <button type="button" className="btn-secondary" onClick={() => setDeleteModal({ isOpen: false, id: null, alasan: '', statusKeaktifan: '' })}>Batal</button>
                     <button type="button" onClick={confirmDeletePersonel} className="btn-primary" style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={!deleteModal.alasan.trim() || !deleteModal.statusKeaktifan}>
                         <Trash2 size={16} /> Ya, Proses
+                    </button>
+                </div>
+            </Modal>
+
+            {/* Modal Detail Pelanggaran LENGKAP (untuk Admin Mempelajari Draft) */}
+            <Modal isOpen={!!viewingPelanggaran} onClose={() => setViewingPelanggaran(null)} title="Detail Lengkap Catatan Pelanggaran">
+                {viewingPelanggaran && (
+                    <div style={{ maxHeight: '80vh', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                        {/* Status Badge at Top */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', background: 'var(--bg-color)', padding: '1rem', borderRadius: '8px' }}>
+                            <div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Status Penyelesaian:</div>
+                                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--primary-color)' }}>{viewingPelanggaran.statusPenyelesaian.replace('_', ' ')}</div>
+                            </div>
+                            {viewingPelanggaran.isDraft && (
+                                <div style={{ background: 'var(--danger)', color: 'white', padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                                    SEDANG DIAJUKAN (DRAFT)
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 1. DASAR HUKUM / DASAR CATPERS */}
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <FileText size={18} /> 1. Dasar Catpers / Legalitas
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Jenis Dasar & Nomor Surat</label>
+                                    <div style={{ fontWeight: 500 }}>{viewingPelanggaran.jenisDasar} - {viewingPelanggaran.nomorSurat}</div>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tanggal Surat</label>
+                                    <div style={{ fontWeight: 500 }}>{format(new Date(viewingPelanggaran.tanggalSurat), 'dd MMMM yyyy')}</div>
+                                </div>
+                                <div style={{ gridColumn: '1 / span 2' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Wujud Perbuatan</label>
+                                    <div style={{ fontWeight: 500, background: '#f8fafc', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>{viewingPelanggaran.wujudPerbuatan}</div>
+                                </div>
+                                {viewingPelanggaran.fileDasarUrl && (
+                                    <div style={{ gridColumn: '1 / span 2' }}>
+                                        {renderAttachment(viewingPelanggaran.fileDasarUrl, "Lampiran Berkas Dasar")}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 2. PUTUSAN / SANKSI */}
+                        {['MENJALANI_HUKUMAN', 'SELESAI_MENJALANI_HUKUMAN'].includes(viewingPelanggaran.statusPenyelesaian) && (
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <AlertCircle size={18} /> 2. Putusan Sidang & Sanksi
+                                </h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div>
+                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Jenis Sidang</label>
+                                        <div style={{ fontWeight: 500 }}>{viewingPelanggaran.jenisSidang || '-'}</div>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Hukuman / Sanksi</label>
+                                        <div style={{ fontWeight: 500 }}>{viewingPelanggaran.hukuman || '-'}</div>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Nomor SKEP / Putusan</label>
+                                        <div style={{ fontWeight: 500 }}>{viewingPelanggaran.nomorSkep || '-'}</div>
+                                    </div>
+                                    {viewingPelanggaran.filePutusanUrl && (
+                                        <div style={{ gridColumn: '1 / span 2' }}>
+                                            {renderAttachment(viewingPelanggaran.filePutusanUrl, "Lampiran Surat Putusan (SKEP)")}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. REKOMENDASI (RPS) */}
+                        <div style={{ marginBottom: '1rem' }}>
+                            <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <CheckCircle size={18} /> 3. Rekomendasi Pemulihan (RPS)
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Nomor Rekomendasi</label>
+                                    <div style={{ fontWeight: 500 }}>{viewingPelanggaran.nomorRekomendasi || '-'}</div>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tanggal Rekomendasi</label>
+                                    <div style={{ fontWeight: 500 }}>{viewingPelanggaran.tanggalRekomendasi ? format(new Date(viewingPelanggaran.tanggalRekomendasi), 'dd MMMM yyyy') : '-'}</div>
+                                </div>
+                                {viewingPelanggaran.fileRekomendasiUrl && (
+                                    <div style={{ gridColumn: '1 / span 2' }}>
+                                        {renderAttachment(viewingPelanggaran.fileRekomendasiUrl, "Lampiran Berkas RPS")}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Revision Info if exists */}
+                        {viewingPelanggaran.catatanRevisi && (
+                            <div style={{ marginTop: '2rem', padding: '1rem', background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '8px', color: '#c53030' }}>
+                                <strong style={{ display: 'block', marginBottom: '5px' }}>⚠️ Sedang Dalam Status Revisi:</strong>
+                                {viewingPelanggaran.catatanRevisi}
+                            </div>
+                        )}
+                    </div>
+                )}
+                <div className="form-actions mt-6" style={{ display: 'flex', gap: '1rem' }}>
+                    {user?.role === 'ADMIN_POLDA' && viewingPelanggaran?.isDraft && (
+                        <>
+                            <button className="btn-primary" style={{ flex: 1, background: 'var(--success)', borderColor: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { handleApprovePelanggaran(viewingPelanggaran.id); setViewingPelanggaran(null); }}>
+                                <CheckCircle size={18} style={{ marginRight: '5px' }} /> Setujui
+                            </button>
+                            <button className="btn-primary" style={{ flex: 1, background: 'var(--danger)', borderColor: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { handleRejectPelanggaran(viewingPelanggaran.id); setViewingPelanggaran(null); }}>
+                                <XCircle size={18} style={{ marginRight: '5px' }} /> Kembalikan Revisi
+                            </button>
+                        </>
+                    )}
+                    <button className={user?.role === 'ADMIN_POLDA' && viewingPelanggaran?.isDraft ? "btn-secondary" : "btn-primary w-full"} style={{ flex: user?.role === 'ADMIN_POLDA' && viewingPelanggaran?.isDraft ? 1 : 'unset' }} onClick={() => setViewingPelanggaran(null)}>Tutup Detail</button>
+                </div>
+            </Modal>
+
+            {/* Modal Rejeksi / Revisi */}
+            <Modal isOpen={rejectModal.isOpen} onClose={() => setRejectModal({ isOpen: false, id: null, type: null, catatan: '' })} title="Kembalikan untuk Revisi">
+                <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
+                    Berikan alasan atau instruksi perbaikan untuk operator Satker. Data tidak akan dihapus, namun akan ditandai butuh perbaikan.
+                </div>
+                <div className="form-group w-full relative">
+                    <label style={{ fontWeight: 'bold' }}>Instruksi / Catatan Revisi *</label>
+                    <textarea
+                        className="form-input"
+                        rows="4"
+                        value={rejectModal.catatan}
+                        onChange={(e) => setRejectModal({ ...rejectModal, catatan: e.target.value })}
+                        placeholder="Contoh: Lampiran berkas kurang jelas, Tolong perbaiki pangkat, dsb..."
+                        autoFocus
+                    ></textarea>
+                </div>
+                <div className="form-actions mt-4">
+                    <button type="button" className="btn-secondary" onClick={() => setRejectModal({ isOpen: false, id: null, type: null, catatan: '' })}>Batal</button>
+                    <button type="button" onClick={confirmReject} className="btn-primary" style={{ background: 'var(--warning)', borderColor: 'var(--warning)', color: '#000' }}>
+                        <XCircle size={16} /> Kirim Revisi
                     </button>
                 </div>
             </Modal>
