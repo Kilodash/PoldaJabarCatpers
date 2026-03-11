@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, FileText, CheckCircle } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, FileText, CheckCircle, FileWarning } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { format } from 'date-fns';
 import api from '../utils/api';
 import Modal from '../components/Modal';
 import PelanggaranFormModal from '../components/PelanggaranFormModal';
+import PersonelHistoryModal from '../components/PersonelHistoryModal';
 
 const Pelanggaran = () => {
     const [personelList, setPersonelList] = useState([]);
@@ -14,8 +15,14 @@ const Pelanggaran = () => {
 
     // Modal States
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-    const [editData, setEditData] = useState(null);
+    const [selectedPersonelId, setSelectedPersonelId] = useState(null);
+
+    // Sorting State
+    const [sortConfig, setSortConfig] = useState({ key: 'nrpNip', direction: 'asc' });
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     const fetchPersonel = async () => {
         try {
@@ -29,48 +36,45 @@ const Pelanggaran = () => {
         }
     };
 
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedPersonelList = [...personelList].sort((a, b) => {
+        let valA, valB;
+        if (sortConfig.key === 'count') {
+            valA = a._count?.pelanggaran || 0;
+            valB = b._count?.pelanggaran || 0;
+        } else {
+            valA = a[sortConfig.key];
+            valB = b[sortConfig.key];
+        }
+
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
     useEffect(() => {
         fetchPersonel();
+        setCurrentPage(1); // Reset to first page on search
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
 
-    const handleSelectPersonel = async (personelId) => {
-        try {
-            const res = await api.get(`/personel/${personelId}`);
-            setSelectedPersonel(res.data);
-            setIsMenuOpen(true);
-        } catch {
-            toast.error('Gagal memuat detail personel');
-        }
-    };
+    const paginatedList = sortedPersonelList.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
 
-    const handleOpenAdd = () => {
-        setEditData(null);
-        setIsFormModalOpen(true);
-    };
+    const totalPages = Math.ceil(sortedPersonelList.length / itemsPerPage);
 
-    const handleOpenEdit = (pel) => {
-        setEditData(pel);
-        setIsFormModalOpen(true);
-    };
-
-    const handleFormSuccess = () => {
-        // Refresh data personel yg sedang dibuka & list keseluruhan
-        handleSelectPersonel(selectedPersonel.id);
-        fetchPersonel();
-    };
-
-    const handleDelete = async (id) => {
-        if (window.confirm('Hapus catatan pelanggaran ini secara permanen?')) {
-            try {
-                await api.delete(`/pelanggaran/${id}`);
-                toast.success('Berhasil dihapus');
-                handleSelectPersonel(selectedPersonel.id);
-                fetchPersonel();
-            } catch {
-                toast.error('Gagal menghapus data');
-            }
-        }
+    const handleSelectPersonel = (personelId) => {
+        setSelectedPersonelId(personelId);
+        setIsMenuOpen(true);
     };
 
     const renderStatusBadge = (status) => {
@@ -87,11 +91,18 @@ const Pelanggaran = () => {
             <Toaster position="top-right" richColors />
 
             <div className="page-header mb-4">
-                <h1 className="page-title">Manajemen Catatan Pelanggaran</h1>
-                <p className="page-subtitle">Daftar personel dengan indikasi atau riwayat pelanggaran.</p>
+                <h1 className="page-title">
+                    <FileWarning size={32} />
+                    Catatan Pelanggaran
+                    <div className="live-indicator">
+                        <span className="live-dot"></span>
+                        Internal Tracking
+                    </div>
+                </h1>
+                <p className="page-subtitle">Daftar riwayat dan status indikasi pelanggaran personel Polda Jabar.</p>
             </div>
 
-            {/* List Personel untuk dipilih */}
+            {/* Search Bar & Actions */}
             <div className="page-actions">
                 <div className="search-bar">
                     <Search size={18} />
@@ -104,123 +115,189 @@ const Pelanggaran = () => {
                 </div>
             </div>
 
-            {loading ? <div className="loading-state">Memuat Data...</div> : (
-                <div className="table-container">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>NRP / NIP</th>
-                                <th>Nama Lengkap</th>
-                                <th>Pangkat / Jabatan</th>
-                                <th>Kasus Aktif & Riwayat</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {personelList.map(p => (
-                                <tr key={p.id}>
-                                    <td>
-                                        <span style={{ fontWeight: 600 }}>{p.nrpNip}</span>
-                                    </td>
-                                    <td>{p.namaLengkap}</td>
-                                    <td>
-                                        <div style={{ fontSize: '0.9rem' }}>{p.pangkat}</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.jabatan}</div>
-                                    </td>
-                                    <td>
-                                        <span style={{
-                                            padding: '2px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600,
-                                            background: p._count?.pelanggaran > 0 ? '#fee2e2' : '#dcfce7',
-                                            color: p._count?.pelanggaran > 0 ? 'var(--danger)' : 'var(--success)'
-                                        }}>
-                                            {p._count?.pelanggaran || 0} Catatan
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button
-                                            className="btn-primary"
-                                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                                            onClick={() => handleSelectPersonel(p.id)}
-                                        >
-                                            <FileText size={16} /> Lihat Catatan
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+            {/* Top Pagination Summary & Controls */}
+            {totalPages > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(8px)', padding: '0.85rem 1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-premium)' }}>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <FileText size={16} />
+                        Menampilkan <strong>{(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedPersonelList.length)}</strong> dari <strong>{sortedPersonelList.length}</strong> personel terdaftar.
+                    </div>
+                    {totalPages > 1 && (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="btn-secondary"
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', opacity: currentPage === 1 ? 0.5 : 1 }}
+                            >
+                                Sebelumnya
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="btn-secondary"
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', opacity: currentPage === totalPages ? 0.5 : 1 }}
+                            >
+                                Berikutnya
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* Modal Detail & List Pelanggaran Per Personel */}
-            <Modal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} title={`Catatan Personel: ${selectedPersonel?.namaLengkap}`}>
-                {selectedPersonel && (
-                    <div style={{ minWidth: '700px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                            <div>
-                                <h4 style={{ margin: 0, color: 'var(--primary-color)' }}>{selectedPersonel.nrpNip} - {selectedPersonel.pangkat}</h4>
-                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{selectedPersonel.jabatan} | {selectedPersonel.satker?.nama}</p>
-                            </div>
-                            <button className="btn-primary" onClick={handleOpenAdd}>
-                                <Plus size={16} /> Tambah Catatan
-                            </button>
-                        </div>
-
-                        {selectedPersonel.pelanggaran?.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                                <CheckCircle size={48} style={{ margin: '0 auto 1rem', color: 'var(--success)' }} opacity={0.5} />
-                                <p>Personel ini tidak memiliki catatan pelanggaran.</p>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {selectedPersonel.pelanggaran.map(pel => (
-                                    <div key={pel.id} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', background: 'white', position: 'relative' }}>
-
-                                        <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
-                                            <button className="btn-icon" onClick={() => handleOpenEdit(pel)}><Edit2 size={16} /></button>
-                                            <button className="btn-icon delete" onClick={() => handleDelete(pel.id)}><Trash2 size={16} /></button>
-                                        </div>
-
-                                        <h5 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', color: 'var(--danger)', paddingRight: '60px' }}>
-                                            {pel.wujudPerbuatan}
-                                        </h5>
-
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.9rem', marginBottom: '1rem' }}>
-                                            <div>
-                                                <p><strong>Dasar Surat:</strong> {pel.nomorSurat} ({format(new Date(pel.tanggalSurat), 'dd/MM/yyyy')})</p>
-                                                {pel.fileDasarUrl && <a href={`http://localhost:5000${pel.fileDasarUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)', fontSize: '0.8rem' }}>&#128206; Lihat Berkas Dasar</a>}
-                                            </div>
-                                            <div>
-                                                {pel.statusPenyelesaian === 'MENJALANI_HUKUMAN' && (
-                                                    <p><strong>Sidang:</strong> {pel.jenisSidang || '-'} | <strong>Hukuman:</strong> {pel.hukuman || '-'}</p>
-                                                )}
-                                                <p><strong>Status:</strong> {renderStatusBadge(pel.statusPenyelesaian)}</p>
-                                                {pel.keteranganSelesai && <p style={{ fontSize: '0.8rem', fontStyle: 'italic', marginTop: '4px', color: 'var(--text-muted)' }}>"{pel.keteranganSelesai}"</p>}
-                                            </div>
-                                        </div>
-
-                                        {(pel.fileSelesaiUrl || pel.tanggalRekomendasi) && (
-                                            <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '4px', fontSize: '0.85rem', borderLeft: '3px solid var(--success)' }}>
-                                                {pel.tanggalRekomendasi && <p style={{ margin: '0 0 0.25rem 0' }}><strong>Bisa rekomendasi sejak:</strong> {format(new Date(pel.tanggalRekomendasi), 'dd/MM/yyyy')}</p>}
-                                                {pel.fileSelesaiUrl && <a href={`http://localhost:5000${pel.fileSelesaiUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)' }}>&#128206; Lihat Berkas Putusan/Selesai</a>}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+            {loading ? <div className="loading-state">Memuat Data...</div> : (
+                <div className="table-container">
+                    {/* Header khusus cetak */}
+                    <div className="only-print" style={{ marginBottom: '2rem', textAlign: 'center', borderBottom: '2px solid #333', paddingBottom: '1rem' }}>
+                        <h2 style={{ textTransform: 'uppercase', margin: '0 0 0.5rem 0' }}>Data Catatan Pelanggaran Personel</h2>
+                        <p style={{ margin: 0 }}>Dicetak pada: {new Date().toLocaleString('id-ID')}</p>
                     </div>
-                )}
-            </Modal>
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th onClick={() => requestSort('nrpNip')} style={{ cursor: 'pointer' }}>NRP / NIP {sortConfig.key === 'nrpNip' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                <th onClick={() => requestSort('namaLengkap')} style={{ cursor: 'pointer' }}>Nama Lengkap {sortConfig.key === 'namaLengkap' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                <th onClick={() => requestSort('pangkat')} style={{ cursor: 'pointer' }}>Pangkat / Jabatan {sortConfig.key === 'pangkat' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                <th onClick={() => requestSort('count')} style={{ cursor: 'pointer' }}>Kasus Aktif & Riwayat {sortConfig.key === 'count' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                <th className="no-print">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paginatedList.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                                        Tidak ditemukan data personel yang sesuai.
+                                    </td>
+                                </tr>
+                            ) : (
+                                paginatedList.map(p => (
+                                    <tr key={p.id}>
+                                        <td>
+                                            <span style={{ fontWeight: 600 }}>{p.nrpNip}</span>
+                                            {p.statusKeaktifan !== 'AKTIF' && (
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--danger)', fontWeight: 700, marginTop: '2px', textTransform: 'uppercase' }}>
+                                                    {p.statusKeaktifan}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td>{p.namaLengkap}</td>
+                                        <td>
+                                            <div style={{ fontSize: '0.9rem' }}>{p.pangkat}</div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.jabatan}</div>
+                                        </td>
+                                        <td>
+                                            <span style={{
+                                                padding: '2px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600,
+                                                background: p._count?.pelanggaran > 0 ? '#fee2e2' : '#dcfce7',
+                                                color: p._count?.pelanggaran > 0 ? 'var(--danger)' : 'var(--success)'
+                                            }}>
+                                                {p._count?.pelanggaran || 0} Catatan
+                                            </span>
+                                        </td>
+                                        <td className="no-print">
+                                            <button
+                                                className="btn-primary"
+                                                style={{ 
+                                                    padding: '0.4rem 0.8rem', 
+                                                    fontSize: '0.85rem',
+                                                    opacity: p.statusKeaktifan !== 'AKTIF' ? 0.5 : 1,
+                                                    cursor: p.statusKeaktifan !== 'AKTIF' ? 'not-allowed' : 'pointer'
+                                                }}
+                                                onClick={() => handleSelectPersonel(p.id)}
+                                                disabled={p.statusKeaktifan !== 'AKTIF'}
+                                            >
+                                                <FileText size={16} /> Lihat Catatan
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
 
-            {/* Reusable Form Modal Component */}
-            <PelanggaranFormModal
-                isOpen={isFormModalOpen}
-                onClose={() => setIsFormModalOpen(false)}
-                onSuccess={handleFormSuccess}
-                isEdit={!!editData}
-                initialData={editData}
-                targetPersonel={selectedPersonel}
+                    {/* Bottom Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '1rem 0.5rem', borderTop: '1px solid var(--border-color)' }}>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                                Hal <strong>{currentPage}</strong> dari {totalPages}
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    style={{
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-color)',
+                                        background: 'white',
+                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                        opacity: currentPage === 1 ? 0.5 : 1,
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    Sebelumnya
+                                </button>
+                                {[...Array(totalPages)].map((_, i) => {
+                                    const pageNum = i + 1;
+                                    if (
+                                        pageNum === 1 ||
+                                        pageNum === totalPages ||
+                                        (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
+                                    ) {
+                                        return (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                                style={{
+                                                    width: '36px',
+                                                    height: '36px',
+                                                    borderRadius: '6px',
+                                                    border: '1px solid',
+                                                    borderColor: currentPage === pageNum ? 'var(--primary-color)' : 'var(--border-color)',
+                                                    background: currentPage === pageNum ? 'var(--primary-color)' : 'white',
+                                                    color: currentPage === pageNum ? 'white' : 'var(--text-color)',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 600
+                                                }}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        );
+                                    } else if (
+                                        (pageNum === 2 && currentPage > 4) ||
+                                        (pageNum === totalPages - 1 && currentPage < totalPages - 3)
+                                    ) {
+                                        return <span key={pageNum} style={{ padding: '0 4px' }}>...</span>;
+                                    }
+                                    return null;
+                                })}
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    style={{
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-color)',
+                                        background: 'white',
+                                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                                        opacity: currentPage === totalPages ? 0.5 : 1,
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    Selanjutnya
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Unified History Modal */}
+            <PersonelHistoryModal
+                isOpen={isMenuOpen}
+                onClose={() => setIsMenuOpen(false)}
+                personelId={selectedPersonelId}
+                onRefresh={fetchPersonel}
             />
         </div>
     );

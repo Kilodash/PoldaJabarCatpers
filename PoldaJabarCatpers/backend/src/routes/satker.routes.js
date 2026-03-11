@@ -5,6 +5,7 @@ const authMiddleware = require('../middleware/auth.middleware');
 const rbacMiddleware = require('../middleware/rbac.middleware');
 
 // Hanya ADMIN_POLDA yang boleh membuat, mengedit, dan menghapus Satker
+router.put('/reorder', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), satkerController.reorderSatker);
 router.post('/', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), satkerController.createSatker);
 router.put('/:id', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), satkerController.updateSatker);
 router.delete('/:id', authMiddleware, rbacMiddleware(['ADMIN_POLDA']), satkerController.deleteSatker);

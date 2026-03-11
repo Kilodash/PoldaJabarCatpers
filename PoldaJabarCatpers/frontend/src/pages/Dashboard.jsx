@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
-    Users, AlertCircle, History, UserPlus, Search, Edit2, Trash2, Eye, LayoutGrid, FileText, Settings, LogOut, ChevronRight, ChevronLeft,
-    Clock, UserMinus, Handshake, CheckCircle, XCircle, Plus, Download, ExternalLink
+    Users, FileWarning, Search, ChevronRight, Scale, ShieldAlert, AlertCircle, ShieldCheck,
+    Clock, CheckCircle, PlusCircle, UserX, PenTool, ExternalLink, RefreshCw, Printer, Download, UserMinus, Plus, Trash2, Edit2, XCircle, Eye, ChevronLeft, History, LayoutDashboard
 } from 'lucide-react';
 import { format } from 'date-fns';
 import api from '../utils/api';
@@ -12,20 +12,25 @@ import './Dashboard.css';
 import Modal from '../components/Modal';
 import PersonelFormModal from '../components/PersonelFormModal';
 import PelanggaranFormModal from '../components/PelanggaranFormModal';
+import PersonelHistoryModal from '../components/PersonelHistoryModal';
 import { exportPersonelPDF } from '../utils/pdfGenerator';
 
 
-const StatCard = ({ title, value, icon, colorClass, onClick }) => (
-    <div className={`stat-card ${colorClass}`} onClick={onClick} style={{ cursor: 'pointer', transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-2px)' } }}>
-        <div className="stat-icon-wrapper">
-            {React.createElement(icon, { size: 24, className: "stat-icon" })}
+const StatCard = ({ title, value, icon: Icon, colorClass, onClick }) => {
+    return (
+        <div className={`stat-card ${colorClass}`} onClick={onClick} title="Klik untuk melihat detail">
+            <div className="stat-card-top">
+                <div className="stat-info">
+                    <h3>{value}</h3>
+                    <p>{title}</p>
+                </div>
+                <div className="stat-icon-wrapper">
+                    <Icon size={24} className="stat-icon" />
+                </div>
+            </div>
         </div>
-        <div className="stat-info">
-            <h3>{value}</h3>
-            <p>{title}</p>
-        </div>
-    </div>
-);
+    );
+};
 
 const renderBadge = (value, colorVar, condition = value > 0, onClick = null) => {
     if (!condition) {
@@ -60,11 +65,16 @@ const Dashboard = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState({
-        totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRps: 0, perdamaian: 0
+        totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRekomendasi: 0
     });
     const [satkerStatsList, setSatkerStatsList] = useState([]);
     const [globalSearch, setGlobalSearch] = useState('');
+    const [satkerSearch, setSatkerSearch] = useState(''); // Search for Satker table
     const [loading, setLoading] = useState(true);
+
+    // Sorting State
+    const [sortConfig, setSortConfig] = useState({ key: 'urutan', direction: 'asc' });
+    const [personelSortConfig, setPersonelSortConfig] = useState({ key: 'nrpNip', direction: 'asc' });
 
     // Modal State
     const [modalData, setModalData] = useState({ isOpen: false, title: '', category: '', satkerId: null });
@@ -74,21 +84,14 @@ const Dashboard = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8; // Dikurangi agar ruang lapang
     const [selectedPersonelDetail, setSelectedPersonelDetail] = useState(null); // State histori
-    const [detailLoading, setDetailLoading] = useState(false);
     const [isAddPersonelOpen, setIsAddPersonelOpen] = useState(false);
-
-    // State Pelanggaran Edit & Delete
-    const [isEditPelanggaran, setIsEditPelanggaran] = useState(false);
-    const [selectedPelanggaran, setSelectedPelanggaran] = useState(null);
-    const [isPelanggaranModalOpen, setIsPelanggaranModalOpen] = useState(false);
-    const [deletePelanggaranModal, setDeletePelanggaranModal] = useState({ isOpen: false, id: null, alasan: '' });
 
     // State Personel Tambahan (Upload/Edit/Delete Langsung dr Modal)
     const [selectedPersonel, setSelectedPersonel] = useState(null);
     const [isEditPersonel, setIsEditPersonel] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, alasan: '', statusKeaktifan: '' });
     const [rejectModal, setRejectModal] = useState({ isOpen: false, id: null, type: null, catatan: '' });
-    const [viewingPelanggaran, setViewingPelanggaran] = useState(null);
+    const [restoreModal, setRestoreModal] = useState({ isOpen: false, id: null, alasan: '' });
 
     const fetchStats = async () => {
         try {
@@ -96,14 +99,58 @@ const Dashboard = () => {
                 api.get('/dashboard/stats'),
                 api.get('/dashboard/satker-stats')
             ]);
-            setStats(resStats.data.stats);
-            setSatkerStatsList(resSatkerStats.data);
+            setStats({
+                ...resStats.data.stats,
+                belumRekomendasi: resStats.data.stats.belumRps
+            });
+            setSatkerStatsList(resSatkerStats.data.map(s => ({ ...s, belumRekomendasi: s.belumRps })));
         } catch (error) {
             console.error("Gagal mengambil statistik dashboard", error);
         } finally {
             setLoading(false);
         }
     };
+
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const requestPersonelSort = (key) => {
+        let direction = 'asc';
+        if (personelSortConfig.key === key && personelSortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setPersonelSortConfig({ key, direction });
+    };
+
+    const filteredSatkerStats = satkerStatsList.filter(s =>
+        s.nama.toLowerCase().includes(satkerSearch.toLowerCase())
+    );
+
+    const sortedSatkerStats = [...filteredSatkerStats].sort((a, b) => {
+        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const sortedModalList = [...modalList].sort((a, b) => {
+        let valA = a[personelSortConfig.key];
+        let valB = b[personelSortConfig.key];
+
+        // Handle nested satker name
+        if (personelSortConfig.key === 'satker') {
+            valA = a.satker?.nama || '';
+            valB = b.satker?.nama || '';
+        }
+
+        if (valA < valB) return personelSortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return personelSortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
 
     useEffect(() => {
         fetchStats();
@@ -116,7 +163,6 @@ const Dashboard = () => {
             let url = `/personel?search=${modalSearch}`;
             if (modalData.category) url += `&category=${modalData.category}`;
             if (modalData.satkerId) url += `&satkerId=${modalData.satkerId}`;
-
             const res = await api.get(url);
             setModalList(res.data);
         } catch (error) {
@@ -151,6 +197,41 @@ const Dashboard = () => {
         fetchStats(); // Refresh data utama saat modal ditutup
     };
 
+    const handlePrintModal = () => {
+        window.print();
+    };
+
+    const handleExportExcel = () => {
+        if (!sortedModalList || sortedModalList.length === 0) {
+            toast.error("Tidak ada data untuk diekspor");
+            return;
+        }
+
+        const headers = ["NRP/NIP", "Nama Lengkap", "Pangkat", "Kesatuan", "Status Personel"];
+        const csvRows = [];
+        csvRows.push(headers.join(','));
+
+        sortedModalList.forEach(p => {
+            const row = [
+                `"${p.nrpNip || ''}"`,
+                `"${p.namaLengkap || ''}"`,
+                `"${p.pangkat || ''}"`,
+                `"${p.satker?.nama || '-'}"`,
+                `"${p.statusPersonel || '-'}"`
+            ];
+            csvRows.push(row.join(','));
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Export_${modalData.title.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleGlobalSearch = (e) => {
         if (e.key === 'Enter' && globalSearch.trim() !== '') {
             setModalData({ isOpen: true, title: `Pencarian: ${globalSearch}`, category: '', satkerId: null });
@@ -159,52 +240,6 @@ const Dashboard = () => {
             setGlobalSearch('');
         }
     };
-
-    const handleViewDetail = async (id) => {
-        setDetailLoading(true);
-        try {
-            const res = await api.get(`/personel/${id}`);
-            setSelectedPersonelDetail(res.data);
-        } catch (error) {
-            console.error("Gagal memuat detail riwayat", error);
-        } finally {
-            setDetailLoading(false);
-        }
-    };
-
-    const handleEditPelanggaran = (pel) => {
-        setSelectedPelanggaran(pel);
-        setIsEditPelanggaran(true);
-        setIsPelanggaranModalOpen(true);
-    };
-
-    const confirmDeletePelanggaran = async () => {
-        try {
-            await api.delete(`/pelanggaran/${deletePelanggaranModal.id}`, { data: { alasan: deletePelanggaranModal.alasan } });
-            toast.success('Catatan administratif pelanggaran telah berhasil dihapus (soft delete).');
-            setDeletePelanggaranModal({ isOpen: false, id: null, alasan: '' });
-
-            if (selectedPersonelDetail) {
-                handleViewDetail(selectedPersonelDetail.id);
-            }
-            fetchStats();
-            fetchModalList(); // Refresh data list modal agar status update
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Gagal menghapus pelanggaran.');
-        }
-    };
-
-    const handleApprovePelanggaran = async (id) => {
-        try {
-            await api.post(`/pelanggaran/approve/${id}`);
-            toast.success('Catatan pelanggaran telah disetujui.');
-            if (selectedPersonelDetail) handleViewDetail(selectedPersonelDetail.id);
-            fetchStats();
-            fetchModalList();
-        } catch (error) {
-            toast.error('Gagal menyetujui data.');
-        }
-    }
 
     const handleRejectPelanggaran = (id) => {
         setRejectModal({ isOpen: true, id, type: 'pelanggaran', catatan: '' });
@@ -221,7 +256,7 @@ const Dashboard = () => {
             toast.success('Draft berhasil dikembalikan untuk revisi.');
             setRejectModal({ isOpen: false, id: null, type: null, catatan: '' });
 
-            if (selectedPersonelDetail) handleViewDetail(selectedPersonelDetail.id);
+            if (selectedPersonelDetail) setSelectedPersonelDetail({ ...selectedPersonelDetail }); // Trigger re-render if needed
             fetchStats();
             fetchModalList();
         } catch (error) {
@@ -254,6 +289,14 @@ const Dashboard = () => {
         setDeleteModal({ isOpen: true, id, alasan: '', statusKeaktifan: '' });
     };
 
+    const handlePersonelSuccess = (newPersonel) => {
+        fetchStats();
+        fetchModalList();
+        if (!isEditPersonel && newPersonel) {
+            setSelectedPersonelDetail(newPersonel);
+        }
+    };
+
     const confirmDeletePersonel = async () => {
         try {
             await api.delete(`/personel/${deleteModal.id}`, {
@@ -271,131 +314,179 @@ const Dashboard = () => {
         }
     };
 
+    const triggerRestorePersonel = (id) => {
+        setRestoreModal({ isOpen: true, id, alasan: '' });
+    };
+
+    const confirmRestorePersonel = async () => {
+        try {
+            await api.put(`/personel/restore/${restoreModal.id}`, {
+                alasan: restoreModal.alasan
+            });
+            toast.success('Personel berhasil dipulihkan menjadi status Aktif.');
+            setRestoreModal({ isOpen: false, id: null, alasan: '' });
+            fetchStats();
+            fetchModalList(); 
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Terjadi kesalahan saat memulihkan personel.');
+        }
+    };
+
     // Pagination Logic
     const totalPages = Math.ceil(modalList.length / itemsPerPage);
     const currentList = modalList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    const renderAttachment = (url, title) => {
-        if (!url) return null;
-        const fullUrl = `http://localhost:5000${url}`;
-        const isPdf = url.toLowerCase().endsWith('.pdf');
 
+    if (loading) {
         return (
-            <div style={{ marginTop: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <div style={{ background: 'var(--bg-color)', padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{title}</span>
-                    <a href={fullUrl} target="_blank" rel="noreferrer" className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.8rem' }}>
-                        Buka di Tab Baru <ExternalLink size={14} style={{ marginLeft: '4px' }} />
-                    </a>
+            <div className="dashboard animate-fade-in">
+                <div className="dashboard-header mb-4">
+                    <div className="skeleton-block" style={{ width: '250px', height: '32px', marginBottom: '8px' }}></div>
+                    <div className="skeleton-block" style={{ width: '400px', height: '20px' }}></div>
                 </div>
-                <div style={{ width: '100%', height: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#f8fafc' }}>
-                    {isPdf ? (
-                        <object data={fullUrl} type="application/pdf" width="100%" height="100%">
-                            <p>Browser tidak mendukung tampilan PDF. <a href={fullUrl} target="_blank" rel="noreferrer">Unduh PDF</a>.</p>
-                        </object>
-                    ) : (
-                        <img src={fullUrl} alt={title} style={{ maxWidth: '100%', maxHeight: '400px', objectFit: 'contain' }} />
-                    )}
+                <div className="skeleton-grid" style={{ marginBottom: '2rem' }}>
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="skeleton-card">
+                            <div className="skeleton-row">
+                                <div className="flex-col gap-2 w-full" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                                    <div className="skeleton-block" style={{ width: '60%', height: '36px' }}></div>
+                                    <div className="skeleton-block" style={{ width: '80%', height: '16px' }}></div>
+                                </div>
+                                <div className="skeleton-block" style={{ width: '48px', height: '48px', borderRadius: '8px', flexShrink: 0 }}></div>
+                            </div>
+                            <div className="skeleton-block" style={{ width: '100%', height: '4px', marginTop: '12px' }}></div>
+                        </div>
+                    ))}
                 </div>
             </div>
         );
-    };
-
-    if (loading) return <div className="loading-state">Memuat Statistik...</div>;
+    }
 
     return (
         <>
             <Toaster position="top-right" richColors />
             <div className="dashboard animate-fade-in">
-                <div className="dashboard-header" style={{ marginBottom: '1.5rem' }}>
-                    <div>
-                        <h1 className="page-title">Dashboard</h1>
-                        <p className="page-subtitle">Ringkasan data {user?.role === 'ADMIN_POLDA' ? 'seluruh Satker Polda Jabar' : `Satker ${user?.satker?.nama}`}.</p>
+                <div className="page-header mb-8 no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
+                    <div style={{ flex: '1 1 auto', minWidth: '300px' }}>
+                        <h1 className="page-title">
+                            <LayoutDashboard size={32} />
+                            Dashboard
+                            <div className="live-indicator">
+                                <span className="live-dot"></span>
+                                Live Data
+                            </div>
+                        </h1>
+                        <p className="page-subtitle">Ringkasan data {user?.role === 'ADMIN_POLDA' ? 'seluruh Satker Polda Jabar' : `Satker ${user?.satker?.nama} `}. Diperbarui secara otomatis.</p>
+                    </div>
+
+                    {/* Pencarian Global (Personel) */}
+                    <div className="global-search-container" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flex: '0 1 400px', maxWidth: '400px' }}>
+                        <div className="search-bar" style={{ flex: 1, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', background: 'var(--surface-color)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-premium)' }}>
+                            <Search size={20} style={{ color: 'var(--text-muted)', marginRight: '0.75rem' }} />
+                            <input
+                                type="text"
+                                placeholder="Pencarian Personel / Catpers (NRP, NIP, Nama)..."
+                                value={globalSearch}
+                                onChange={(e) => setGlobalSearch(e.target.value)}
+                                onKeyDown={handleGlobalSearch}
+                                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '0.95rem', color: 'var(--text-main)' }}
+                            />
+                        </div>
+                        <button className="btn-primary" onClick={() => handleGlobalSearch({ key: 'Enter' })} style={{ padding: '0.75rem 1.5rem', height: '100%', borderRadius: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            Cari
+                        </button>
                     </div>
                 </div>
 
-                {/* Pencarian Global (Personel) */}
-                <div className="global-search-container mb-6" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <div className="search-bar" style={{ flex: 1, maxWidth: '600px', padding: '0.75rem 1rem' }}>
-                        <Search size={20} />
-                        <input
-                            type="text"
-                            placeholder="Pencarian Personel / Catpers (Ketik NRP, NIP, Nama, lalu Enter)..."
-                            value={globalSearch}
-                            onChange={(e) => setGlobalSearch(e.target.value)}
-                            onKeyDown={handleGlobalSearch}
-                            style={{ fontSize: '1rem' }}
-                        />
-                    </div>
-                    <button className="btn-primary" onClick={() => handleGlobalSearch({ key: 'Enter' })} style={{ padding: '0.75rem 1.5rem', height: '100%' }}>
-                        Cari
-                    </button>
-                </div>
+                <div className="stats-grid no-print" style={{ marginBottom: '2rem' }}>
+                    {/* 1. Total Personel */}
+                    <StatCard title="Total Personel" value={stats?.totalPersonel || 0} icon={Users} colorClass="card-primary" onClick={() => handleOpenModal('Total Seluruh Personel', '')} />
 
-                <h2 className="section-title mt-4">Rekap Data</h2>
-                <div className="stats-grid">
-                    <StatCard title="Jumlah Personel" value={stats?.totalPersonel || 0} icon={Users} colorClass="card-primary" onClick={() => handleOpenModal('Total Seluruh Personel', '')} />
-                    <StatCard title="Personel Tidak Aktif" value={stats?.tidakAktif || 0} icon={UserMinus} colorClass="card-secondary" onClick={() => handleOpenModal('Personel Tidak Aktif / Pensiun', 'tidakAktif')} />
+                    {/* 2. Catpers Aktif */}
                     <StatCard title="Catpers Aktif" value={stats?.catpersAktif || 0} icon={AlertCircle} colorClass="card-danger" onClick={() => handleOpenModal('Personel Dengan Catatan Aktif', 'catpersAktif')} />
-                </div>
 
-                <h2 className="section-title mt-2">Penyelesaian & Administrasi</h2>
-                <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+                    {/* 3. Pernah Tercatat */}
                     <StatCard title="Pernah Tercatat" value={stats?.pernahTercatat || 0} icon={History} colorClass="card-warning" onClick={() => handleOpenModal('Personel Pernah Tercatat', 'pernahTercatat')} />
-                    <StatCard title="Belum Mengajukan RPS" value={stats?.belumRps || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Tanggungan RPS Terbuka', 'belumRps')} />
-                    <StatCard title="Perdamaian" value={stats?.perdamaian || 0} icon={Handshake} colorClass="card-success" onClick={() => handleOpenModal('Kasus Selesai (Perdamaian)', 'perdamaian')} />
-                    <StatCard title="Butuh Persetujuan" value={stats?.butuhApproval || 0} icon={UserPlus} colorClass="card-secondary" onClick={() => handleOpenModal('Menunggu Persetujuan Admin', 'butuhApproval')} />
+
+                    {/* 4. Belum Rekomendasi */}
+                    <StatCard title="Belum Rekomendasi" value={stats?.belumRekomendasi || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Belum Rekomendasi', 'belumRps')} />
+
+                    {/* 5. Tidak Terbukti */}
+                    <StatCard title="Tidak Terbukti" value={stats.tidakTerbukti || 0} icon={ShieldCheck} colorClass="card-success" onClick={() => handleOpenModal('Tidak Terbukti (Final)', 'tidakTerbukti')} />
+
+                    {/* 6. Belum SKTT */}
+                    <StatCard title="Belum Ada SKTT" value={stats.belumSktt || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTT (Riksa)', 'belumSktt')} />
+
+                    {/* 7. Belum SKTB */}
+                    <StatCard title="Belum Ada SKTB" value={stats.belumSktb || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTB (Sidang)', 'belumSktb')} />
+
+                    {/* 8. Perdamaian */}
+                    <StatCard title="Perdamaian" value={stats?.perdamaian || 0} icon={CheckCircle} colorClass="card-success" onClick={() => handleOpenModal('Personel Perdamaian', 'perdamaian')} />
+
+                    {/* 9. Personel Tidak Aktif */}
+                    <StatCard title="Personel Tidak Aktif" value={stats?.tidakAktif || 0} icon={UserMinus} colorClass="card-secondary" onClick={() => handleOpenModal('Personel Tidak Aktif / Pensiun', 'tidakAktif')} />
+
+                    {/* 10. Draft Approval */}
+                    <StatCard title="Draft Approval" value={stats.butuhApproval || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Menunggu Persetujuan Admin', 'DRAFT')} />
                 </div>
 
                 {user?.role === 'ADMIN_POLDA' && (
-                    <div className="table-container mt-4">
-                        <div className="card-header mb-4">
-                            <h3>Rekap Data Per Satker</h3>
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Klik baris tabel untuk melihat rincian personel pada Kesatuan tersebut.</p>
+                    <div className="table-container mt-4 no-print">
+                        <div className="card-header mb-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h3>Rekap Data Per Satker</h3>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Klik baris tabel untuk melihat rincian personel pada Kesatuan tersebut.</p>
+                            </div>
+                            <div className="search-bar" style={{ maxWidth: '300px', padding: '0.5rem 0.75rem' }}>
+                                <Search size={16} style={{ color: 'var(--text-muted)', marginRight: '0.5rem' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Cari Satker..."
+                                    value={satkerSearch}
+                                    onChange={(e) => setSatkerSearch(e.target.value)}
+                                    style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '0.9rem' }}
+                                />
+                            </div>
                         </div>
                         <div style={{ overflowX: 'auto', maxHeight: '500px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                             <table className="data-table" style={{ margin: 0, border: 'none' }}>
                                 <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'white', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                                     <tr>
-                                        <th>Satuan Kerja (Satker)</th>
-                                        <th style={{ textAlign: 'center' }}>Total Personel</th>
-                                        <th style={{ textAlign: 'center' }}>Tidak Aktif</th>
-                                        <th style={{ textAlign: 'center' }}>Catpers Aktif</th>
-                                        <th style={{ textAlign: 'center' }}>Pernah Tercatat</th>
-                                        <th style={{ textAlign: 'center' }}>Belum RPS</th>
-                                        <th style={{ textAlign: 'center' }}>Perdamaian</th>
-                                        <th style={{ textAlign: 'center' }}>Approval</th>
+                                        <th onClick={() => requestSort('id')} style={{ cursor: 'pointer', whiteSpace: 'nowrap', width: '1%' }}>Satuan Kerja (Satker) {sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('totalPersonel')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Total {sortConfig.key === 'totalPersonel' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('tidakAktif')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Tidak Aktif {sortConfig.key === 'tidakAktif' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('catpersAktif')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Catpers Aktif {sortConfig.key === 'catpersAktif' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('pernahTercatat')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Pernah Tercatat {sortConfig.key === 'pernahTercatat' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('belumRekomendasi')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Belum Rekomendasi {sortConfig.key === 'belumRekomendasi' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('butuhApproval')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Approval {sortConfig.key === 'butuhApproval' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {satkerStatsList.length === 0 ? (
-                                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>Data kesatuan tidak ditemukan</td></tr>
+                                    {sortedSatkerStats.length === 0 ? (
+                                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>Data kesatuan tidak ditemukan</td></tr>
                                     ) : (
-                                        satkerStatsList.map(s => (
+                                        sortedSatkerStats.map(s => (
                                             <tr key={s.id} className="hover-row">
-                                                <td style={{ fontWeight: 600, cursor: 'pointer' }} onClick={() => handleOpenModal(`Semua Personel: ${s.nama}`, '', s.id)}>
+                                                <td style={{ fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => handleOpenModal(`Semua Personel: ${s.nama} `, '', s.id)}>
                                                     <span style={{ color: 'var(--primary-color)' }}>{s.nama}</span>
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    {renderBadge(s.totalPersonel, 'primary-color', s.totalPersonel > 0, () => handleOpenModal(`Semua Personel (${s.nama})`, '', s.id))}
+                                                    {renderBadge(s.totalPersonel, 'primary-color', s.totalPersonel > 0, () => handleOpenModal(`Semua Personel(${s.nama})`, '', s.id))}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    {renderBadge(s.tidakAktif, 'secondary-color', s.tidakAktif > 0, () => handleOpenModal(`Personel Tidak Aktif (${s.nama})`, 'tidakAktif', s.id))}
+                                                    {renderBadge(s.tidakAktif, 'secondary-color', s.tidakAktif > 0, () => handleOpenModal(`Personel Tidak Aktif(${s.nama})`, 'tidakAktif', s.id))}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    {renderBadge(s.catpersAktif, 'danger', s.catpersAktif > 0, () => handleOpenModal(`Catatan Aktif (${s.nama})`, 'catpersAktif', s.id))}
+                                                    {renderBadge(s.catpersAktif, 'danger', s.catpersAktif > 0, () => handleOpenModal(`Catatan Aktif(${s.nama})`, 'catpersAktif', s.id))}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    {renderBadge(s.pernahTercatat, 'warning', s.pernahTercatat > 0, () => handleOpenModal(`Pernah Tercatat (${s.nama})`, 'pernahTercatat', s.id))}
+                                                    {renderBadge(s.pernahTercatat, 'warning', s.pernahTercatat > 0, () => handleOpenModal(`Pernah Tercatat(${s.nama})`, 'pernahTercatat', s.id))}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    {renderBadge(s.belumRps, 'info', s.belumRps > 0, () => handleOpenModal(`Belum RPS (${s.nama})`, 'belumRps', s.id))}
+                                                    {renderBadge(s.belumRekomendasi, 'info', s.belumRekomendasi > 0, () => handleOpenModal(`Belum Rekomendasi(${s.nama})`, 'belumRps', s.id))}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    {renderBadge(s.perdamaian, 'success', s.perdamaian > 0, () => handleOpenModal(`Perdamaian (${s.nama})`, 'perdamaian', s.id))}
-                                                </td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    {renderBadge(s.butuhApproval, 'secondary-color', s.butuhApproval > 0, () => handleOpenModal(`Menunggu Approval (${s.nama})`, 'butuhApproval', s.id))}
+                                                    {renderBadge(s.butuhApproval, 'secondary-color', s.butuhApproval > 0, () => handleOpenModal(`Menunggu Approval(${s.nama})`, 'butuhApproval', s.id))}
                                                 </td>
                                             </tr>
                                         ))
@@ -407,304 +498,262 @@ const Dashboard = () => {
                 )}
             </div>
 
-            <Modal isOpen={modalData.isOpen} onClose={handleCloseModal} title={selectedPersonelDetail ? `Catatan: ${selectedPersonelDetail.namaLengkap}` : `Detail Data: ${modalData.title}`} maxWidth="90%">
+            <Modal isOpen={modalData.isOpen && !selectedPersonelDetail} onClose={handleCloseModal} title={`Detail Data: ${modalData.title}`} maxWidth="80%">
+                {/* VIEW DAFTAR PERSONEL */}
+                <>
+                    {/* LANDSCAPE PRINT STYLE FOR DASHBOARD ONLY */}
+                    <style type="text/css" media="print">
+                        {`
+                        @page {
+                            size: landscape !important;
+                            margin: 10mm 20mm !important;
+                        }
+                        .only-print {
+                            padding: 0 !important;
+                        }
+                        .modal-table-container.only-print {
+                            display: block !important;
+                            width: 100% !important;
+                        }
+                        `}
+                    </style>
 
-                {selectedPersonelDetail ? (
-                    // VIEW DETAIL HISTORI PELANGGARAN
-                    <div>
-                        <button className="btn-secondary mb-4" onClick={() => {
-                            setSelectedPersonelDetail(null);
-                            fetchStats(); // Refresh data utama (dashboard card)
-                            fetchModalList(); // Refresh data list modal agar status terbaru muncul
-                        }}>
-                            <ChevronLeft size={16} /> Kembali ke Daftar
-                        </button>
-
-                        {detailLoading ? <div className="loading-state py-4">Memuat Rekam Jejak...</div> : (
-                            <div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', background: 'var(--bg-color)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-                                    <div><strong style={{ color: 'var(--text-muted)' }}>NRP / NIP</strong><br />{selectedPersonelDetail.nrpNip}</div>
-                                    <div><strong style={{ color: 'var(--text-muted)' }}>Pangkat / Gol.</strong><br />{selectedPersonelDetail.pangkat}</div>
-                                    <div><strong style={{ color: 'var(--text-muted)' }}>Jenis Pegawai</strong><br />{selectedPersonelDetail.jenisPegawai}</div>
-                                    <div><strong style={{ color: 'var(--text-muted)' }}>Jabatan</strong><br />{selectedPersonelDetail.jabatan}</div>
-                                    <div><strong style={{ color: 'var(--text-muted)' }}>Kesatuan</strong><br />{selectedPersonelDetail.satker?.nama}</div>
-                                    <div><strong style={{ color: 'var(--text-muted)' }}>Tanggal Lahir</strong><br />{format(new Date(selectedPersonelDetail.tanggalLahir), 'dd/MM/yyyy')}</div>
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                    <h3 style={{ margin: 0 }}>Riwayat Catatan Personel ({selectedPersonelDetail.pelanggaran?.length || 0})</h3>
-                                    <div className="flex gap-2">
-                                        <button
-                                            className="btn-secondary"
-                                            style={{ padding: '0.4rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                                            onClick={() => exportPersonelPDF(selectedPersonelDetail)}
-                                        >
-                                            <Download size={15} /> Cetak Laporan (PDF)
-                                        </button>
-                                        {(user?.role === 'ADMIN_POLDA' || selectedPersonelDetail.satkerId === user?.satkerId) && (
-                                            <button
-                                                className="btn-primary"
-                                                style={{ padding: '0.4rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                                                onClick={() => {
-                                                    setSelectedPelanggaran(null);
-                                                    setIsEditPelanggaran(false);
-                                                    setIsPelanggaranModalOpen(true);
-                                                }}
-                                            >
-                                                <Plus size={15} /> Tambah Catatan
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                                <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
-                                    <table className="data-table" style={{ fontSize: '0.85em' }}>
-                                        <thead>
-                                            <tr>
-                                                <th>TANGGAL</th>
-                                                <th>WUJUD PERBUATAN</th>
-                                                <th>PENYELESAIAN</th>
-                                                <th>STATUS RPS</th>
-                                                {user?.role === 'ADMIN_POLDA' && <th>AKSI</th>}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {selectedPersonelDetail.pelanggaran?.length === 0 ? (
-                                                <tr><td colSpan="4" style={{ textAlign: 'center', padding: '1rem', color: 'var(--success)' }}>Personel ini bersih dari catatan pelanggaran.</td></tr>
-                                            ) : (
-                                                selectedPersonelDetail.pelanggaran?.map(pel => (
-                                                    <tr key={pel.id} style={{ background: pel.isDraft ? 'rgba(255, 0, 0, 0.05)' : 'transparent' }}>
-                                                        <td>
-                                                            {pel.tanggalSurat ? format(new Date(pel.tanggalSurat), 'dd/MM/yyyy') : format(new Date(pel.createdAt), 'dd/MM/yyyy')}
-                                                            {pel.isDraft && <div style={{ color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', display: 'inline-block', padding: '1px 3px', borderRadius: '3px', marginLeft: '5px' }}>DRAFT</div>}
-                                                        </td>
-                                                        <td>
-                                                            <div style={{ fontWeight: 600 }}>{pel.wujudPerbuatan}</div>
-                                                            {pel.catatanRevisi && (
-                                                                <div style={{ marginTop: '5px', padding: '6px 10px', background: '#fff5f5', borderLeft: '3px solid var(--danger)', fontSize: '0.8rem', color: 'var(--danger)', borderRadius: '4px' }}>
-                                                                    <strong>⚠️ Alasan Revisi:</strong> {pel.catatanRevisi}
-                                                                </div>
-                                                            )}
-                                                            {['TIDAK_TERBUKTI', 'PERDAMAIAN'].includes(pel.statusPenyelesaian) ? null : (
-                                                                <div style={{ marginTop: '4px' }}>
-                                                                    {pel.jenisSidang && <><strong style={{ color: 'var(--danger)', fontSize: '0.85em' }}>Sidang {pel.jenisSidang}</strong><br /></>}
-                                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85em' }}>{pel.hukuman || '-'}</span>
-                                                                    {pel.nomorSkep && <div style={{ fontSize: '0.85em', color: 'var(--info)', marginTop: '2px' }}><strong>SKEP:</strong> {pel.nomorSkep}</div>}
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td><span style={{ padding: '2px 8px', borderRadius: '12px', background: 'var(--border-color)', fontWeight: 600 }}>{pel.statusPenyelesaian.replace('_', ' ')}</span></td>
-                                                        <td>
-                                                            {pel.tanggalRekomendasi ? (
-                                                                <div>
-                                                                    <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>Terbit {format(new Date(pel.tanggalRekomendasi), 'dd/MM/yyyy')}</span>
-                                                                    {pel.nomorRekomendasi && <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>No: {pel.nomorRekomendasi}</div>}
-                                                                    {pel.fileRekomendasiUrl && <div style={{ fontSize: '0.8em', marginTop: '2px' }}><a href={`http://localhost:5000${pel.fileRekomendasiUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-color)' }}>Lihat Berkas</a></div>}
-                                                                </div>
-                                                            ) : pel.statusPenyelesaian === 'PERDAMAIAN' ? (
-                                                                <span style={{ color: 'var(--success)', fontStyle: 'italic', fontWeight: 600 }}>Selesai (RJ)</span>
-                                                            ) : (
-                                                                pel.tanggalBisaAjukanRps && new Date() < new Date(pel.tanggalBisaAjukanRps) ? (
-                                                                    <div>
-                                                                        <span style={{ color: 'var(--warning)', fontWeight: 600 }}>&#9203; Menunggu Waktu RPS</span>
-                                                                        <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>Bisa diajukan pasca: {format(new Date(pel.tanggalBisaAjukanRps), 'dd/MM/yyyy')}</div>
-                                                                    </div>
-                                                                ) : (
-                                                                    <span style={{ color: 'var(--danger)' }}>Belum Ada RPS</span>
-                                                                )
-                                                            )}
-                                                        </td>
-                                                        {user?.role === 'ADMIN_POLDA' && (
-                                                            <td>
-                                                                <div className="flex gap-2">
-                                                                    <button className="btn-icon" style={{ color: 'var(--info)' }} onClick={() => setViewingPelanggaran(pel)} title="Lihat Detail Lengkap"><Eye size={18} /></button>
-                                                                    {pel.isDraft ? (
-                                                                        <>
-                                                                            <button className="btn-icon" style={{ color: 'var(--success)' }} onClick={() => handleApprovePelanggaran(pel.id)} title="Setujui Draft"><CheckCircle size={18} /></button>
-                                                                            <button className="btn-icon" style={{ color: 'var(--danger)' }} onClick={() => handleRejectPelanggaran(pel.id)} title="Tolak & Hapus"><XCircle size={18} /></button>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <button className="btn-icon" onClick={() => handleEditPelanggaran(pel)} title="Revisi/Edit Pelanggaran"><Edit2 size={16} /></button>
-                                                                            <button className="btn-icon delete" onClick={() => setDeletePelanggaranModal({ isOpen: true, id: pel.id, alasan: '' })} title="Hapus Data (Soft Delete)"><Trash2 size={16} /></button>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                        )}
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
+                    {/* Header khusus cetak yang hanya muncul di print preview */}
+                    <div className="only-print" style={{ textAlign: 'center', lineHeight: '1.2', paddingBottom: '2.5cm' }}>
+                        <h2 style={{ margin: 0, textTransform: 'uppercase' }}>Daftar Data Personel</h2>
+                        <h3 style={{ margin: 0, color: '#444' }}>{modalData.title}</h3>
+                        <p style={{ marginTop: '0.2rem', fontSize: '0.9rem', color: '#666' }}>Dicetak pada: {new Date().toLocaleString('id-ID')}</p>
                     </div>
-                ) : (
-                    // VIEW DAFTAR PERSONEL
-                    <>
-                        <div className="page-actions mb-4">
-                            <div className="search-bar" style={{ width: '100%' }}>
-                                <Search size={18} />
-                                <input
-                                    type="text"
-                                    placeholder="Cari Nama atau NIP/NRP..."
-                                    value={modalSearch}
-                                    onChange={(e) => setModalSearch(e.target.value)}
-                                />
-                            </div>
-                        </div>
+                        
+                    <div className="only-print modal-table-container" style={{ width: '100%' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px', textAlign: 'left', tableLayout: 'auto' }}>
+                            <thead>
+                                <tr style={{ height: '30px', border: 'none' }}>
+                                    <th colSpan="6" style={{ border: 'none' }}></th>
+                                </tr>
+                                <tr>
+                                    <th style={{ border: '1px solid black', padding: '8px', textAlign: 'center', width: '40px' }}>No.</th>
+                                    <th style={{ border: '1px solid black', padding: '8px', textAlign: 'center' }}>NRP / NIP</th>
+                                    <th style={{ border: '1px solid black', padding: '8px', textAlign: 'center' }}>Nama Lengkap</th>
+                                    <th style={{ border: '1px solid black', padding: '8px', textAlign: 'center' }}>Pangkat</th>
+                                    <th style={{ border: '1px solid black', padding: '8px', textAlign: 'center' }}>Kesatuan</th>
+                                    <th style={{ border: '1px solid black', padding: '8px', textAlign: 'center' }}>Status Personel</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedModalList.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="6" style={{ border: '1px solid black', padding: '12px', textAlign: 'center' }}>Tidak ada data</td>
+                                    </tr>
+                                ) : (
+                                    sortedModalList.map((p, idx) => (
+                                        <tr key={`print-${p.id}`}>
+                                            <td style={{ border: '1px solid black', padding: '6px', textAlign: 'center' }}>{idx + 1}</td>
+                                            <td style={{ border: '1px solid black', padding: '6px' }}>{p.nrpNip}</td>
+                                            <td style={{ border: '1px solid black', padding: '6px' }}>{p.namaLengkap}</td>
+                                            <td style={{ border: '1px solid black', padding: '6px' }}>{p.pangkat}</td>
+                                            <td style={{ border: '1px solid black', padding: '6px' }}>{p.satker?.nama || '-'}</td>
+                                            <td style={{ border: '1px solid black', padding: '6px' }}>
+                                                {p.statusKeaktifan?.includes('PTDH') ? 'PTDH' : p.statusPersonel}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
 
-                        {modalLoading ? (
-                            <div className="loading-state py-8">Mensinkronisasi Data...</div>
-                        ) : (
-                            <>
-                                {/* Batasan Tinggi Tabel List Mengikuti Dimensi Layar (Max Height & Overflow y) */}
-                                <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 22rem)' }}>
-                                    <table className="data-table" style={{ fontSize: '0.85em' }}>
-                                        <thead>
-                                            <tr>
-                                                <th>NRP / NIP</th>
-                                                <th>Nama Lengkap</th>
-                                                <th>Pangkat</th>
-                                                <th>Kesatuan</th>
-                                                <th>Status Personel</th>
-                                                <th>Aksi</th>
-                                            </tr>
-                                        </thead>
+                    <div className="page-actions mb-4 no-print" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <div className="search-bar" style={{ flex: 1, minWidth: '200px' }}>
+                            <Search size={18} />
+                            <input
+                                type="text"
+                                placeholder="Cari Nama atau NIP/NRP..."
+                                value={modalSearch}
+                                onChange={(e) => setModalSearch(e.target.value)}
+                            />
+                        </div>
+                        <button className="btn-secondary" onClick={handlePrintModal} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Printer size={18} /> Cetak
+                        </button>
+                        <button className="btn-primary" onClick={handleExportExcel} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Download size={18} /> Ekspor CSV
+                        </button>
+                    </div>
+
+                    {modalLoading ? (
+                        <div className="loading-state py-8">Mensinkronisasi Data...</div>
+                    ) : (
+                        <>
+                            {/* Batasan Tinggi Tabel List Mengikuti Dimensi Layar (Max Height & Overflow y) */}
+                            <div className="modal-table-container" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 22rem)' }}>
+                                <table className="data-table" style={{ fontSize: '0.85em' }}>
+                                    <thead>
+                                        <tr>
+                                            <th style={{ width: '40px', textAlign: 'center' }}>No.</th>
+                                            <th onClick={() => requestPersonelSort('nrpNip')} style={{ cursor: 'pointer', textAlign: 'center' }}>NRP / NIP {personelSortConfig.key === 'nrpNip' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                            <th onClick={() => requestPersonelSort('namaLengkap')} style={{ cursor: 'pointer', textAlign: 'center' }}>Nama Lengkap {personelSortConfig.key === 'namaLengkap' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                            <th onClick={() => requestPersonelSort('pangkat')} style={{ cursor: 'pointer', textAlign: 'center' }}>Pangkat {personelSortConfig.key === 'pangkat' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                            <th onClick={() => requestPersonelSort('satker')} style={{ cursor: 'pointer', textAlign: 'center' }}>Kesatuan {personelSortConfig.key === 'satker' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                            <th onClick={() => requestPersonelSort('statusPersonel')} style={{ cursor: 'pointer', textAlign: 'center' }}>Status Personel {personelSortConfig.key === 'statusPersonel' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                            <th style={{ textAlign: 'center' }}>Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    {sortedModalList.length === 0 ? (
                                         <tbody>
-                                            {currentList.length === 0 ? (
-                                                <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>Pencarian / Kategori tidak menghasilkan temuan.</td></tr>
-                                            ) : (
-                                                currentList.map(p => (
-                                                    <tr key={p.id}>
-                                                        <td><span style={{ fontWeight: 600 }}>{p.nrpNip}</span><br /><small>{p.jenisPegawai}</small></td>
-                                                        <td>
-                                                            {p.namaLengkap}
-                                                            {p.isDraft && <span style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', padding: '1px 4px', borderRadius: '4px' }}>DRAFT</span>}
-                                                            {p.hasDraftViolation && <span style={{ marginLeft: '8px', color: 'var(--warning)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--warning)', padding: '1px 4px', borderRadius: '4px' }}>CATATAN DRAFT</span>}
-                                                            {p.catatanRevisi && (
-                                                                <div style={{ marginTop: '5px', padding: '5px 8px', background: '#fff5f5', borderLeft: '3px solid var(--danger)', fontSize: '0.75rem', color: 'var(--danger)', borderRadius: '4px' }}>
-                                                                    <strong>⚠️ Perlu Perbaikan:</strong> {p.catatanRevisi}
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td>{p.pangkat}</td>
-                                                        <td>{p.satker?.nama || '-'}</td>
-                                                        <td>
-                                                            <span style={{
-                                                                padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
-                                                                background: p.statusPersonel === 'Ada Catatan' ? 'var(--danger)' : p.statusPersonel === 'Pernah Tercatat' ? 'var(--warning)' : 'var(--success)',
-                                                                color: 'white'
-                                                            }}>
-                                                                {p.statusPersonel}
+                                            <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>Pencarian / Kategori tidak menghasilkan temuan.</td></tr>
+                                        </tbody>
+                                    ) : (
+                                        <tbody>
+                                            {sortedModalList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((p, index) => (
+                                                <tr key={`screen-${p.id}`}>
+                                                    <td style={{ textAlign: 'center' }}>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
+                                                    <td><span style={{ fontWeight: 600 }}>{p.nrpNip}</span></td>
+                                                    <td>
+                                                        {p.namaLengkap}
+                                                        {p.isDraft && <span style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', padding: '1px 4px', borderRadius: '4px' }}>DRAFT</span>}
+                                                        {p.hasDraftViolation && <span style={{ marginLeft: '8px', color: 'var(--warning)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--warning)', padding: '1px 4px', borderRadius: '4px' }}>CATATAN DRAFT</span>}
+                                                        {p.statusKeaktifan !== 'AKTIF' && (
+                                                            <span style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', padding: '1px 4px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                                                {p.statusKeaktifan?.replace('PTHD', 'PTDH')}
                                                             </span>
-                                                        </td>
-                                                        <td>
+                                                        )}
+                                                        {p.catatanRevisi && (
+                                                            <div style={{ marginTop: '5px', padding: '5px 8px', background: '#fff5f5', borderLeft: '3px solid var(--danger)', fontSize: '0.75rem', color: 'var(--danger)', borderRadius: '4px' }}>
+                                                                <strong>⚠️ Perlu Perbaikan:</strong> {p.catatanRevisi}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td>{p.pangkat}</td>
+                                                    <td>{p.satker?.nama || '-'}</td>
+                                                    <td>
+                                                        <span style={{
+                                                            padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
+                                                            background: p.statusPersonel === 'Proses' ? 'var(--danger)' :
+                                                                ['Pernah Tercatat', 'Belum SKTT', 'Belum SKTB', 'Belum Rekomendasi'].includes(p.statusPersonel) ? 'var(--warning)' :
+                                                                    'var(--success)',
+                                                            color: ['Bersih', 'Tidak Ada Catatan', 'Tidak Terbukti', 'Perdamaian'].includes(p.statusPersonel) ? 'white' : (['Pernah Tercatat', 'Belum SKTT', 'Belum SKTB', 'Belum Rekomendasi'].includes(p.statusPersonel) ? '#000' : 'white')
+                                                        }}>
+                                                            {p.statusKeaktifan?.includes('PTDH') ? 'PTDH' : p.statusPersonel}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', gap: '4px' }}>
                                                             <button
                                                                 className="btn-icon"
                                                                 style={{ color: 'var(--info)' }}
-                                                                onClick={() => handleViewDetail(p.id)}
+                                                                onClick={() => setSelectedPersonelDetail(p)}
                                                                 title="Lihat Histori Catpers"
                                                             >
-                                                                <Eye size={18} /> Lihat Catatan
+                                                                <Eye size={18} />
                                                             </button>
                                                             {user?.role === 'ADMIN_POLDA' && p.isDraft && (
                                                                 <>
-                                                                    <button className="btn-icon" style={{ color: 'var(--success)' }} onClick={() => handleApprovePersonel(p.id)} title="Setujui Personel Baru"><CheckCircle size={20} /></button>
-                                                                    <button className="btn-icon" style={{ color: 'var(--danger)' }} onClick={() => handleRejectPersonel(p.id)} title="Tolak & Hapus Draft"><XCircle size={20} /></button>
+                                                                    <button
+                                                                        className="btn-icon"
+                                                                        style={{ color: 'var(--success)' }}
+                                                                        onClick={() => handleApprovePersonel(p.id)}
+                                                                        title="Setujui Personel Baru"
+                                                                    >
+                                                                        <CheckCircle size={20} />
+                                                                    </button>
+                                                                    <button
+                                                                        className="btn-icon"
+                                                                        style={{ color: 'var(--danger)' }}
+                                                                        onClick={() => handleRejectPersonel(p.id)}
+                                                                        title="Tolak & Hapus Draft"
+                                                                    >
+                                                                        <XCircle size={20} />
+                                                                    </button>
                                                                 </>
                                                             )}
-                                                            {(user?.role === 'ADMIN_POLDA' || p.satkerId === user?.satkerId) && !p.isDraft && (
+                                                            {(user?.role === 'ADMIN_POLDA') && !p.isDraft && (
                                                                 <>
-                                                                    <button className="btn-icon" onClick={() => handleEditPersonel(p)} title="Edit Data Dasar Personel"><Edit2 size={18} /></button>
-                                                                    <button className="btn-icon delete" onClick={() => triggerDeletePersonel(p.id)} title="Nonaktifkan / Hapus"><Trash2 size={18} /></button>
+                                                                    <button
+                                                                        className="btn-icon"
+                                                                        style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }}
+                                                                        onClick={() => p.statusKeaktifan === 'AKTIF' && handleEditPersonel(p)}
+                                                                        disabled={p.statusKeaktifan !== 'AKTIF'}
+                                                                        title="Edit Data Dasar Personel"
+                                                                    >
+                                                                        <Edit2 size={18} />
+                                                                    </button>
+                                                                    <button
+                                                                        className="btn-icon delete"
+                                                                        style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }}
+                                                                        onClick={() => p.statusKeaktifan === 'AKTIF' && triggerDeletePersonel(p.id)}
+                                                                        disabled={p.statusKeaktifan !== 'AKTIF'}
+                                                                        title="Nonaktifkan / Hapus"
+                                                                    >
+                                                                        <Trash2 size={18} />
+                                                                    </button>
                                                                 </>
                                                             )}
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            )}
+                                                            {(user?.role === 'ADMIN_POLDA') && !p.isDraft && p.statusKeaktifan !== 'AKTIF' && (
+                                                                <button
+                                                                    className="btn-icon"
+                                                                    style={{ color: 'var(--success)' }}
+                                                                    onClick={() => triggerRestorePersonel(p.id)}
+                                                                    title="Aktifkan Kembali Personel"
+                                                                >
+                                                                    <RefreshCw size={18} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                         </tbody>
-                                    </table>
-                                </div>
+                                    )}
+                                </table>
+                            </div>
 
-                                {/* Pagination Controls */}
-                                {totalPages > 1 && (
-                                    <div className="flex justify-between items-center mt-4 pt-4" style={{ borderTop: '1px solid var(--border)', fontSize: '0.9rem' }}>
-                                        <span>Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, modalList.length)} dari {modalList.length}</span>
-                                        <div className="flex gap-2">
-                                            <button
-                                                className="btn-secondary"
-                                                style={{ padding: '4px 8px' }}
-                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                                disabled={currentPage === 1}
-                                            >
-                                                <ChevronLeft size={16} /> Prev
-                                            </button>
-                                            <button
-                                                className="btn-secondary"
-                                                style={{ padding: '4px 8px' }}
-                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                                disabled={currentPage === totalPages}
-                                            >
-                                                Next <ChevronRight size={16} />
-                                            </button>
-                                        </div>
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                                <div className="flex justify-between items-center mt-4 pt-4 no-print" style={{ borderTop: '1px solid var(--border)', fontSize: '0.9rem' }}>
+                                    <span>Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, modalList.length)} dari {modalList.length}</span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            className="btn-secondary"
+                                            style={{ padding: '4px 8px' }}
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            disabled={currentPage === 1}
+                                        >
+                                            <ChevronLeft size={16} /> Prev
+                                        </button>
+                                        <button
+                                            className="btn-secondary"
+                                            style={{ padding: '4px 8px' }}
+                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                            disabled={currentPage === totalPages}
+                                        >
+                                            Next <ChevronRight size={16} />
+                                        </button>
                                     </div>
-                                )}
-                            </>
-                        )}
-                    </>
-                )}
+                                </div>
+                            )}
+                        </>
+                    )}
+                </>
             </Modal>
 
             <PersonelFormModal
                 isOpen={isAddPersonelOpen}
                 onClose={() => { setIsAddPersonelOpen(false); setIsEditPersonel(false); setSelectedPersonel(null); }}
-                onSuccess={() => {
-                    fetchStats();
-                    fetchModalList();
-                }}
+                onSuccess={handlePersonelSuccess}
                 isEdit={isEditPersonel}
                 initialData={selectedPersonel}
             />
 
-            <PelanggaranFormModal
-                isOpen={isPelanggaranModalOpen}
-                onClose={() => { setIsPelanggaranModalOpen(false); setSelectedPelanggaran(null); }}
-                onSuccess={() => {
+            <PersonelHistoryModal
+                isOpen={!!selectedPersonelDetail}
+                onClose={handleCloseModal}
+                personelId={selectedPersonelDetail?.id}
+                onRefresh={() => {
                     fetchStats();
                     fetchModalList();
-                    if (selectedPersonelDetail) handleViewDetail(selectedPersonelDetail.id);
                 }}
-                isEdit={isEditPelanggaran}
-                initialData={selectedPelanggaran}
-                targetPersonel={selectedPersonelDetail}
             />
-
-            <Modal isOpen={deletePelanggaranModal.isOpen} onClose={() => setDeletePelanggaranModal({ isOpen: false, id: null, alasan: '' })} title="Konfirmasi Hapus Riwayat">
-                <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
-                    Tindakan ini akan menghapus jejak secara administratif (soft delete) untuk data pelanggaran ini. Tindakan dan alasan akan direkam pada Log Audit sistem.
-                </div>
-                <div className="form-group w-full relative">
-                    <label style={{ color: 'var(--danger)', fontWeight: 'bold' }}>Alasan Tindakan Penghapusan *</label>
-                    <textarea
-                        className="form-input"
-                        rows="3"
-                        value={deletePelanggaranModal.alasan}
-                        onChange={(e) => setDeletePelanggaranModal({ ...deletePelanggaranModal, alasan: e.target.value })}
-                        placeholder="Ketik mengapa riwayat pelanggaran ini dihapus..."
-                        autoFocus
-                    ></textarea>
-                </div>
-                <div className="form-actions mt-4">
-                    <button type="button" className="btn-secondary" onClick={() => setDeletePelanggaranModal({ isOpen: false, id: null, alasan: '' })}>Batal</button>
-                    <button type="button" onClick={confirmDeletePelanggaran} className="btn-primary" style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={!deletePelanggaranModal.alasan.trim()}>
-                        <Trash2 size={16} /> Konfirmasi Hapus
-                    </button>
-                </div>
-            </Modal>
 
             {/* Modal Penghapusan (Audit Log / Soft Delete / Nonaktif) */}
             <Modal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null, alasan: '', statusKeaktifan: '' })} title="Konfirmasi Nonaktif / Hapus Personel">
@@ -722,8 +771,9 @@ const Dashboard = () => {
                     >
                         <option value="">-- Pilih Status Update --</option>
                         <option value="MENINGGAL_DUNIA">Meninggal Dunia</option>
-                        <option value="PENSIUN">Pensiun Dini / Mutasi Keluar</option>
-                        <option value="DIHAPUS">Data Dihapus (Koreksi Berkas)</option>
+                        <option value="PENSIUN">Pensiun</option>
+                        <option value="TIDAK AKTIF (PTDH)">PTDH (Pemberhentian Tidak Dengan Hormat)</option>
+                        <option value="DIHAPUS">Data Dihapus</option>
                     </select>
                 </div>
 
@@ -734,7 +784,7 @@ const Dashboard = () => {
                         rows="3"
                         value={deleteModal.alasan}
                         onChange={(e) => setDeleteModal({ ...deleteModal, alasan: e.target.value })}
-                        placeholder="Contoh: Kesalahan entri, Pegawai pensiun dini, PTDH, dsb..."
+                        placeholder="Contoh: Kesalahan entri, Pegawai pensiun, PTDH, dsb..."
                         autoFocus
                     ></textarea>
                 </div>
@@ -746,124 +796,7 @@ const Dashboard = () => {
                 </div>
             </Modal>
 
-            {/* Modal Detail Pelanggaran LENGKAP (untuk Admin Mempelajari Draft) */}
-            <Modal isOpen={!!viewingPelanggaran} onClose={() => setViewingPelanggaran(null)} title="Detail Lengkap Catatan Pelanggaran">
-                {viewingPelanggaran && (
-                    <div style={{ maxHeight: '80vh', overflowY: 'auto', paddingRight: '0.5rem' }}>
-                        {/* Status Badge at Top */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', background: 'var(--bg-color)', padding: '1rem', borderRadius: '8px' }}>
-                            <div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Status Penyelesaian:</div>
-                                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--primary-color)' }}>{viewingPelanggaran.statusPenyelesaian.replace('_', ' ')}</div>
-                            </div>
-                            {viewingPelanggaran.isDraft && (
-                                <div style={{ background: 'var(--danger)', color: 'white', padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                                    SEDANG DIAJUKAN (DRAFT)
-                                </div>
-                            )}
-                        </div>
-
-                        {/* 1. DASAR HUKUM / DASAR CATPERS */}
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <FileText size={18} /> 1. Dasar Catpers / Legalitas
-                            </h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div>
-                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Jenis Dasar & Nomor Surat</label>
-                                    <div style={{ fontWeight: 500 }}>{viewingPelanggaran.jenisDasar} - {viewingPelanggaran.nomorSurat}</div>
-                                </div>
-                                <div>
-                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tanggal Surat</label>
-                                    <div style={{ fontWeight: 500 }}>{format(new Date(viewingPelanggaran.tanggalSurat), 'dd MMMM yyyy')}</div>
-                                </div>
-                                <div style={{ gridColumn: '1 / span 2' }}>
-                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Wujud Perbuatan</label>
-                                    <div style={{ fontWeight: 500, background: '#f8fafc', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>{viewingPelanggaran.wujudPerbuatan}</div>
-                                </div>
-                                {viewingPelanggaran.fileDasarUrl && (
-                                    <div style={{ gridColumn: '1 / span 2' }}>
-                                        {renderAttachment(viewingPelanggaran.fileDasarUrl, "Lampiran Berkas Dasar")}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* 2. PUTUSAN / SANKSI */}
-                        {['MENJALANI_HUKUMAN', 'SELESAI_MENJALANI_HUKUMAN'].includes(viewingPelanggaran.statusPenyelesaian) && (
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <AlertCircle size={18} /> 2. Putusan Sidang & Sanksi
-                                </h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <div>
-                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Jenis Sidang</label>
-                                        <div style={{ fontWeight: 500 }}>{viewingPelanggaran.jenisSidang || '-'}</div>
-                                    </div>
-                                    <div>
-                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Hukuman / Sanksi</label>
-                                        <div style={{ fontWeight: 500 }}>{viewingPelanggaran.hukuman || '-'}</div>
-                                    </div>
-                                    <div>
-                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Nomor SKEP / Putusan</label>
-                                        <div style={{ fontWeight: 500 }}>{viewingPelanggaran.nomorSkep || '-'}</div>
-                                    </div>
-                                    {viewingPelanggaran.filePutusanUrl && (
-                                        <div style={{ gridColumn: '1 / span 2' }}>
-                                            {renderAttachment(viewingPelanggaran.filePutusanUrl, "Lampiran Surat Putusan (SKEP)")}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 3. REKOMENDASI (RPS) */}
-                        <div style={{ marginBottom: '1rem' }}>
-                            <h4 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <CheckCircle size={18} /> 3. Rekomendasi Pemulihan (RPS)
-                            </h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div>
-                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Nomor Rekomendasi</label>
-                                    <div style={{ fontWeight: 500 }}>{viewingPelanggaran.nomorRekomendasi || '-'}</div>
-                                </div>
-                                <div>
-                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tanggal Rekomendasi</label>
-                                    <div style={{ fontWeight: 500 }}>{viewingPelanggaran.tanggalRekomendasi ? format(new Date(viewingPelanggaran.tanggalRekomendasi), 'dd MMMM yyyy') : '-'}</div>
-                                </div>
-                                {viewingPelanggaran.fileRekomendasiUrl && (
-                                    <div style={{ gridColumn: '1 / span 2' }}>
-                                        {renderAttachment(viewingPelanggaran.fileRekomendasiUrl, "Lampiran Berkas RPS")}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Revision Info if exists */}
-                        {viewingPelanggaran.catatanRevisi && (
-                            <div style={{ marginTop: '2rem', padding: '1rem', background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '8px', color: '#c53030' }}>
-                                <strong style={{ display: 'block', marginBottom: '5px' }}>⚠️ Sedang Dalam Status Revisi:</strong>
-                                {viewingPelanggaran.catatanRevisi}
-                            </div>
-                        )}
-                    </div>
-                )}
-                <div className="form-actions mt-6" style={{ display: 'flex', gap: '1rem' }}>
-                    {user?.role === 'ADMIN_POLDA' && viewingPelanggaran?.isDraft && (
-                        <>
-                            <button className="btn-primary" style={{ flex: 1, background: 'var(--success)', borderColor: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { handleApprovePelanggaran(viewingPelanggaran.id); setViewingPelanggaran(null); }}>
-                                <CheckCircle size={18} style={{ marginRight: '5px' }} /> Setujui
-                            </button>
-                            <button className="btn-primary" style={{ flex: 1, background: 'var(--danger)', borderColor: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { handleRejectPelanggaran(viewingPelanggaran.id); setViewingPelanggaran(null); }}>
-                                <XCircle size={18} style={{ marginRight: '5px' }} /> Kembalikan Revisi
-                            </button>
-                        </>
-                    )}
-                    <button className={user?.role === 'ADMIN_POLDA' && viewingPelanggaran?.isDraft ? "btn-secondary" : "btn-primary w-full"} style={{ flex: user?.role === 'ADMIN_POLDA' && viewingPelanggaran?.isDraft ? 1 : 'unset' }} onClick={() => setViewingPelanggaran(null)}>Tutup Detail</button>
-                </div>
-            </Modal>
-
-            {/* Modal Rejeksi / Revisi */}
+            {/* Modal Rejeksi / Revisi (Khusus Personel) */}
             <Modal isOpen={rejectModal.isOpen} onClose={() => setRejectModal({ isOpen: false, id: null, type: null, catatan: '' })} title="Kembalikan untuk Revisi">
                 <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
                     Berikan alasan atau instruksi perbaikan untuk operator Satker. Data tidak akan dihapus, namun akan ditandai butuh perbaikan.
@@ -883,6 +816,31 @@ const Dashboard = () => {
                     <button type="button" className="btn-secondary" onClick={() => setRejectModal({ isOpen: false, id: null, type: null, catatan: '' })}>Batal</button>
                     <button type="button" onClick={confirmReject} className="btn-primary" style={{ background: 'var(--warning)', borderColor: 'var(--warning)', color: '#000' }}>
                         <XCircle size={16} /> Kirim Revisi
+                    </button>
+                </div>
+            </Modal>
+
+            {/* Modal Restore Personel */}
+            <Modal isOpen={restoreModal.isOpen} onClose={() => setRestoreModal({ isOpen: false, id: null, alasan: '' })} title="Konfirmasi Pengaktifan Kembali">
+                <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
+                    Tindakan ini akan mengembalikan personel dari status Tidak Aktif menjadi Aktif kembali. Sistem akan memulihkan NRP/NIP asli personel tersebut. Jika NRP/NIP sudah digunakan oleh personel lain, proses ini akan dibatalkan otomatis.
+                </div>
+
+                <div className="form-group w-full relative">
+                    <label style={{ color: 'var(--primary-color)', fontWeight: 'bold' }}>Alasan Tindakan (Wajib Audit Log) *</label>
+                    <textarea
+                        className="form-input"
+                        rows="3"
+                        value={restoreModal.alasan}
+                        onChange={(e) => setRestoreModal({ ...restoreModal, alasan: e.target.value })}
+                        placeholder="Contoh: Kesalahan sistem, Mutasi dibatalkan, dsb..."
+                        autoFocus
+                    ></textarea>
+                </div>
+                <div className="form-actions mt-4">
+                    <button type="button" className="btn-secondary" onClick={() => setRestoreModal({ isOpen: false, id: null, alasan: '' })}>Batal</button>
+                    <button type="button" onClick={confirmRestorePersonel} className="btn-primary" disabled={!restoreModal.alasan.trim()}>
+                        <RefreshCw size={16} /> Ya, Aktifkan
                     </button>
                 </div>
             </Modal>

@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Personel from './pages/Personel';
 import Pelanggaran from './pages/Pelanggaran';
 import Pengaturan from './pages/Pengaturan';
+import Pencarian from './pages/Pencarian';
 import MainLayout from './components/MainLayout';
 
 // Protected Route Component
@@ -37,6 +38,12 @@ function App() {
       <Route path="/pelanggaran" element={
         <ProtectedRoute>
           <Pelanggaran />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/pencarian" element={
+        <ProtectedRoute>
+          <Pencarian />
         </ProtectedRoute>
       } />
 

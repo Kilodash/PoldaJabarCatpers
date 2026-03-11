@@ -37,8 +37,8 @@ const Login = () => {
 
             <div className="login-card glass-panel animate-fade-in">
                 <div className="login-header">
-                    <div className="logo-container">
-                        <ShieldCheck size={48} className="logo-icon" />
+                    <div className="logo-container" style={{ marginBottom: '1rem' }}>
+                        <img src="https://bidpropam.sumsel.polri.go.id/ecpp/public/images/logo/logo-paminal.png" alt="Logo Paminal" style={{ height: '120px' }} />
                     </div>
                     <h2>Catatan Personel</h2>
                     <p>Database System Polda Jabar</p>

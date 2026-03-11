@@ -37,6 +37,16 @@ const createUser = async (req, res) => {
             }
         });
 
+        await prisma.auditLog.create({
+            data: {
+                userId: req.user.id,
+                aksi: 'CREATE_USER',
+                targetId: String(user.id),
+                deskripsi: `Menambahkan akun baru: "${email}" (${role || 'OPERATOR_SATKER'})`,
+                alasan: 'Tambah User oleh Admin'
+            }
+        });
+
         res.status(201).json({ message: 'User berhasil dibuat.' });
     } catch (error) {
         console.error(error);
@@ -64,6 +74,16 @@ const updateUser = async (req, res) => {
             data: dataToUpdate
         });
 
+        await prisma.auditLog.create({
+            data: {
+                userId: req.user.id,
+                aksi: 'UPDATE_USER',
+                targetId: String(id),
+                deskripsi: `Mengubah akun user: "${email}" menjadi role: "${role}"`,
+                alasan: 'Update User oleh Admin'
+            }
+        });
+
         res.json({ message: 'User berhasil diupdate.' });
     } catch (error) {
         console.error(error);
@@ -75,6 +95,17 @@ const deleteUser = async (req, res) => {
     try {
         const { id } = req.params;
         await prisma.user.delete({ where: { id: parseInt(id) } });
+
+        await prisma.auditLog.create({
+            data: {
+                userId: req.user.id,
+                aksi: 'DELETE_USER',
+                targetId: String(id),
+                deskripsi: `Menghapus akun user ID: ${id}`,
+                alasan: 'Hapus User oleh Admin'
+            }
+        });
+
         res.json({ message: 'User berhasil dihapus.' });
     } catch (error) {
         console.error(error);

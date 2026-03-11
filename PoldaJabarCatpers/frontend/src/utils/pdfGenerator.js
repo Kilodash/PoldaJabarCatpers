@@ -46,7 +46,11 @@ export const exportPersonelPDF = (personel) => {
         index + 1,
         format(new Date(pel.tanggalSurat), 'dd/MM/yyyy'),
         pel.wujudPerbuatan,
-        pel.statusPenyelesaian.replace(/_/g, ' '),
+        pel.statusPenyelesaian === 'TIDAK_TERBUKTI' 
+            ? (pel.nomorSktb || pel.tanggalSktb || pel.fileSktbUrl ? 'TIDAK TERBUKTI SIDANG' : 'TIDAK TERBUKTI RIKSA')
+            : (pel.statusPenyelesaian === 'Belum ada SKTT' ? 'TIDAK TERBUKTI RIKSA (BELUM ADA SKTT)' :
+               pel.statusPenyelesaian === 'Belum ada SKTB' ? 'TIDAK TERBUKTI SIDANG (BELUM ADA SKTB)' :
+               pel.statusPenyelesaian.replace(/_/g, ' ')),
         pel.hukuman || '-'
     ]);
 

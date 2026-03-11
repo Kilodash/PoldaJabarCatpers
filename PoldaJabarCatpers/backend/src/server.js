@@ -21,6 +21,7 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const userRoutes = require('./routes/user.routes');
 const pengaturanRoutes = require('./routes/pengaturan.routes');
 const auditRoutes = require('./routes/audit.routes');
+const pencarianRoutes = require('./routes/pencarian.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/satker', satkerRoutes);
@@ -30,6 +31,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/pengaturan', pengaturanRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/pencarian', pencarianRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

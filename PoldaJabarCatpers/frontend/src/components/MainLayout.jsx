@@ -1,15 +1,18 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FileWarning, LogOut, Menu, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, FileWarning, Search, LogOut, Menu, Settings } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import './MainLayout.css';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
     const { user } = useAuth();
     return (
-        <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+        <aside className={`sidebar ${isOpen ? 'open' : 'closed'}`}>
             <div className="sidebar-header">
-                <h2>CDS Polda Jabar</h2>
+                <div className="logo-wrapper">
+                    <img src="https://bidpropam.sumsel.polri.go.id/ecpp/public/images/logo/logo-paminal.png" alt="Logo Paminal" style={{ height: '60px' }} />
+                    <h2 style={{ fontSize: '1.1rem', margin: 0 }}>CDS Polda Jabar</h2>
+                </div>
                 <button className="mobile-close" onClick={toggleSidebar}>&times;</button>
             </div>
             <nav className="sidebar-nav">
@@ -17,14 +20,16 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                     <LayoutDashboard size={20} />
                     <span>Dashboard</span>
                 </NavLink>
-                <NavLink to="/personel" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
-                    <Users size={20} />
-                    <span>Data Personel</span>
-                </NavLink>
                 <NavLink to="/pelanggaran" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
                     <FileWarning size={20} />
                     <span>Pelanggaran</span>
                 </NavLink>
+                {user?.role === 'ADMIN_POLDA' && (
+                    <NavLink to="/pencarian" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
+                        <Search size={20} />
+                        <span>Pencarian</span>
+                    </NavLink>
+                )}
                 {user?.role === 'ADMIN_POLDA' && (
                     <NavLink to="/pengaturan" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
                         <Settings size={20} />
@@ -70,7 +75,19 @@ const Navbar = ({ toggleSidebar }) => {
 };
 
 const MainLayout = ({ children }) => {
-    const [sidebarOpen, setSidebarOpen] = React.useState(false);
+    const [sidebarOpen, setSidebarOpen] = React.useState(window.innerWidth > 768);
+
+    React.useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth <= 768) {
+                setSidebarOpen(false);
+            } else {
+                setSidebarOpen(true);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
@@ -79,7 +96,7 @@ const MainLayout = ({ children }) => {
             <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
 
             {/* Overlay for mobile responsive */}
-            {sidebarOpen && <div className="sidebar-overlay" onClick={toggleSidebar}></div>}
+            {sidebarOpen && window.innerWidth <= 768 && <div className="sidebar-overlay" onClick={toggleSidebar}></div>}
 
             <main className="main-content">
                 <Navbar toggleSidebar={toggleSidebar} />

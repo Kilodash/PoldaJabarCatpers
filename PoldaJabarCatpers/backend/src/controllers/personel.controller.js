@@ -100,25 +100,39 @@ const createPersonel = async (req, res) => {
         const satker = await prisma.satker.findUnique({ where: { id: targetSatkerId } });
         if (!satker) return res.status(400).json({ message: 'Satker tidak ditemukan.' });
 
-        // Operator creates as Draft, Admin as Approved
-        const isDraft = req.user.role === 'OPERATOR_SATKER';
+        // Operator creates Personel directly as Approved (no longer Draft)
+        const isDraft = false;
 
-        const personel = await prisma.personel.create({
-            data: {
-                jenisPegawai,
-                nrpNip,
-                namaLengkap,
-                pangkat,
-                jabatan,
-                satkerId: targetSatkerId,
-                tanggalLahir: tglLahir,
-                tanggalPensiun: tanggalPensiunObj,
-                isDraft: isDraft
-            }
+        const personel = await prisma.$transaction(async (tx) => {
+            const p = await tx.personel.create({
+                data: {
+                    jenisPegawai,
+                    nrpNip,
+                    namaLengkap,
+                    pangkat,
+                    jabatan,
+                    satkerId: targetSatkerId,
+                    tanggalLahir: tglLahir,
+                    tanggalPensiun: tanggalPensiunObj,
+                    isDraft: isDraft
+                }
+            });
+
+            await tx.auditLog.create({
+                data: {
+                    userId: req.user.id,
+                    aksi: 'CREATE_PERSONEL',
+                    targetId: p.id,
+                    deskripsi: `Menambahkan Personel baru (${namaLengkap} - NRP/NIP: ${nrpNip})`,
+                    alasan: 'Input data Personel baru'
+                }
+            });
+
+            return p;
         });
 
         res.status(201).json({
-            message: isDraft ? 'Data personel berhasil diajukan sebagai Draft. Menunggu persetujuan Admin Polda.' : 'Data personel berhasil ditambahkan',
+            message: 'Data personel berhasil ditambahkan',
             data: personel
         });
 
@@ -163,16 +177,19 @@ const getAllPersonel = async (req, res) => {
         }
 
         if (req.query.search) {
+            delete whereClause.deletedAt; // Biarkan cari yang sudah tidak aktif / deleted juga jika pencarian spesifik
             whereClause.OR = [
                 { namaLengkap: { contains: req.query.search } },
-                { nrpNip: { contains: req.query.search } }
+                { nrpNip: { contains: req.query.search } },
+                { nrpNip: { contains: `_${req.query.search}` } } // Cari juga yang sudah ber-prefix DEL_
             ]
         }
+
+        const currentDate = new Date();
 
         // Filter Category untuk Drill-down Dashboard
         if (req.query.category) {
             const cat = req.query.category;
-            const currentDate = new Date();
 
             if (cat === 'tidakAktif') {
                 delete whereClause.deletedAt;
@@ -182,6 +199,7 @@ const getAllPersonel = async (req, res) => {
                     { deletedAt: { not: null } }
                 ];
             } else if (cat === 'catpersAktif') {
+                whereClause.statusKeaktifan = 'AKTIF';
                 whereClause.pelanggaran = {
                     some: {
                         deletedAt: null,
@@ -189,33 +207,62 @@ const getAllPersonel = async (req, res) => {
                         OR: [
                             { statusPenyelesaian: 'PROSES' },
                             {
-                                statusPenyelesaian: 'MENJALANI_HUKUMAN',
-                                tanggalRekomendasi: null
+                                statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
+                                tanggalRekomendasi: null,
+                                OR: [
+                                    { tanggalBisaAjukanRps: null },
+                                    { tanggalBisaAjukanRps: { gt: new Date() } }
+                                ]
                             }
                         ]
                     }
                 };
             } else if (cat === 'pernahTercatat') {
+                whereClause.statusKeaktifan = 'AKTIF';
                 whereClause.pelanggaran = {
                     some: {
                         deletedAt: null,
                         isDraft: false,
-                        statusPenyelesaian: 'MENJALANI_HUKUMAN',
+                        statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
                         tanggalRekomendasi: { not: null }
                     }
                 };
             } else if (cat === 'belumRps') {
+                whereClause.statusKeaktifan = 'AKTIF';
                 whereClause.pelanggaran = {
                     some: {
                         deletedAt: null,
                         isDraft: false,
-                        statusPenyelesaian: { in: ['TIDAK_TERBUKTI', 'MENJALANI_HUKUMAN'] },
-                        tanggalRekomendasi: null
+                        statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
+                        tanggalRekomendasi: null,
+                        tanggalBisaAjukanRps: { lte: currentDate }
                     }
                 };
+            } else if (cat === 'tidakTerbukti') {
+                whereClause.statusKeaktifan = 'AKTIF';
+                whereClause.pelanggaran = {
+                    some: {
+                        deletedAt: null,
+                        isDraft: false,
+                        statusPenyelesaian: 'TIDAK_TERBUKTI'
+                    }
+                };
+            } else if (cat === 'belumSktt') {
+                whereClause.statusKeaktifan = 'AKTIF';
+                whereClause.pelanggaran = { some: { statusPenyelesaian: 'Belum ada SKTT', deletedAt: null, isDraft: false } };
+            } else if (cat === 'belumSktb') {
+                whereClause.statusKeaktifan = 'AKTIF';
+                whereClause.pelanggaran = { some: { statusPenyelesaian: 'Belum ada SKTB', deletedAt: null, isDraft: false } };
             } else if (cat === 'perdamaian') {
-                whereClause.pelanggaran = { some: { statusPenyelesaian: 'PERDAMAIAN', deletedAt: null, isDraft: false } };
-            } else if (cat === 'butuhApproval') {
+                whereClause.statusKeaktifan = 'AKTIF';
+                whereClause.pelanggaran = {
+                    some: {
+                        deletedAt: null,
+                        isDraft: false,
+                        statusPenyelesaian: 'PERDAMAIAN'
+                    }
+                };
+            } else if (cat === 'DRAFT' || cat === 'butuhApproval') {
                 whereClause.OR = [
                     { isDraft: true },
                     { pelanggaran: { some: { isDraft: true, deletedAt: null } } }
@@ -248,37 +295,48 @@ const getAllPersonel = async (req, res) => {
                 for (let v of p.pelanggaran) {
                     if (v.isDraft) {
                         hasDraftViolation = true;
-                        continue; // Jangan hitung draft dalam status resmi (Ada Catatan/Pernah Tercatat)
+                        continue;
                     }
 
                     let s = 0;
                     if (v.statusPenyelesaian === 'PROSES') {
-                        s = 2;
-                    } else if (v.statusPenyelesaian === 'MENJALANI_HUKUMAN') {
+                        s = 100; // 1. Proses
+                    } else if (v.statusPenyelesaian === 'MENJALANI_HUKUMAN' || v.statusPenyelesaian === 'SIDANG') {
                         if (v.tanggalRekomendasi) {
-                            s = 1;
+                            s = 80; // 3. Pernah Tercatat
                         } else {
-                            s = 2;
+                            const isPastRps = v.tanggalBisaAjukanRps && new Date(v.tanggalBisaAjukanRps) <= currentDate;
+                            s = isPastRps ? 90 : 100; // 2. Belum Rekomendasi (90), atau tetap Proses (100) jika belum lewat
                             adaBelumRps = true;
                         }
+                    } else if (v.statusPenyelesaian === 'Belum ada SKTB') {
+                        s = 70; // 4. Belum SKTB
+                    } else if (v.statusPenyelesaian === 'Belum ada SKTT') {
+                        s = 60; // 5. Belum SKTT
                     } else if (v.statusPenyelesaian === 'TIDAK_TERBUKTI') {
-                        s = 0;
-                        if (!v.tanggalRekomendasi) {
-                            adaBelumRps = true;
-                        }
+                        s = 50; // 6. Tidak Terbukti
                     } else if (v.statusPenyelesaian === 'PERDAMAIAN') {
-                        s = 0;
+                        s = 40; // 7. Perdamaian
                     }
 
                     if (s > maxSeverity) maxSeverity = s;
                 }
 
-                if (maxSeverity === 2) statusPersonel = 'Ada Catatan';
-                else if (maxSeverity === 1) statusPersonel = 'Pernah Tercatat';
-                else statusPersonel = 'Tidak Ada Catatan';
+                if (maxSeverity === 100) statusPersonel = 'Proses';
+                else if (maxSeverity === 90) statusPersonel = 'Belum Rekomendasi';
+                else if (maxSeverity === 80) statusPersonel = 'Pernah Tercatat';
+                else if (maxSeverity === 70) statusPersonel = 'Belum SKTB';
+                else if (maxSeverity === 60) statusPersonel = 'Belum SKTT';
+                else if (maxSeverity === 50) statusPersonel = 'Tidak Terbukti';
+                else if (maxSeverity === 40) statusPersonel = 'Perdamaian';
+                else statusPersonel = 'Bersih';
 
-                statusRps = adaBelumRps ? 'Belum Ada RPS' : 'Sudah Ada RPS';
-                if (maxSeverity === 0) statusRps = '-';
+                const currentV = p.pelanggaran.filter(v => !v.isDraft && ['PROSES', 'MENJALANI_HUKUMAN', 'SIDANG', 'Belum ada SKTT', 'Belum ada SKTB'].includes(v.statusPenyelesaian));
+                const anyBelumRps = currentV.some(v => v.tanggalRekomendasi === null && ['MENJALANI_HUKUMAN', 'SIDANG'].includes(v.statusPenyelesaian));
+                statusRps = anyBelumRps ? 'Belum Ada RPS' : 'Sudah Ada RPS';
+
+                // Status RPS hanya relevan untuk Pelanggaran Aktif/Pernah Tercatat
+                if (maxSeverity === 0 || maxSeverity === 2 && !anyBelumRps) statusRps = '-';
             }
 
             const { pelanggaran, ...rest } = p;
@@ -330,14 +388,14 @@ const getPersonelById = async (req, res) => {
 const updatePersonel = async (req, res) => {
     try {
         const { id } = req.params;
-        const { pangkat, jabatan, satkerId } = req.body;
+        const { namaLengkap, pangkat, jabatan, satkerId, tanggalLahir } = req.body;
 
         const existingPersonel = await prisma.personel.findUnique({ where: { id } });
         if (!existingPersonel) return res.status(404).json({ message: 'Personel tidak ditemukan.' });
 
-        // Pengecekan Akses Operator
-        if (req.user.role === 'OPERATOR_SATKER' && existingPersonel.satkerId !== req.user.satkerId) {
-            return res.status(403).json({ message: 'Akses ditolak.' });
+        // BLOKIR AKSES UPDATE BAGI OPERATOR
+        if (req.user.role === 'OPERATOR_SATKER') {
+            return res.status(403).json({ message: 'Operator tidak memiliki izin untuk mengubah data utama Personel.' });
         }
 
         let targetSatkerId = parseInt(satkerId) || existingPersonel.satkerId;
@@ -347,14 +405,41 @@ const updatePersonel = async (req, res) => {
             return res.status(403).json({ message: 'Anda tidak dapat memindahkan personel ke Satker lain.' });
         }
 
-        const personel = await prisma.personel.update({
-            where: { id },
-            data: {
-                pangkat: pangkat || undefined,
-                jabatan: jabatan || undefined,
-                satkerId: targetSatkerId,
-                catatanRevisi: null // Reset catatan revisi setelah diperbaiki operator
-            }
+        // Kalkulasi Pensiun jika ada perubahan tanggal lahir atau pangkat
+        let targetTanggalPensiun = existingPersonel.tanggalPensiun;
+        const tglLahirVal = tanggalLahir ? new Date(tanggalLahir) : existingPersonel.tanggalLahir;
+
+        if (tanggalLahir || pangkat) {
+            const umurPensiun = await getUmurPensiunAsync(existingPersonel.jenisPegawai, pangkat || existingPersonel.pangkat);
+            targetTanggalPensiun = new Date(tglLahirVal);
+            targetTanggalPensiun.setFullYear(targetTanggalPensiun.getFullYear() + umurPensiun);
+        }
+
+        const personel = await prisma.$transaction(async (tx) => {
+            const p = await tx.personel.update({
+                where: { id },
+                data: {
+                    namaLengkap: namaLengkap || undefined,
+                    pangkat: pangkat || undefined,
+                    jabatan: jabatan || undefined,
+                    satkerId: targetSatkerId,
+                    tanggalLahir: tanggalLahir ? tglLahirVal : undefined,
+                    tanggalPensiun: targetTanggalPensiun,
+                    catatanRevisi: null // Reset catatan revisi setelah diperbaiki operator
+                }
+            });
+
+            await tx.auditLog.create({
+                data: {
+                    userId: req.user.id,
+                    aksi: 'UPDATE_PERSONEL',
+                    targetId: id,
+                    deskripsi: `Mengedit data Personel (${existingPersonel.namaLengkap} - NRP/NIP: ${existingPersonel.nrpNip})`,
+                    alasan: 'Update data profil / jabatan'
+                }
+            });
+
+            return p;
         });
 
         res.json({ message: 'Data personel berhasil diupdate', data: personel });
@@ -373,8 +458,8 @@ const deletePersonel = async (req, res) => {
         if (!alasan || alasan.trim() === '') {
             return res.status(400).json({ message: 'Alasan penghapusan wajib diisi demi keamanan Audit Log.' });
         }
-        if (!statusKeaktifan || !['MENINGGAL_DUNIA', 'PENSIUN', 'DIHAPUS'].includes(statusKeaktifan)) {
-            return res.status(400).json({ message: 'Status keaktifan (Meninggal Dunia / Pensiun / Dihapus) wajib dipilih.' });
+        if (!statusKeaktifan || !['MENINGGAL_DUNIA', 'PENSIUN', 'DIHAPUS', 'TIDAK AKTIF (PTDH)'].includes(statusKeaktifan)) {
+            return res.status(400).json({ message: 'Status keaktifan (Meninggal Dunia / Pensiun / PTDH / Dihapus) wajib dipilih.' });
         }
 
         const existingPersonel = await prisma.personel.findUnique({ where: { id } });
@@ -417,18 +502,104 @@ const deletePersonel = async (req, res) => {
     }
 }
 
+// Restore Personel (Undo Soft Delete)
+const restorePersonel = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { alasan } = req.body;
+
+        if (!alasan || alasan.trim() === '') {
+            return res.status(400).json({ message: 'Alasan pengaktifan kembali wajib diisi.' });
+        }
+
+        if (req.user.role !== 'ADMIN_POLDA') {
+            return res.status(403).json({ message: 'Hanya Admin Polda yang dapat mengaktifkan kembali personel.' });
+        }
+
+        const existingPersonel = await prisma.personel.findUnique({ where: { id } });
+        if (!existingPersonel) return res.status(404).json({ message: 'Personel tidak ditemukan.' });
+
+        if (!existingPersonel.deletedAt && existingPersonel.statusKeaktifan === 'AKTIF') {
+            return res.status(400).json({ message: 'Personel ini sudah berada dalam status Aktif.' });
+        }
+
+        // Ekstraksi NRP asli (hapus 'DEL_timestamp_')
+        let originalNrp = existingPersonel.nrpNip;
+        if (originalNrp.startsWith('DEL_')) {
+            const parts = originalNrp.split('_');
+            if (parts.length >= 3) {
+                parts.splice(0, 2); // buang DEL dan timestamp
+                originalNrp = parts.join('_');
+            }
+        }
+
+        // Cek apakah NRP asli sudah dipakai lagi oleh pendaftar baru
+        const nrpNipTaken = await prisma.personel.findFirst({
+            where: {
+                nrpNip: originalNrp,
+                deletedAt: null,
+                id: { not: id } // Pengecualian diri sendiri
+            }
+        });
+
+        if (nrpNipTaken) {
+             return res.status(400).json({ message: `Gagal: NRP/NIP ${originalNrp} saat ini sedang dipakai oleh personel aktif lain di sistem.` });
+        }
+
+        await prisma.$transaction([
+            prisma.personel.update({
+                where: { id },
+                data: {
+                    deletedAt: null,
+                    nrpNip: originalNrp,
+                    statusKeaktifan: 'AKTIF'
+                }
+            }),
+            prisma.auditLog.create({
+                data: {
+                    userId: req.user.id,
+                    aksi: 'RESTORE_PERSONEL',
+                    targetId: id,
+                    deskripsi: `Mengaktifkan kembali Personel (${existingPersonel.namaLengkap} - NRP/NIP: ${originalNrp})`,
+                    alasan: alasan
+                }
+            })
+        ]);
+
+        res.json({ message: 'Data personel berhasil dipulihkan menjadi Aktif.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+    }
+}
+
 // Admin Approval: Setujui Personel Baru
 const approvePersonel = async (req, res) => {
     try {
         const { id } = req.params;
         if (req.user.role !== 'ADMIN_POLDA') return res.status(403).json({ message: 'Hanya Admin Polda yang dapat menyetujui data.' });
 
-        await prisma.personel.update({
-            where: { id },
-            data: {
-                isDraft: false,
-                catatanRevisi: null // Bersihkan catatan jika disetujui
-            }
+        await prisma.$transaction(async (tx) => {
+            const p = await tx.personel.findUnique({ where: { id } });
+            if (!p) throw new Error('Data tidak ditemukan');
+
+            await tx.personel.update({
+                where: { id },
+                data: {
+                    isDraft: false,
+                    catatanRevisi: null // Bersihkan catatan jika disetujui
+                }
+            });
+
+            await tx.auditLog.create({
+                data: {
+                    userId: req.user.id,
+                    aksi: 'APPROVE_PERSONEL',
+                    targetId: id,
+                    deskripsi: `Menyetujui pendaftaran Personel baru (${p.namaLengkap} - NRP/NIP: ${p.nrpNip})`,
+                    alasan: 'Data valid sesuai verifikasi Admin'
+                }
+            });
         });
 
         res.json({ message: 'Data personel berhasil disetujui.' });
@@ -446,9 +617,24 @@ const rejectPersonel = async (req, res) => {
         if (req.user.role !== 'ADMIN_POLDA') return res.status(403).json({ message: 'Hanya Admin Polda yang dapat menolak data.' });
         if (!catatanRevisi) return res.status(400).json({ message: 'Catatan revisi wajib diisi jika menolak data.' });
 
-        await prisma.personel.update({
-            where: { id },
-            data: { catatanRevisi: catatanRevisi }
+        await prisma.$transaction(async (tx) => {
+            const p = await tx.personel.findUnique({ where: { id } });
+            if (!p) throw new Error('Data tidak ditemukan');
+
+            await tx.personel.update({
+                where: { id },
+                data: { catatanRevisi: catatanRevisi }
+            });
+
+            await tx.auditLog.create({
+                data: {
+                    userId: req.user.id,
+                    aksi: 'REJECT_PERSONEL',
+                    targetId: id,
+                    deskripsi: `Mengembalikan draft Personel untuk revisi (${p.namaLengkap} - NRP/NIP: ${p.nrpNip})`,
+                    alasan: catatanRevisi
+                }
+            });
         });
 
         res.json({ message: 'Draft personel dikembalikan untuk revisi.' });
@@ -482,6 +668,7 @@ module.exports = {
     getPersonelById,
     updatePersonel,
     deletePersonel,
+    restorePersonel,
     approvePersonel,
     rejectPersonel,
     checkNrpNipAvailability

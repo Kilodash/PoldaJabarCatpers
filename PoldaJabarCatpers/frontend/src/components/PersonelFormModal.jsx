@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { id } from 'date-fns/locale';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import api from '../utils/api';
 import Modal from './Modal';
 
@@ -123,19 +126,26 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
         const { name, value } = e.target;
 
         if (name === 'nrpNip' || name === 'jenisPegawai') {
-            const targetVal = name === 'nrpNip' ? value : formData.nrpNip;
+            let processedNrp = name === 'nrpNip' ? value.replace(/\D/g, '') : formData.nrpNip;
             const targetJenis = name === 'jenisPegawai' ? value : formData.jenisPegawai;
+            const limit = targetJenis === 'POLRI' ? appSettings.PANJANG_NRP_POLRI : appSettings.PANJANG_NIP_PNS;
 
+            // Enforce length limit
+            if (processedNrp.length > limit) {
+                processedNrp = processedNrp.substring(0, limit);
+            }
+
+            const targetVal = processedNrp;
             const tgl = parseTanggalLahir(targetVal, targetJenis);
-            const reqLen = targetJenis === 'POLRI' ? appSettings.PANJANG_NRP_POLRI : appSettings.PANJANG_NIP_PNS;
+            const reqLen = limit;
             let isValidFormat = false;
             let formatErrMsg = `Format harus ${reqLen} digit angka.`;
 
             if (targetVal.length === reqLen) {
-                isValidFormat = new RegExp(`^\\d{${reqLen}}$`).test(targetVal);
-                if (isValidFormat && tgl === '') {
+                isValidFormat = true; // Since we filtered non-digits, length check is enough for basic format
+                if (tgl === '') {
                     isValidFormat = false;
-                    formatErrMsg = targetJenis === 'POLRI' ? 'Bulan/Tahun kelahiran pada digit awal tidak valid.' : 'Tanggal/Bulan pada keliharan NIP tidak valid.';
+                    formatErrMsg = targetJenis === 'POLRI' ? 'Bulan/Tahun kelahiran pada digit awal tidak valid.' : 'Tanggal/Bulan pada kelahiran NIP tidak valid.';
                 } else if (isValidFormat && tgl !== '') {
                     const tglLahir = new Date(tgl);
                     const today = new Date();
@@ -172,7 +182,8 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
 
             setFormData(prev => ({
                 ...prev,
-                [name]: value,
+                jenisPegawai: targetJenis,
+                nrpNip: targetVal,
                 ...(name === 'jenisPegawai' ? { pangkat: '' } : {}),
                 tanggalLahir: tgl || prev.tanggalLahir
             }));
@@ -189,15 +200,16 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
                 satkerId: parseInt(formData.satkerId)
             };
 
+            let response;
             if (isEdit) {
-                await api.put(`/personel/${formData.id}`, payload);
+                response = await api.put(`/personel/${formData.id}`, payload);
                 toast.success('Data Personel berhasil diupdate');
             } else {
-                await api.post('/personel', payload);
+                response = await api.post('/personel', payload);
                 toast.success('Data Personel berhasil ditambahkan');
             }
 
-            if (onSuccess) onSuccess();
+            if (onSuccess) onSuccess(response.data.data || response.data);
             onClose();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Terjadi kesalahan saat menyimpan data');
@@ -234,6 +246,8 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
                                 onChange={handleChange}
                                 disabled={isEdit}
                                 required
+                                maxLength={formData.jenisPegawai === 'POLRI' ? appSettings.PANJANG_NRP_POLRI : appSettings.PANJANG_NIP_PNS}
+                                inputMode="numeric"
                                 pattern={`\\d{${formData.jenisPegawai === 'POLRI' ? appSettings.PANJANG_NRP_POLRI : appSettings.PANJANG_NIP_PNS}}`}
                                 title={formData.jenisPegawai === 'POLRI' ? `NRP harus ${appSettings.PANJANG_NRP_POLRI} digit angka` : `NIP harus ${appSettings.PANJANG_NIP_PNS} digit angka`}
                             />
@@ -269,7 +283,15 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
                     <div className="flex gap-4">
                         <div className="form-group w-full" style={{ display: 'none' }}>
                             <label>Tanggal Lahir</label>
-                            <input type="date" className="form-input" name="tanggalLahir" value={formData.tanggalLahir} onChange={handleChange} disabled={isEdit} required />
+                            <DatePicker
+                                locale={id}
+                                dateFormat="d MMMM yyyy"
+                                className="form-input"
+                                selected={formData.tanggalLahir ? new Date(formData.tanggalLahir) : null}
+                                onChange={(date) => handleChange({ target: { name: 'tanggalLahir', value: date ? format(date, 'yyyy-MM-dd') : '' } })}
+                                disabled={isEdit}
+                                required
+                            />
                         </div>
                         <div className="form-group w-full">
                             <label>Kesatuan / Satker</label>

@@ -8,10 +8,14 @@ router.use(authMiddleware);
 
 // Endpoint untuk upload file multipel (file dasar & file surat selesai)
 const cpUpload = upload.fields([
-    { name: 'fileDasar', maxCount: 1 },
-    { name: 'fileSelesai', maxCount: 1 },
-    { name: 'filePutusan', maxCount: 1 },
-    { name: 'fileRekomendasi', maxCount: 1 }
+    { name: 'fileDasar', maxCount: 10 },
+    { name: 'fileSelesai', maxCount: 10 },
+    { name: 'filePutusan', maxCount: 10 },
+    { name: 'fileRekomendasi', maxCount: 10 },
+    { name: 'fileSktt', maxCount: 10 },
+    { name: 'fileSp3', maxCount: 10 },
+    { name: 'fileSktb', maxCount: 10 },
+    { name: 'fileBanding', maxCount: 10 }
 ]);
 
 router.post('/', cpUpload, pelanggaranController.createPelanggaran);
@@ -22,5 +26,6 @@ router.delete('/:id', pelanggaranController.deletePelanggaran);
 // Approval System
 router.post('/approve/:id', pelanggaranController.approvePelanggaran);
 router.post('/reject/:id', pelanggaranController.rejectPelanggaran);
+router.post('/reset-section/:id', pelanggaranController.resetPelanggaranSection);
 
 module.exports = router;

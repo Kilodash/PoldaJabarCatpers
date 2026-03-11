@@ -10,6 +10,7 @@ router.get('/check/:nrpNip', personelController.checkNrpNipAvailability);
 router.get('/', personelController.getAllPersonel);
 router.get('/:id', personelController.getPersonelById);
 router.put('/:id', personelController.updatePersonel);
+router.put('/restore/:id', personelController.restorePersonel);
 router.delete('/:id', personelController.deletePersonel);
 
 // Approval System
