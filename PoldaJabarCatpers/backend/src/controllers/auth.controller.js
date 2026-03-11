@@ -44,8 +44,12 @@ const login = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+        console.error('Login Error:', error);
+        res.status(500).json({ 
+            message: 'Terjadi kesalahan pada server.',
+            error: error.message,
+            hint: 'Pastikan DATABASE_URL dan JWT_SECRET sudah diatur di Vercel.'
+        });
     }
 };
 
