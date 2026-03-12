@@ -18,8 +18,8 @@ const getDatabaseUrl = () => {
     }
 
     const separator = cleanUrl.includes('?') ? '&' : '?';
-    // connection_limit=3 seimbang antara performance & safety di Supabase free/micro
-    return `${cleanUrl}${separator}connection_limit=3&pool_timeout=20`;
+    // connection_limit=5 seimbang antara performance & safety di Supabase free/micro
+    return `${cleanUrl}${separator}connection_limit=5&pool_timeout=20`;
 };
 
 const prisma = globalForPrisma.prisma ?? new PrismaClient({
