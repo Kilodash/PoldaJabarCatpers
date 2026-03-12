@@ -62,8 +62,7 @@ const login = async (req, res) => {
         console.error('--------------------------');
         
         res.status(500).json({ 
-            message: 'Terjadi kesalahan pada server.',
-            // TEMPORALLY reveal error to user for remote debugging
+            message: `Terjadi kesalahan pada server: ${error.message}`,
             hint: error.message 
         });
     }
