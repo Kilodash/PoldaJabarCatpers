@@ -11,10 +11,12 @@ const allowedOrigins = (process.env.ALLOWED_ORIGIN || '').split(',').map(o => o.
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Izinkan jika tidak ada origin (REST clients, server-to-server) atau ada di whitelist
-        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        // Jika ALLOWED_ORIGIN belum dikonfigurasi, izinkan semua (backward-compatible)
+        // Jika sudah dikonfigurasi, hanya izinkan yang ada di whitelist
+        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
+            console.warn(`CORS blocked: origin '${origin}' not in whitelist`);
             callback(new Error(`CORS: Origin '${origin}' tidak diizinkan.`));
         }
     },
