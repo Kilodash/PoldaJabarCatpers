@@ -1,10 +1,14 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../prisma');
 
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email dan password wajib diisi.' });
+        }
 
         const user = await prisma.user.findUnique({
             where: { email },
@@ -23,10 +27,9 @@ const login = async (req, res) => {
         }
 
         // Peringatan: JWT_SECRET harus diset di Vercel Environment Variables!
-        // Jika belum diset, login akan tetap bekerja tapi TIDAK AMAN untuk produksi.
         const secret = process.env.JWT_SECRET || 'FALLBACK_GANTI_SEGERA_DI_VERCEL_ENV';
         if (!process.env.JWT_SECRET) {
-            console.error('[CRITICAL] JWT_SECRET is NOT set! Set it in Vercel Dashboard -> Settings -> Environment Variables!');
+            console.error('[CRITICAL] JWT_SECRET is NOT set!');
         }
 
         const token = jwt.sign(
@@ -60,8 +63,8 @@ const login = async (req, res) => {
         
         res.status(500).json({ 
             message: 'Terjadi kesalahan pada server.',
-            // Only add a hint if not in production to help user debug
-            hint: process.env.NODE_ENV !== 'production' ? error.message : undefined
+            // TEMPORALLY reveal error to user for remote debugging
+            hint: error.message 
         });
     }
 };
