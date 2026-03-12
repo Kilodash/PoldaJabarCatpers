@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
-    Users, FileWarning, Search, ChevronRight, Scale, ShieldAlert, AlertCircle, ShieldCheck,
-    Clock, CheckCircle, PlusCircle, UserX, PenTool, ExternalLink, RefreshCw, Printer, Download, UserMinus, Plus, Trash2, Edit2, XCircle, Eye, ChevronLeft, History, LayoutDashboard
+    Users, FileWarning, Search, ShieldCheck,
+    Clock, CheckCircle, RefreshCw, Printer, Download, UserMinus, Plus, Trash2, Edit2, XCircle, Eye, ChevronLeft, ChevronRight, History, LayoutDashboard, AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import api from '../utils/api';
@@ -11,10 +11,11 @@ import { Toaster, toast } from 'sonner';
 import './Dashboard.css';
 import Modal from '../components/Modal';
 import PersonelFormModal from '../components/PersonelFormModal';
-import PelanggaranFormModal from '../components/PelanggaranFormModal';
 import PersonelHistoryModal from '../components/PersonelHistoryModal';
 import Loading from '../components/Loading';
-import { exportPersonelPDF } from '../utils/pdfGenerator';
+
+// Lazy-load pdfGenerator hanya saat dibutuhkan
+const getExportPersonelPDF = () => import('../utils/pdfGenerator').then(m => m.exportPersonelPDF);
 
 
 const StatCard = ({ title, value, icon: Icon, colorClass, onClick }) => {
@@ -62,9 +63,13 @@ const renderBadge = (value, colorVar, condition = value > 0, onClick = null) => 
     );
 };
 
+const STALE_TIME_MS = 30_000; // 30 detik — tidak refetch jika data masih segar
+
 const Dashboard = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const lastFetchRef = useRef(0); // timestamp fetch terakhir (ms)
+
     const [stats, setStats] = useState(() => {
         try { return JSON.parse(localStorage.getItem('dashboard_stats')) || { totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRekomendasi: 0 }; }
         catch { return { totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRekomendasi: 0 }; }
@@ -74,7 +79,7 @@ const Dashboard = () => {
         catch { return []; }
     });
     const [globalSearch, setGlobalSearch] = useState('');
-    const [satkerSearch, setSatkerSearch] = useState(''); // Search for Satker table
+    const [satkerSearch, setSatkerSearch] = useState('');
     const [loading, setLoading] = useState(true);
 
     // Sorting State
@@ -87,18 +92,21 @@ const Dashboard = () => {
     const [modalLoading, setModalLoading] = useState(false);
     const [modalSearch, setModalSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 8; // Dikurangi agar ruang lapang
-    const [selectedPersonelDetail, setSelectedPersonelDetail] = useState(null); // State histori
+    const itemsPerPage = 8;
+    const [selectedPersonelDetail, setSelectedPersonelDetail] = useState(null);
     const [isAddPersonelOpen, setIsAddPersonelOpen] = useState(false);
 
-    // State Personel Tambahan (Upload/Edit/Delete Langsung dr Modal)
     const [selectedPersonel, setSelectedPersonel] = useState(null);
     const [isEditPersonel, setIsEditPersonel] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, alasan: '', statusKeaktifan: '' });
     const [rejectModal, setRejectModal] = useState({ isOpen: false, id: null, type: null, catatan: '' });
     const [restoreModal, setRestoreModal] = useState({ isOpen: false, id: null, alasan: '' });
 
-    const fetchStats = async () => {
+    // Fetch stats — dengan stale-time agar tidak refetch berulang dalam 30 detik
+    const fetchStats = useCallback(async ({ force = false } = {}) => {
+        const now = Date.now();
+        if (!force && now - lastFetchRef.current < STALE_TIME_MS) return;
+
         const fetchMainStats = async () => {
             try {
                 const res = await api.get('/dashboard/stats');
@@ -106,7 +114,7 @@ const Dashboard = () => {
                 setStats(newStats);
                 localStorage.setItem('dashboard_stats', JSON.stringify(newStats));
             } catch (error) {
-                console.error("Gagal mengambil statistik utama", error);
+                console.error('Gagal mengambil statistik utama', error);
             }
         };
 
@@ -117,80 +125,88 @@ const Dashboard = () => {
                 setSatkerStatsList(newSatkerStats);
                 localStorage.setItem('dashboard_satker_stats', JSON.stringify(newSatkerStats));
             } catch (error) {
-                console.error("Gagal mengambil statistik satker", error);
+                console.error('Gagal mengambil statistik satker', error);
             }
         };
 
         setLoading(true);
+        lastFetchRef.current = now;
         await Promise.allSettled([fetchMainStats(), fetchSatkerStats()]);
         setLoading(false);
-    };
-
-    const requestSort = (key) => {
-        let direction = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
-    };
-
-    const requestPersonelSort = (key) => {
-        let direction = 'asc';
-        if (personelSortConfig.key === key && personelSortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setPersonelSortConfig({ key, direction });
-    };
-
-    const filteredSatkerStats = satkerStatsList.filter(s =>
-        s.nama.toLowerCase().includes(satkerSearch.toLowerCase())
-    );
-
-    const sortedSatkerStats = [...filteredSatkerStats].sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-    });
-
-    const sortedModalList = [...modalList].sort((a, b) => {
-        let valA = a[personelSortConfig.key];
-        let valB = b[personelSortConfig.key];
-
-        // Handle nested satker name
-        if (personelSortConfig.key === 'satker') {
-            valA = a.satker?.nama || '';
-            valB = b.satker?.nama || '';
-        }
-
-        if (valA < valB) return personelSortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return personelSortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-    });
-
-    useEffect(() => {
-        fetchStats();
     }, []);
 
-    const fetchModalList = async () => {
-        if (!modalData.isOpen) return;
+    const requestSort = useCallback((key) => {
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    }, []);
+
+    const requestPersonelSort = useCallback((key) => {
+        setPersonelSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    }, []);
+
+    // useMemo: hitung derivasi hanya jika dependensi berubah
+    const filteredSatkerStats = useMemo(() =>
+        satkerStatsList.filter(s => s.nama.toLowerCase().includes(satkerSearch.toLowerCase())),
+        [satkerStatsList, satkerSearch]
+    );
+
+    const sortedSatkerStats = useMemo(() =>
+        [...filteredSatkerStats].sort((a, b) => {
+            if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        }),
+        [filteredSatkerStats, sortConfig]
+    );
+
+    const sortedModalList = useMemo(() =>
+        [...modalList].sort((a, b) => {
+            let valA = personelSortConfig.key === 'satker' ? (a.satker?.nama || '') : a[personelSortConfig.key];
+            let valB = personelSortConfig.key === 'satker' ? (b.satker?.nama || '') : b[personelSortConfig.key];
+            if (valA < valB) return personelSortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return personelSortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        }),
+        [modalList, personelSortConfig]
+    );
+
+    useEffect(() => {
+        fetchStats({ force: true }); // Initial load selalu force fetch
+    }, [fetchStats]);
+
+    const fetchModalList = useCallback(async (overrideModalData) => {
+        const target = overrideModalData || modalData;
+        if (!target.isOpen) return;
         setModalLoading(true);
         try {
             let url = `/personel?search=${modalSearch}`;
-            if (modalData.category) url += `&category=${modalData.category}`;
-            if (modalData.satkerId) url += `&satkerId=${modalData.satkerId}`;
+            if (target.category) url += `&category=${target.category}`;
+            if (target.satkerId) url += `&satkerId=${target.satkerId}`;
             const res = await api.get(url);
             setModalList(res.data);
         } catch (error) {
-            console.error("Gagal mengambil data list personel", error);
+            console.error('Gagal mengambil data list personel', error);
         } finally {
             setModalLoading(false);
         }
-    };
+    }, [modalData, modalSearch]);
 
-    // Scroll to Top effect whenever Modal is opened
+    // Smart refresh: setelah action, paksa fetch stats + modal list paralel
+    const refreshAfterAction = useCallback(async () => {
+        await Promise.allSettled([
+            fetchStats({ force: true }),
+            fetchModalList()
+        ]);
+    }, [fetchStats, fetchModalList]);
+
+    // Debounced effect untuk modal search
     useEffect(() => {
         if (modalData.isOpen) {
-            // Debounce for search
             const delayDebounceFn = setTimeout(() => {
                 fetchModalList();
                 setCurrentPage(1);
@@ -199,18 +215,18 @@ const Dashboard = () => {
         }
     }, [modalData, modalSearch]);
 
-    const handleOpenModal = (title, category = '', satkerId = null) => {
+    const handleOpenModal = useCallback((title, category = '', satkerId = null) => {
         setModalSearch('');
         setCurrentPage(1);
         setModalData({ isOpen: true, title, category, satkerId });
-    };
+    }, []);
 
-    const handleCloseModal = () => {
-        setModalData({ ...modalData, isOpen: false });
+    const handleCloseModal = useCallback(() => {
+        // Hapus fetchStats() di sini — stats sudah direfresh setelah setiap action
+        setModalData(prev => ({ ...prev, isOpen: false }));
         setModalList([]);
         setSelectedPersonelDetail(null);
-        fetchStats(); // Refresh data utama saat modal ditutup
-    };
+    }, []);
 
     const handlePrintModal = () => {
         window.print();
@@ -247,20 +263,20 @@ const Dashboard = () => {
         document.body.removeChild(link);
     };
 
-    const handleGlobalSearch = (e) => {
+    const handleGlobalSearch = useCallback((e) => {
         if (e.key === 'Enter' && globalSearch.trim() !== '') {
             setModalData({ isOpen: true, title: `Pencarian: ${globalSearch}`, category: '', satkerId: null });
             setModalSearch(globalSearch);
             setCurrentPage(1);
             setGlobalSearch('');
         }
-    };
+    }, [globalSearch]);
 
-    const handleRejectPelanggaran = (id) => {
+    const handleRejectPelanggaran = useCallback((id) => {
         setRejectModal({ isOpen: true, id, type: 'pelanggaran', catatan: '' });
-    }
+    }, []);
 
-    const confirmReject = async () => {
+    const confirmReject = useCallback(async () => {
         if (!rejectModal.catatan.trim()) {
             toast.error('Gagal: Catatan revisi wajib diisi.');
             return;
@@ -270,82 +286,71 @@ const Dashboard = () => {
             await api.post(url, { catatanRevisi: rejectModal.catatan });
             toast.success('Draft berhasil dikembalikan untuk revisi.');
             setRejectModal({ isOpen: false, id: null, type: null, catatan: '' });
-
-            if (selectedPersonelDetail) setSelectedPersonelDetail({ ...selectedPersonelDetail }); // Trigger re-render if needed
-            fetchStats();
-            fetchModalList();
+            await refreshAfterAction();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Gagal memproses penolakan.');
         }
-    }
+    }, [rejectModal, refreshAfterAction]);
 
-    const handleApprovePersonel = async (id) => {
+    const handleApprovePersonel = useCallback(async (id) => {
         try {
             await api.post(`/personel/approve/${id}`);
             toast.success('Data personel telah disetujui.');
-            fetchStats();
-            fetchModalList();
+            await refreshAfterAction();
         } catch (error) {
             toast.error('Gagal menyetujui data.');
         }
-    }
+    }, [refreshAfterAction]);
 
-    const handleRejectPersonel = (id) => {
+    const handleRejectPersonel = useCallback((id) => {
         setRejectModal({ isOpen: true, id, type: 'personel', catatan: '' });
-    }
+    }, []);
 
-    const handleEditPersonel = (personel) => {
+    const handleEditPersonel = useCallback((personel) => {
         setSelectedPersonel(personel);
         setIsEditPersonel(true);
         setIsAddPersonelOpen(true);
-    };
+    }, []);
 
-    const triggerDeletePersonel = (id) => {
+    const triggerDeletePersonel = useCallback((id) => {
         setDeleteModal({ isOpen: true, id, alasan: '', statusKeaktifan: '' });
-    };
+    }, []);
 
-    const handlePersonelSuccess = (newPersonel) => {
-        fetchStats();
-        fetchModalList();
+    const handlePersonelSuccess = useCallback((newPersonel) => {
+        refreshAfterAction();
         if (!isEditPersonel && newPersonel) {
             setSelectedPersonelDetail(newPersonel);
         }
-    };
+    }, [refreshAfterAction, isEditPersonel]);
 
-    const confirmDeletePersonel = async () => {
+    const confirmDeletePersonel = useCallback(async () => {
         try {
             await api.delete(`/personel/${deleteModal.id}`, {
-                data: {
-                    alasan: deleteModal.alasan,
-                    statusKeaktifan: deleteModal.statusKeaktifan
-                }
+                data: { alasan: deleteModal.alasan, statusKeaktifan: deleteModal.statusKeaktifan }
             });
             toast.success('Personel berhasil dinonaktifkan / dihapus dari sistem (soft delete).');
             setDeleteModal({ isOpen: false, id: null, alasan: '', statusKeaktifan: '' });
-            fetchStats();
-            fetchModalList(); // Refresh modal list agar baris yang terhapus hilang
+            await refreshAfterAction();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Terjadi kesalahan saat menghapus personel.');
         }
-    };
+    }, [deleteModal, refreshAfterAction]);
 
-    const triggerRestorePersonel = (id) => {
+    const triggerRestorePersonel = useCallback((id) => {
         setRestoreModal({ isOpen: true, id, alasan: '' });
-    };
+    }, []);
 
-    const confirmRestorePersonel = async () => {
+    const confirmRestorePersonel = useCallback(async () => {
         try {
-            await api.put(`/personel/restore/${restoreModal.id}`, {
-                alasan: restoreModal.alasan
-            });
+            await api.put(`/personel/restore/${restoreModal.id}`, { alasan: restoreModal.alasan });
             toast.success('Personel berhasil dipulihkan menjadi status Aktif.');
             setRestoreModal({ isOpen: false, id: null, alasan: '' });
-            fetchStats();
-            fetchModalList();
+            await refreshAfterAction();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Terjadi kesalahan saat memulihkan personel.');
         }
-    };
+    }, [restoreModal, refreshAfterAction]);
+
 
     // Pagination Logic
     const totalPages = Math.ceil(modalList.length / itemsPerPage);
