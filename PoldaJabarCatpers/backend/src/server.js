@@ -15,7 +15,7 @@ console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('DATABASE_URL set:', !!process.env.DATABASE_URL);
 console.log('JWT_SECRET set:', !!process.env.JWT_SECRET);
 console.log('ALLOWED_ORIGIN:', process.env.ALLOWED_ORIGIN || 'Not Set');
-console.log('VERSION:', 'v1.0.6-PGBOUNCER-FIX');
+console.log('VERSION:', 'v1.0.7-PREVIEW-TEST');
 console.log('---------------------------');
 
 // ----- CORS: Batasi ke domain frontend -----
@@ -55,7 +55,7 @@ app.get('/', (req, res) => {
     res.json({ 
         message: 'CDS Polda Jabar API is running', 
         status: 'OK',
-        version: 'v1.0.6-PGBOUNCER-FIX',
+        version: 'v1.0.7-PREVIEW-TEST',
         time: new Date().toISOString()
     });
 });
