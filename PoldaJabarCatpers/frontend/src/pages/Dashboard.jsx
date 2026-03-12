@@ -465,25 +465,23 @@ const Dashboard = () => {
                                 <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'white', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                                     <tr>
                                         <th onClick={() => requestSort('id')} style={{ cursor: 'pointer', whiteSpace: 'nowrap', width: '1%' }}>Satuan Kerja (Satker) {sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                        <th onClick={() => requestSort('totalPersonel')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Total {sortConfig.key === 'totalPersonel' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                        <th onClick={() => requestSort('tidakAktif')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Tidak Aktif {sortConfig.key === 'tidakAktif' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                        <th onClick={() => requestSort('catpersAktif')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Catpers Aktif {sortConfig.key === 'catpersAktif' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                        <th onClick={() => requestSort('pernahTercatat')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Pernah Tercatat {sortConfig.key === 'pernahTercatat' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                        <th onClick={() => requestSort('belumRekomendasi')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Belum Rekomendasi {sortConfig.key === 'belumRekomendasi' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                        <th onClick={() => requestSort('butuhApproval')} style={{ textAlign: 'center', cursor: 'pointer', width: '16.5%' }}>Approval {sortConfig.key === 'butuhApproval' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('tidakAktif')} style={{ textAlign: 'center', cursor: 'pointer' }}>Tidak Aktif {sortConfig.key === 'tidakAktif' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('catpersAktif')} style={{ textAlign: 'center', cursor: 'pointer' }}>Catpers Aktif {sortConfig.key === 'catpersAktif' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('pernahTercatat')} style={{ textAlign: 'center', cursor: 'pointer' }}>Pernah Tercatat {sortConfig.key === 'pernahTercatat' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('belumRekomendasi')} style={{ textAlign: 'center', cursor: 'pointer' }}>Belum Rekomendasi {sortConfig.key === 'belumRekomendasi' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('belumSktt')} style={{ textAlign: 'center', cursor: 'pointer' }}>Belum SKTT {sortConfig.key === 'belumSktt' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('belumSktb')} style={{ textAlign: 'center', cursor: 'pointer' }}>Belum SKTB {sortConfig.key === 'belumSktb' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestSort('butuhApproval')} style={{ textAlign: 'center', cursor: 'pointer' }}>Approval {sortConfig.key === 'butuhApproval' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {sortedSatkerStats.length === 0 ? (
-                                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>Data kesatuan tidak ditemukan</td></tr>
+                                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>Data kesatuan tidak ditemukan</td></tr>
                                     ) : (
                                         sortedSatkerStats.map(s => (
                                             <tr key={s.id} className="hover-row">
                                                 <td style={{ fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => handleOpenModal(`Semua Personel: ${s.nama} `, '', s.id)}>
                                                     <span style={{ color: 'var(--primary-color)' }}>{s.nama}</span>
-                                                </td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    {renderBadge(s.totalPersonel, 'primary-color', s.totalPersonel > 0, () => handleOpenModal(`Semua Personel(${s.nama})`, '', s.id))}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
                                                     {renderBadge(s.tidakAktif, 'secondary-color', s.tidakAktif > 0, () => handleOpenModal(`Personel Tidak Aktif(${s.nama})`, 'tidakAktif', s.id))}
@@ -496,6 +494,12 @@ const Dashboard = () => {
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
                                                     {renderBadge(s.belumRekomendasi, 'info', s.belumRekomendasi > 0, () => handleOpenModal(`Belum Rekomendasi(${s.nama})`, 'belumRps', s.id))}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {renderBadge(s.belumSktt, 'warning', s.belumSktt > 0, () => handleOpenModal(`Belum SKTT(${s.nama})`, 'belumSktt', s.id))}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {renderBadge(s.belumSktb, 'warning', s.belumSktb > 0, () => handleOpenModal(`Belum SKTB(${s.nama})`, 'belumSktb', s.id))}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
                                                     {renderBadge(s.butuhApproval, 'secondary-color', s.butuhApproval > 0, () => handleOpenModal(`Menunggu Approval(${s.nama})`, 'butuhApproval', s.id))}
