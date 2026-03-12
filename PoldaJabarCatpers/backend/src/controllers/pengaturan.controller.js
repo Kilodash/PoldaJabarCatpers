@@ -4,6 +4,8 @@ const xlsx = require('xlsx');
 const getAllPengaturan = async (req, res) => {
     try {
         const settings = await prisma.pengaturan.findMany();
+        // Data pengaturan sangat jarang berubah — cache 120 detik
+        res.setHeader('Cache-Control', 's-maxage=120, stale-while-revalidate=600');
         res.json(settings);
     } catch (error) {
         console.error(error);

@@ -1,16 +1,39 @@
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
 
-app.use(cors());
+// ----- CORS: Batasi ke domain frontend -----
+const allowedOrigins = (process.env.ALLOWED_ORIGIN || '').split(',').map(o => o.trim()).filter(Boolean);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Izinkan jika tidak ada origin (REST clients, server-to-server) atau ada di whitelist
+        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error(`CORS: Origin '${origin}' tidak diizinkan.`));
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files for uploads - DISABLED for Supabase
-// app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// ----- Rate Limiting: Proteksi endpoint login -----
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 menit
+    max: 15, // Maksimal 15 percobaan login per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Terlalu banyak percobaan login. Silakan coba lagi dalam 15 menit.' }
+});
 
 // Health Check
 app.get('/', (req, res) => {
@@ -25,13 +48,7 @@ app.get('/', (req, res) => {
 const prisma = require('./prisma');
 app.get('/api/health-check', async (req, res) => {
     try {
-        console.log('--- Health Check Started ---');
-        console.log('DATABASE_URL defined:', !!process.env.DATABASE_URL);
-        
-        // Test database connection
         await prisma.$queryRaw`SELECT 1`;
-        console.log('Database Connection: OK');
-        
         res.json({ 
             database: 'CONNECTED', 
             environment: process.env.NODE_ENV,
@@ -39,13 +56,10 @@ app.get('/api/health-check', async (req, res) => {
             server_time: new Date().toISOString()
         });
     } catch (error) {
-        console.error('--- Health Check Error ---');
-        console.error('Message:', error.message);
-        console.error('Stack:', error.stack);
-        
+        console.error('Health Check Error:', error.message);
         res.status(500).json({ 
             database: 'ERROR', 
-            message: error.message,
+            message: 'Database connection failed.',
             hint: 'Check Vercel Environment Variables and Supabase IP allowlist.'
         });
     }
@@ -61,6 +75,9 @@ const userRoutes = require('./routes/user.routes');
 const pengaturanRoutes = require('./routes/pengaturan.routes');
 const auditRoutes = require('./routes/audit.routes');
 const pencarianRoutes = require('./routes/pencarian.routes');
+
+// Terapkan rate limit hanya ke login
+app.use('/api/auth/login', loginLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/satker', satkerRoutes);

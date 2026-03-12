@@ -112,6 +112,8 @@ const getAllSatker = async (req, res) => {
             return a.nama.localeCompare(b.nama, 'id');
         });
 
+        // Data satker jarang berubah — cache 60 detik di Vercel Edge
+        res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
         res.json(satkerList);
     } catch (error) {
         console.error(error);
@@ -145,8 +147,8 @@ const updateSatker = async (req, res) => {
 
         res.json({ message: 'Satker berhasil diupdate', data: satker });
     } catch (error) {
-        console.error("DEBUG UPDATE SATKER ERROR:", error);
-        res.status(500).json({ message: 'Gagal mengupdate Satker', error: error.message });
+        console.error('Update Satker Error:', error);
+        res.status(500).json({ message: 'Gagal mengupdate Satker' });
     }
 }
 

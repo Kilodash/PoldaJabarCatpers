@@ -22,13 +22,19 @@ const login = async (req, res) => {
             return res.status(401).json({ message: 'Email atau password salah.' });
         }
 
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+            console.error('FATAL: JWT_SECRET is not configured!');
+            return res.status(500).json({ message: 'Terjadi kesalahan konfigurasi pada server.' });
+        }
+
         const token = jwt.sign(
             {
                 id: user.id,
                 role: user.role,
                 satkerId: user.satkerId
             },
-            process.env.JWT_SECRET || 'rahasia_catpers',
+            secret,
             { expiresIn: '1d' }
         );
 
@@ -44,12 +50,9 @@ const login = async (req, res) => {
         });
 
     } catch (error) {
+        // Jangan bocorkan detail error ke client di production
         console.error('Login Error:', error);
-        res.status(500).json({ 
-            message: 'Terjadi kesalahan pada server.',
-            error: error.message,
-            hint: 'Pastikan DATABASE_URL dan JWT_SECRET sudah diatur di Vercel.'
-        });
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
 };
 
@@ -69,6 +72,7 @@ const getMe = async (req, res) => {
             satker: user.satker
         });
     } catch (error) {
+        console.error('GetMe Error:', error);
         res.status(500).json({ message: 'Terjadi kesalahan server' });
     }
 }

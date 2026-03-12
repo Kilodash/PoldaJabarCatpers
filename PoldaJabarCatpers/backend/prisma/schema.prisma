@@ -28,6 +28,8 @@ model User {
   updatedAt DateTime   @updatedAt
   auditLogs AuditLog[]
   satker    Satker?    @relation(fields: [satkerId], references: [id])
+
+  @@index([satkerId])
 }
 
 model Pengaturan {
@@ -55,6 +57,11 @@ model Personel {
   catatanRevisi   String?
   pelanggaran     Pelanggaran[]
   satker          Satker        @relation(fields: [satkerId], references: [id])
+
+  // Index untuk mempercepat query filter utama
+  @@index([satkerId, statusKeaktifan, deletedAt])
+  @@index([isDraft, deletedAt])
+  @@index([tanggalPensiun])
 }
 
 model Pelanggaran {
@@ -102,6 +109,11 @@ model Pelanggaran {
   deletedAt            DateTime?
   catatanRevisi        String?
   personel             Personel  @relation(fields: [personelId], references: [id], onDelete: Cascade)
+
+  // Index untuk mempercepat query filter dashboard dan daftar pelanggaran
+  @@index([personelId, isDraft, deletedAt])
+  @@index([statusPenyelesaian])
+  @@index([isDraft, deletedAt])
 }
 
 model AuditLog {
@@ -113,4 +125,7 @@ model AuditLog {
   alasan    String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
 }

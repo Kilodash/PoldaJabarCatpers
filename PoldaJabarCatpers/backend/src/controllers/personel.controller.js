@@ -1,39 +1,35 @@
 const prisma = require('../prisma');
 
-// Helper fungsi validasi
-const isNrpNipValidAsync = async (jenisPegawai, nrpNip) => {
-    let requiredLength = jenisPegawai === 'POLRI' ? 8 : 18;
-    if (jenisPegawai === 'POLRI') {
-        const setPolri = await prisma.pengaturan.findUnique({ where: { key: 'PANJANG_NRP_POLRI' } });
-        if (setPolri && setPolri.value) requiredLength = parseInt(setPolri.value);
-        const regex = new RegExp(`^\\d{${requiredLength}}$`);
-        if (!regex.test(nrpNip)) return false;
-        if (nrpNip.length >= 4) {
-            const mm = parseInt(nrpNip.substring(2, 4));
-            if (mm < 1 || mm > 12) return false;
-        }
-        return true;
-    } else {
-        const setPns = await prisma.pengaturan.findUnique({ where: { key: 'PANJANG_NIP_PNS' } });
-        if (setPns && setPns.value) requiredLength = parseInt(setPns.value);
-        const regex = new RegExp(`^\\d{${requiredLength}}$`);
-        if (!regex.test(nrpNip)) return false;
-        if (nrpNip.length >= 8) {
-            const mm = parseInt(nrpNip.substring(4, 6));
-            const dd = parseInt(nrpNip.substring(6, 8));
-            if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return false;
-        }
-        return true;
-    }
+// Helper: load semua pengaturan sekaligus (1 query, bukan per-key)
+const loadAllSettings = async () => {
+    const settings = await prisma.pengaturan.findMany();
+    return Object.fromEntries(settings.map(s => [s.key, s.value]));
 };
 
-const getUmurPensiunAsync = async (jenisPegawai, pangkat) => {
-    const key = jenisPegawai === 'POLRI' ? 'USIA_PENSIUN_POLRI' : 'USIA_PENSIUN_PNS';
-    const setting = await prisma.pengaturan.findUnique({ where: { key } });
-    if (setting && setting.value) {
-        return parseInt(setting.value);
+// Helper validasi NRP/NIP — menerima settingsMap (sudah di-load sebelumnya)
+const isNrpNipValid = (jenisPegawai, nrpNip, settingsMap) => {
+    let requiredLength = jenisPegawai === 'POLRI'
+        ? parseInt(settingsMap['PANJANG_NRP_POLRI'] || '8')
+        : parseInt(settingsMap['PANJANG_NIP_PNS'] || '18');
+
+    const regex = new RegExp(`^\\d{${requiredLength}}$`);
+    if (!regex.test(nrpNip)) return false;
+
+    if (jenisPegawai === 'POLRI' && nrpNip.length >= 4) {
+        const mm = parseInt(nrpNip.substring(2, 4));
+        if (mm < 1 || mm > 12) return false;
+    } else if (jenisPegawai !== 'POLRI' && nrpNip.length >= 8) {
+        const mm = parseInt(nrpNip.substring(4, 6));
+        const dd = parseInt(nrpNip.substring(6, 8));
+        if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return false;
     }
-    return 58; // Default fallback
+    return true;
+};
+
+// Helper ambil usia pensiun dari settingsMap
+const getUmurPensiun = (jenisPegawai, settingsMap) => {
+    const key = jenisPegawai === 'POLRI' ? 'USIA_PENSIUN_POLRI' : 'USIA_PENSIUN_PNS';
+    return parseInt(settingsMap[key] || '58');
 };
 
 
@@ -47,8 +43,11 @@ const createPersonel = async (req, res) => {
             return res.status(400).json({ message: 'Jenis Pegawai tidak valid (POLRI/PNS).' });
         }
 
-        // Validasi NRP/NIP Dinamis
-        const isValidFormat = await isNrpNipValidAsync(jenisPegawai, nrpNip);
+        // Load SEMUA pengaturan sekaligus (1 query, bukan banyak query terpisah)
+        const settingsMap = await loadAllSettings();
+
+        // Validasi NRP/NIP Dinamis (sync, tanpa query DB)
+        const isValidFormat = isNrpNipValid(jenisPegawai, nrpNip, settingsMap);
         if (!isValidFormat) {
             return res.status(400).json({
                 message: 'Format panjang digit NRP/NIP tidak valid berdasarkan Pengaturan Sistem saat ini (Lihat menu Pengaturan Sistem).'
@@ -65,14 +64,13 @@ const createPersonel = async (req, res) => {
         }
 
         const keyUsiaMin = jenisPegawai === 'POLRI' ? 'USIA_MINIMAL_POLRI' : 'USIA_MINIMAL_PNS';
-        const settingUmurMin = await prisma.pengaturan.findUnique({ where: { key: keyUsiaMin } });
-        const umurMinimal = settingUmurMin && settingUmurMin.value ? parseInt(settingUmurMin.value) : 18;
+        const umurMinimal = parseInt(settingsMap[keyUsiaMin] || '18');
 
         if (age < umurMinimal) {
             return res.status(400).json({ message: `Usia tidak wajar (Belum mencapai batas minimal ${umurMinimal} tahun).` });
         }
 
-        const umurPensiun = await getUmurPensiunAsync(jenisPegawai, pangkat);
+        const umurPensiun = getUmurPensiun(jenisPegawai, settingsMap);
         if (age >= umurPensiun) {
             return res.status(400).json({ message: `Personel sudah memasuki usia pensiun (${umurPensiun} tahun).` });
         }
@@ -270,17 +268,26 @@ const getAllPersonel = async (req, res) => {
             }
         }
 
-        const listPersonel = await prisma.personel.findMany({
-            where: whereClause,
-            include: {
-                satker: true,
-                pelanggaran: { where: { deletedAt: null } },
-                _count: {
-                    select: { pelanggaran: { where: { deletedAt: null } } }
-                }
-            },
-            orderBy: { namaLengkap: 'asc' }
-        });
+        // Paginasi opsional — jika ada query `page`, aktifkan paginasi
+        const page = req.query.page ? parseInt(req.query.page) : null;
+        const limit = parseInt(req.query.limit || '100');
+        const skip = page ? (page - 1) * limit : undefined;
+
+        const [listPersonel, totalCount] = await Promise.all([
+            prisma.personel.findMany({
+                where: whereClause,
+                include: {
+                    satker: true,
+                    pelanggaran: { where: { deletedAt: null } },
+                    _count: {
+                        select: { pelanggaran: { where: { deletedAt: null } } }
+                    }
+                },
+                orderBy: { namaLengkap: 'asc' },
+                ...(skip !== undefined ? { skip, take: limit } : {})
+            }),
+            page ? prisma.personel.count({ where: whereClause }) : Promise.resolve(null)
+        ]);
 
         const formattedPersonel = listPersonel.map(p => {
             let statusPersonel = 'Tidak Ada Catatan';
@@ -348,12 +355,23 @@ const getAllPersonel = async (req, res) => {
             };
         });
 
-        res.json(formattedPersonel);
+        // Jika paginasi aktif, kembalikan format paginated; jika tidak, backward-compatible
+        if (page) {
+            res.json({
+                data: formattedPersonel,
+                total: totalCount,
+                page,
+                totalPages: Math.ceil(totalCount / limit)
+            });
+        } else {
+            res.json(formattedPersonel);
+        }
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
 };
+
 
 // Ambil Detail Personel & Catatan Pelanggarannya
 const getPersonelById = async (req, res) => {
@@ -410,7 +428,8 @@ const updatePersonel = async (req, res) => {
         const tglLahirVal = tanggalLahir ? new Date(tanggalLahir) : existingPersonel.tanggalLahir;
 
         if (tanggalLahir || pangkat) {
-            const umurPensiun = await getUmurPensiunAsync(existingPersonel.jenisPegawai, pangkat || existingPersonel.pangkat);
+            const settingsMap = await loadAllSettings();
+            const umurPensiun = getUmurPensiun(existingPersonel.jenisPegawai, settingsMap);
             targetTanggalPensiun = new Date(tglLahirVal);
             targetTanggalPensiun.setFullYear(targetTanggalPensiun.getFullYear() + umurPensiun);
         }
