@@ -343,7 +343,7 @@ const getAllPersonel = async (req, res) => {
                 statusRps = anyBelumRps ? 'Belum Ada RPS' : 'Sudah Ada RPS';
 
                 // Status RPS hanya relevan untuk Pelanggaran Aktif/Pernah Tercatat
-                if (maxSeverity === 0 || maxSeverity === 2 && !anyBelumRps) statusRps = '-';
+                if (maxSeverity === 0 && !anyBelumRps) statusRps = '-';
             }
 
             const { pelanggaran, ...rest } = p;

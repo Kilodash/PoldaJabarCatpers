@@ -115,6 +115,7 @@ const Dashboard = () => {
                 localStorage.setItem('dashboard_stats', JSON.stringify(newStats));
             } catch (error) {
                 console.error('Gagal mengambil statistik utama', error);
+                toast.error('Gagal menyambungkan ke server untuk statistik utama.');
             }
         };
 
@@ -126,6 +127,7 @@ const Dashboard = () => {
                 localStorage.setItem('dashboard_satker_stats', JSON.stringify(newSatkerStats));
             } catch (error) {
                 console.error('Gagal mengambil statistik satker', error);
+                // Tidak perlu toast di sini agar tidak spamming jika stats utama berhasil
             }
         };
 
@@ -191,6 +193,7 @@ const Dashboard = () => {
             setModalList(res.data);
         } catch (error) {
             console.error('Gagal mengambil data list personel', error);
+            toast.error('Terjadi kesalahan server saat memuat rincian data.');
         } finally {
             setModalLoading(false);
         }
@@ -198,10 +201,14 @@ const Dashboard = () => {
 
     // Smart refresh: setelah action, paksa fetch stats + modal list paralel
     const refreshAfterAction = useCallback(async () => {
-        await Promise.allSettled([
-            fetchStats({ force: true }),
-            fetchModalList()
-        ]);
+        try {
+            await Promise.allSettled([
+                fetchStats({ force: true }),
+                fetchModalList()
+            ]);
+        } catch (error) {
+            toast.error('Gagal memperbarui data setelah aksi.');
+        }
     }, [fetchStats, fetchModalList]);
 
     // Debounced effect untuk modal search

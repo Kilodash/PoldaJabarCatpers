@@ -160,7 +160,10 @@ const getSatkerStats = async (req, res) => {
                 isDraft: true,
                 tanggalPensiun: true,
                 pelanggaran: {
-                    where: { deletedAt: null },
+                    where: { 
+                        deletedAt: null,
+                        statusPenyelesaian: { in: ['PROSES', 'MENJALANI_HUKUMAN', 'SIDANG', 'Belum ada SKTT', 'Belum ada SKTB', 'PERDAMAIAN', 'TIDAK_TERBUKTI'] }
+                    },
                     select: {
                         isDraft: true,
                         statusPenyelesaian: true,
