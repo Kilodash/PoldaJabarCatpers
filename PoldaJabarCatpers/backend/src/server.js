@@ -31,9 +31,10 @@ app.use(express.urlencoded({ extended: true }));
 // ----- Rate Limiting: Proteksi endpoint login -----
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 menit
-    max: 15, // Maksimal 15 percobaan login per IP
+    max: 30, // Maksimal 30 percobaan per IP dalam 15 menit (lebih longgar)
     standardHeaders: true,
     legacyHeaders: false,
+    skipSuccessfulRequests: true, // Login sukses TIDAK mengurangi kuota
     message: { message: 'Terlalu banyak percobaan login. Silakan coba lagi dalam 15 menit.' }
 });
 
