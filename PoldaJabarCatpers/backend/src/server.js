@@ -9,6 +9,15 @@ const app = express();
 // Trust proxy is required for express-rate-limit to work correctly on Vercel
 app.set('trust proxy', 1);
 
+// Debug Startup Information
+console.log('--- STARTUP DIAGNOSTICS ---');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DATABASE_URL set:', !!process.env.DATABASE_URL);
+console.log('JWT_SECRET set:', !!process.env.JWT_SECRET);
+console.log('ALLOWED_ORIGIN:', process.env.ALLOWED_ORIGIN || 'Not Set');
+console.log('VERSION:', 'v1.0.3-STABILITY-FIX');
+console.log('---------------------------');
+
 // ----- CORS: Batasi ke domain frontend -----
 const allowedOrigins = (process.env.ALLOWED_ORIGIN || '').split(',').map(o => o.trim()).filter(Boolean);
 
@@ -46,7 +55,7 @@ app.get('/', (req, res) => {
     res.json({ 
         message: 'CDS Polda Jabar API is running', 
         status: 'OK',
-        version: 'v1.0.2-DEBUG',
+        version: 'v1.0.3-STABILITY-FIX',
         time: new Date().toISOString()
     });
 });

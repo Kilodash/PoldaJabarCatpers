@@ -9,7 +9,8 @@
   ],
   "functions": {
     "src/server.js": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": ["prisma/**"]
     }
   },
   "routes": [
