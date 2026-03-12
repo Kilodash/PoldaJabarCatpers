@@ -115,7 +115,8 @@ const Dashboard = () => {
                 localStorage.setItem('dashboard_stats', JSON.stringify(newStats));
             } catch (error) {
                 console.error('Gagal mengambil statistik utama', error);
-                toast.error('Gagal menyambungkan ke server untuk statistik utama.');
+                const msg = error.response?.data?.message || error.message || 'Error tidak diketahui';
+                toast.error(`Gagal menghubungkan ke server untuk statistik utama: ${msg}`);
             }
         };
 
@@ -193,7 +194,8 @@ const Dashboard = () => {
             setModalList(res.data);
         } catch (error) {
             console.error('Gagal mengambil data list personel', error);
-            toast.error('Terjadi kesalahan server saat memuat rincian data.');
+            const msg = error.response?.data?.message || error.message || 'Error tidak diketahui';
+            toast.error(`Terjadi kesalahan server saat memuat rincian data: ${msg}`);
         } finally {
             setModalLoading(false);
         }
