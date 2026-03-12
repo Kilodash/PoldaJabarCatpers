@@ -9,6 +9,13 @@ const getDatabaseUrl = () => {
     // Gunakan URL object agar parsing lebih aman dan robust
     try {
         const dbUrl = new URL(url);
+        
+        // PAKSA pgbouncer=true untuk semua koneksi serverless agar tidak error "prepared statement s1 already exists"
+        // Ini kritikal saat menggunakan Supabase Connection Pooler (port 6543)
+        if (!dbUrl.searchParams.has('pgbouncer')) {
+            dbUrl.searchParams.set('pgbouncer', 'true');
+        }
+
         // Set default pooling params jika belum ada
         if (!dbUrl.searchParams.has('connection_limit')) {
             dbUrl.searchParams.set('connection_limit', '5');
@@ -16,16 +23,18 @@ const getDatabaseUrl = () => {
         if (!dbUrl.searchParams.has('pool_timeout')) {
             dbUrl.searchParams.set('pool_timeout', '20');
         }
-        // Pastikan pgbouncer=true jika menggunakan port pooler Supabase (6543)
-        if (dbUrl.port === '6543' && !dbUrl.searchParams.has('pgbouncer')) {
-            dbUrl.searchParams.set('pgbouncer', 'true');
-        }
         return dbUrl.toString();
     } catch (e) {
         // Fallback ke string concatenation jika URL invalid
-        if (url.includes('connection_limit=')) return url;
-        const separator = url.includes('?') ? '&' : '?';
-        return `${url}${separator}connection_limit=5&pool_timeout=20`;
+        let finalUrl = url;
+        if (!finalUrl.includes('pgbouncer=')) {
+            const sep = finalUrl.includes('?') ? '&' : '?';
+            finalUrl += `${sep}pgbouncer=true`;
+        }
+        if (!finalUrl.includes('connection_limit=')) {
+            finalUrl += `&connection_limit=5&pool_timeout=20`;
+        }
+        return finalUrl;
     }
 };
 
