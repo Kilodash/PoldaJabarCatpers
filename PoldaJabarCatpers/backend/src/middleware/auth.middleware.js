@@ -1,7 +1,12 @@
 const jwt = require('jsonwebtoken');
 
-if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-    throw new Error('FATAL: JWT_SECRET environment variable is not configured!');
+// Fallback agar app tidak crash jika JWT_SECRET belum diset di Vercel
+// HARAP set JWT_SECRET di Vercel Dashboard -> Settings -> Environment Variables
+const FALLBACK_SECRET = 'FALLBACK_GANTI_SEGERA_DI_VERCEL_ENV';
+
+if (!process.env.JWT_SECRET) {
+    console.error('[CRITICAL] JWT_SECRET is NOT set! Login masih bekerja dengan fallback tapi TIDAK AMAN untuk produksi.');
+    console.error('[ACTION NEEDED] Set JWT_SECRET di Vercel Dashboard -> Settings -> Environment Variables');
 }
 
 const authMiddleware = (req, res, next) => {
@@ -11,11 +16,7 @@ const authMiddleware = (req, res, next) => {
             return res.status(401).json({ message: 'Akses ditolak. Token tidak ditemukan.' });
         }
 
-        const secret = process.env.JWT_SECRET;
-        if (!secret) {
-            return res.status(500).json({ message: 'Konfigurasi server tidak valid.' });
-        }
-
+        const secret = process.env.JWT_SECRET || FALLBACK_SECRET;
         const decoded = jwt.verify(token, secret);
         req.user = decoded;
         next();

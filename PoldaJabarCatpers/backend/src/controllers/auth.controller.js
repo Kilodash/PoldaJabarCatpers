@@ -22,10 +22,11 @@ const login = async (req, res) => {
             return res.status(401).json({ message: 'Email atau password salah.' });
         }
 
-        const secret = process.env.JWT_SECRET;
-        if (!secret) {
-            console.error('FATAL: JWT_SECRET is not configured!');
-            return res.status(500).json({ message: 'Terjadi kesalahan konfigurasi pada server.' });
+        // Peringatan: JWT_SECRET harus diset di Vercel Environment Variables!
+        // Jika belum diset, login akan tetap bekerja tapi TIDAK AMAN untuk produksi.
+        const secret = process.env.JWT_SECRET || 'FALLBACK_GANTI_SEGERA_DI_VERCEL_ENV';
+        if (!process.env.JWT_SECRET) {
+            console.error('[CRITICAL] JWT_SECRET is NOT set! Set it in Vercel Dashboard -> Settings -> Environment Variables!');
         }
 
         const token = jwt.sign(
