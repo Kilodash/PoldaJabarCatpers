@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Search, Plus, Edit2, Trash2, FileText, CheckCircle, FileWarning } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { format } from 'date-fns';
@@ -6,12 +6,15 @@ import api from '../utils/api';
 import Modal from '../components/Modal';
 import PelanggaranFormModal from '../components/PelanggaranFormModal';
 import PersonelHistoryModal from '../components/PersonelHistoryModal';
+import Loading from '../components/Loading';
 
 const Pelanggaran = () => {
     const [personelList, setPersonelList] = useState([]);
     const [selectedPersonel, setSelectedPersonel] = useState(null);
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [loading, setLoading] = useState(true);
+    const debounceRef = useRef(null);
 
     // Modal States
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -24,58 +27,65 @@ const Pelanggaran = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
-    const fetchPersonel = async () => {
+    // Debounce search input — fetch hanya setelah user berhenti mengetik 400ms
+    const handleSearchChange = useCallback((e) => {
+        const val = e.target.value;
+        setSearch(val);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setDebouncedSearch(val);
+            setCurrentPage(1);
+        }, 400);
+    }, []);
+
+    const fetchPersonel = useCallback(async () => {
         try {
             setLoading(true);
-            const res = await api.get(`/personel?search=${search}`);
+            const res = await api.get(`/personel?search=${debouncedSearch}`);
             setPersonelList(res.data);
         } catch {
             toast.error('Gagal mengambil data dari server');
         } finally {
             setLoading(false);
         }
-    };
+    }, [debouncedSearch]);
 
-    const requestSort = (key) => {
-        let direction = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
-    };
+    const requestSort = useCallback((key) => {
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    }, []);
 
-    const sortedPersonelList = [...personelList].sort((a, b) => {
-        let valA, valB;
-        if (sortConfig.key === 'count') {
-            valA = a._count?.pelanggaran || 0;
-            valB = b._count?.pelanggaran || 0;
-        } else {
-            valA = a[sortConfig.key];
-            valB = b[sortConfig.key];
-        }
-
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-    });
+    // useMemo: kalkulasi hanya jika data/sort berubah
+    const sortedPersonelList = useMemo(() => {
+        return [...personelList].sort((a, b) => {
+            let valA = sortConfig.key === 'count' ? (a._count?.pelanggaran || 0) : a[sortConfig.key];
+            let valB = sortConfig.key === 'count' ? (b._count?.pelanggaran || 0) : b[sortConfig.key];
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [personelList, sortConfig]);
 
     useEffect(() => {
         fetchPersonel();
-        setCurrentPage(1); // Reset to first page on search
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [search]);
+    }, [fetchPersonel]); // fetchPersonel sudah di-memo dengan debouncedSearch sebagai dep
 
-    const paginatedList = sortedPersonelList.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
+    const paginatedList = useMemo(() =>
+        sortedPersonelList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+        [sortedPersonelList, currentPage]
     );
 
-    const totalPages = Math.ceil(sortedPersonelList.length / itemsPerPage);
+    const totalPages = useMemo(() =>
+        Math.ceil(sortedPersonelList.length / itemsPerPage),
+        [sortedPersonelList]
+    );
 
-    const handleSelectPersonel = (personelId) => {
+    const handleSelectPersonel = useCallback((personelId) => {
         setSelectedPersonelId(personelId);
         setIsMenuOpen(true);
-    };
+    }, []);
 
     const renderStatusBadge = (status) => {
         switch (status) {
@@ -110,7 +120,7 @@ const Pelanggaran = () => {
                         type="text"
                         placeholder="Cari Personel..."
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={handleSearchChange}
                     />
                 </div>
             </div>
@@ -145,7 +155,11 @@ const Pelanggaran = () => {
                 </div>
             )}
 
-            {loading ? <div className="loading-state">Memuat Data...</div> : (
+            {loading ? (
+                <div className="loading-state" style={{ padding: '3rem', textAlign: 'center' }}>
+                    <Loading variant="inline" text="Memuat data pelanggaran..." />
+                </div>
+            ) : (
                 <div className="table-container">
                     {/* Header khusus cetak */}
                     <div className="only-print" style={{ marginBottom: '2rem', textAlign: 'center', borderBottom: '2px solid #333', paddingBottom: '1rem' }}>

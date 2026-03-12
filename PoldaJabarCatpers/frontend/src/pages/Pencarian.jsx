@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Search, FileText, Upload, AlertTriangle, Eye, Plus, Edit2, Trash2, CheckCircle, Copy, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import api from '../utils/api';
 import PersonelHistoryModal from '../components/PersonelHistoryModal';
+import Loading from '../components/Loading';
 import './Pencarian.css';
 
 const Pencarian = () => {
@@ -26,15 +27,16 @@ const Pencarian = () => {
     // Sorting State
     const [sortConfig, setSortConfig] = useState({ key: 'nrpNip', direction: 'asc' });
 
-    const requestSort = (key) => {
-        let direction = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
-    };
+    const requestSort = useCallback((key) => {
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    }, []);
 
-    const sortedResults = [...(showAllResults ? searchResults : searchResults.filter(item => item.found))].sort((a, b) => {
+    const sortedResults = useMemo(() => {
+        const base = showAllResults ? searchResults : searchResults.filter(item => item.found);
+        return [...base].sort((a, b) => {
         let valA, valB;
         if (sortConfig.key === 'namaSesuai') {
             valA = a.personel?.namaLengkap || (a.found ? '' : 'ZZZ');
@@ -50,73 +52,72 @@ const Pencarian = () => {
             valB = b[sortConfig.key] || '';
         }
 
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-    });
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [searchResults, showAllResults, sortConfig]);
 
-    const paginatedResults = sortedResults.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
+    const paginatedResults = useMemo(() =>
+        sortedResults.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+        [sortedResults, currentPage]
     );
 
-    const totalPages = Math.ceil(sortedResults.length / itemsPerPage);
+    const totalPages = useMemo(() =>
+        Math.ceil(sortedResults.length / itemsPerPage),
+        [sortedResults]
+    );
 
-    const handleManualSearch = async (e) => {
+    const handleManualSearch = useCallback(async (e) => {
         e.preventDefault();
         if (!manualInput.trim()) {
-            toast.error("Input tidak boleh kosong");
+            toast.error('Input tidak boleh kosong');
             return;
         }
-
         setLoadingManual(true);
         try {
             const response = await api.post('/pencarian/manual', { textInput: manualInput });
-
             setSearchResults(response.data.data);
             setHasSearched(true);
-            toast.success("Pencarian berhasil");
+            toast.success('Pencarian berhasil');
         } catch (error) {
             console.error(error);
-            toast.error(error.response?.data?.message || "Terjadi kesalahan saat mencari");
+            toast.error(error.response?.data?.message || 'Terjadi kesalahan saat mencari');
         } finally {
             setLoadingManual(false);
             setCurrentPage(1);
         }
-    };
+    }, [manualInput]);
 
-    const handleFileSearch = async (e) => {
+    const handleFileSearch = useCallback(async (e) => {
         e.preventDefault();
         if (!selectedFile) {
-            toast.error("Silakan pilih file PDF terlebih dahulu");
+            toast.error('Silakan pilih file PDF terlebih dahulu');
             return;
         }
-
         setLoadingFile(true);
         const formData = new FormData();
         formData.append('dokumen', selectedFile);
-
         try {
             const response = await api.post('/pencarian/document', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-
             setSearchResults(response.data.data);
             setHasSearched(true);
-            toast.success("Ekstraksi & Pencarian berhasil");
+            toast.success('Ekstraksi & Pencarian berhasil');
         } catch (error) {
             console.error(error);
-            toast.error(error.response?.data?.message || "Terjadi kesalahan saat memproses dokumen");
+            toast.error(error.response?.data?.message || 'Terjadi kesalahan saat memproses dokumen');
         } finally {
             setLoadingFile(false);
             setCurrentPage(1);
         }
-    };
+    }, [selectedFile]);
 
-    const handleSelectPersonel = (id) => {
+    const handleSelectPersonel = useCallback((id) => {
         setSelectedPersonelId(id);
         setIsMenuOpen(true);
-    };
+    }, []);
 
     const handleRefresh = async () => {
         if (!selectedPersonelId) return;
@@ -162,11 +163,13 @@ const Pencarian = () => {
                                 className="textarea-input"
                                 value={manualInput}
                                 onChange={(e) => setManualInput(e.target.value)}
-                                placeholder="Contoh:&#10;85010234, Susanto&#10;198501012005011002, Rini"
+                                placeholder={"Contoh:\n85010234, Susanto\n198501012005011002, Rini"}
                             ></textarea>
                         </div>
                         <button type="submit" className="btn-primary" disabled={loadingManual || loadingFile}>
-                            {loadingManual ? 'Mencari...' : <><Search size={18} /> Cari Data</>}
+                            {loadingManual
+                                ? <Loading variant="inline" text="Mencari..." />
+                                : <><Search size={18} /> Cari Data</>}
                         </button>
                     </form>
                 </div>
@@ -186,7 +189,9 @@ const Pencarian = () => {
                             />
                         </div>
                         <button type="submit" className="btn-primary" disabled={loadingManual || loadingFile}>
-                            {loadingFile ? 'Memproses Dokumen...' : <><Search size={18} /> Ekstrak & Cari</>}
+                            {loadingFile
+                                ? <Loading variant="inline" text="Memproses Dokumen..." />
+                                : <><Search size={18} /> Ekstrak &amp; Cari</>}
                         </button>
                     </form>
                 </div>
