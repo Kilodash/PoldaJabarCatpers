@@ -61,9 +61,10 @@ const login = async (req, res) => {
         if (error.stack) console.error('Stack:', error.stack);
         console.error('--------------------------');
         
+        const errorDetail = error.message || 'Unknown Server Error';
         res.status(500).json({ 
-            message: `Terjadi kesalahan pada server: ${error.message}`,
-            hint: error.message 
+            message: `Terjadi kesalahan pada server: ${errorDetail}`,
+            hint: errorDetail
         });
     }
 };

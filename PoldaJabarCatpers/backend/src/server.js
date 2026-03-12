@@ -46,6 +46,7 @@ app.get('/', (req, res) => {
     res.json({ 
         message: 'CDS Polda Jabar API is running', 
         status: 'OK',
+        version: 'v1.0.2-DEBUG',
         time: new Date().toISOString()
     });
 });
@@ -82,8 +83,8 @@ const pengaturanRoutes = require('./routes/pengaturan.routes');
 const auditRoutes = require('./routes/audit.routes');
 const pencarianRoutes = require('./routes/pencarian.routes');
 
-// Terapkan rate limit hanya ke login
-app.use('/api/auth/login', loginLimiter);
+// Terapkan rate limit dihala (DITANGGUHKAN UNTUK DEBUGGING)
+// app.use('/api/auth/login', loginLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/satker', satkerRoutes);
