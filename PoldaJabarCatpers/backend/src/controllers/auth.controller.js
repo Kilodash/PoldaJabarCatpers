@@ -14,20 +14,24 @@ const login = async (req, res) => {
         });
 
         if (!user) {
+            console.log(`[LOGIN_DIAGNOSTIC] User not found: ${email}`);
             return res.status(401).json({ message: 'Email atau password salah.' });
         }
 
+        console.log(`[LOGIN_DIAGNOSTIC] User found, comparing passwords...`);
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
+            console.log(`[LOGIN_DIAGNOSTIC] Password mismatch for: ${email}`);
             return res.status(401).json({ message: 'Email atau password salah.' });
         }
 
         const secret = process.env.JWT_SECRET;
         if (!secret) {
-            console.error('FATAL: JWT_SECRET is not configured!');
-            return res.status(500).json({ message: 'Terjadi kesalahan konfigurasi pada server.' });
+            console.error('[LOGIN_DIAGNOSTIC] FATAL: JWT_SECRET is not configured!');
+            return res.status(500).json({ message: 'Terjadi kesalahan konfigurasi pada server (JWT_SECRET).' });
         }
 
+        console.log(`[LOGIN_DIAGNOSTIC] Password match, signing token...`);
         const token = jwt.sign(
             {
                 id: user.id,
@@ -38,6 +42,7 @@ const login = async (req, res) => {
             { expiresIn: '1d' }
         );
 
+        console.log(`[LOGIN_DIAGNOSTIC] Login success for: ${email}`);
         res.json({
             message: 'Login berhasil',
             token,
@@ -50,9 +55,17 @@ const login = async (req, res) => {
         });
 
     } catch (error) {
-        // Jangan bocorkan detail error ke client di production
-        console.error('Login Error:', error);
-        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+        console.error('--- [LOGIN_DIAGNOSTIC] CRITICAL ERROR ---');
+        console.error('Message:', error.message);
+        console.error('Name:', error.name);
+        if (error.code) console.error('Code:', error.code);
+        if (error.stack) console.error('Stack:', error.stack);
+        console.error('-----------------------------------------');
+        
+        res.status(500).json({ 
+            message: 'Terjadi kesalahan pada server saat login.',
+            detail: error.message
+        });
     }
 };
 
