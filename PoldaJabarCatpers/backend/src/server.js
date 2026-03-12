@@ -6,6 +6,9 @@ require('dotenv').config();
 
 const app = express();
 
+// Trust proxy is required for express-rate-limit to work correctly on Vercel
+app.set('trust proxy', 1);
+
 // ----- CORS: Batasi ke domain frontend -----
 const allowedOrigins = (process.env.ALLOWED_ORIGIN || '').split(',').map(o => o.trim()).filter(Boolean);
 

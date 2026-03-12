@@ -51,9 +51,18 @@ const login = async (req, res) => {
         });
 
     } catch (error) {
-        // Jangan bocorkan detail error ke client di production
-        console.error('Login Error:', error);
-        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+        // Detailed logging for debugging (visible in Vercel/Server logs)
+        console.error('--- LOGIN ERROR DETAIL ---');
+        console.error('Message:', error.message);
+        console.error('Code:', error.code);
+        if (error.stack) console.error('Stack:', error.stack);
+        console.error('--------------------------');
+        
+        res.status(500).json({ 
+            message: 'Terjadi kesalahan pada server.',
+            // Only add a hint if not in production to help user debug
+            hint: process.env.NODE_ENV !== 'production' ? error.message : undefined
+        });
     }
 };
 
