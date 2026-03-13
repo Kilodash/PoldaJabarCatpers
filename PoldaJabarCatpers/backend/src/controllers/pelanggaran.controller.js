@@ -147,8 +147,8 @@ const createPelanggaran = async (req, res) => {
             data: pelanggaran
         });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+        console.error('SERVER ERROR (createPelanggaran):', error);
+        res.status(500).json({ message: error.message || 'Terjadi kesalahan pada server saat membuat pelanggaran.' });
     }
 };
 
@@ -360,8 +360,8 @@ const updatePelanggaran = async (req, res) => {
         res.json({ message: 'Catatan pelanggaran diperbarui', data: pelanggaran });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+        console.error('SERVER ERROR (updatePelanggaran):', error);
+        res.status(500).json({ message: error.message || 'Terjadi kesalahan pada server saat memperbarui pelanggaran.' });
     }
 }
 
@@ -383,8 +383,8 @@ const getPelanggaranById = async (req, res) => {
 
         res.json(pelanggaran);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+        console.error('SERVER ERROR (updatePelanggaran):', error);
+        res.status(500).json({ message: error.message || 'Terjadi kesalahan pada server saat memperbarui pelanggaran.' });
     }
 };
 
@@ -423,8 +423,8 @@ const deletePelanggaran = async (req, res) => {
 
         res.json({ message: 'Catatan pelanggaran berhasil dihapus.' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+        console.error('SERVER ERROR (updatePelanggaran):', error);
+        res.status(500).json({ message: error.message || 'Terjadi kesalahan pada server saat memperbarui pelanggaran.' });
     }
 }
 
