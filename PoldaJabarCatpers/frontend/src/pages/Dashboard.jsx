@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -10,9 +10,10 @@ import api from '../utils/api';
 import { Toaster, toast } from 'sonner';
 import './Dashboard.css';
 import Modal from '../components/Modal';
-import PersonelFormModal from '../components/PersonelFormModal';
-import PersonelHistoryModal from '../components/PersonelHistoryModal';
 import Loading from '../components/Loading';
+
+const PersonelFormModal = lazy(() => import('../components/PersonelFormModal'));
+const PersonelHistoryModal = lazy(() => import('../components/PersonelHistoryModal'));
 
 // Lazy-load pdfGenerator hanya saat dibutuhkan
 const getExportPersonelPDF = () => import('../utils/pdfGenerator').then(m => m.exportPersonelPDF);
@@ -105,6 +106,18 @@ const Dashboard = () => {
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, alasan: '', statusKeaktifan: '' });
     const [rejectModal, setRejectModal] = useState({ isOpen: false, id: null, type: null, catatan: '' });
     const [restoreModal, setRestoreModal] = useState({ isOpen: false, id: null, alasan: '' });
+
+    // Lazy load control states so we don't fetch bundles until needed
+    const [hasOpenedForm, setHasOpenedForm] = useState(false);
+    const [hasOpenedHistory, setHasOpenedHistory] = useState(false);
+
+    useEffect(() => {
+        if (isAddPersonelOpen || isEditPersonel) setHasOpenedForm(true);
+    }, [isAddPersonelOpen, isEditPersonel]);
+
+    useEffect(() => {
+        if (selectedPersonelDetail) setHasOpenedHistory(true);
+    }, [selectedPersonelDetail]);
 
     // Fetch stats — dengan stale-time agar tidak refetch berulang dalam 30 detik
     const fetchStats = useCallback(async ({ force = false } = {}) => {
@@ -431,7 +444,7 @@ const Dashboard = () => {
                     <StatCard title="Draft Approval" value={stats.butuhApproval || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Menunggu Persetujuan Admin', 'DRAFT')} isLoading={loading} />
                 </div>
 
-                {user?.role === 'ADMIN_POLDA' && (
+                {user?.role === 'ADMIN_POLDA' ? (
                     <div className="table-container mt-4 no-print">
                         <div className="card-header mb-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
@@ -508,7 +521,7 @@ const Dashboard = () => {
                             </table>
                         </div>
                     </div>
-                )}
+                ) : null}
             </div>
 
             <Modal isOpen={modalData.isOpen && !selectedPersonelDetail} onClose={handleCloseModal} title={`Detail Data: ${modalData.title}`} maxWidth="80%">
@@ -741,7 +754,7 @@ const Dashboard = () => {
                             </div>
 
                             {/* Pagination Controls */}
-                            {totalPages > 1 && (
+                            {totalPages > 1 ? (
                                 <div className="flex justify-between items-center mt-4 pt-4 no-print" style={{ borderTop: '1px solid var(--border)', fontSize: '0.9rem' }}>
                                     <span>Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, modalList.length)} dari {modalList.length}</span>
                                     <div className="flex gap-2">
@@ -763,28 +776,36 @@ const Dashboard = () => {
                                         </button>
                                     </div>
                                 </div>
-                            )}
+                            ) : null}
                         </>
                 </>
             </Modal>
 
-            <PersonelFormModal
-                isOpen={isAddPersonelOpen}
-                onClose={() => { setIsAddPersonelOpen(false); setIsEditPersonel(false); setSelectedPersonel(null); }}
-                onSuccess={handlePersonelSuccess}
-                isEdit={isEditPersonel}
-                initialData={selectedPersonel}
-            />
+            {hasOpenedForm ? (
+                <Suspense fallback={null}>
+                    <PersonelFormModal
+                        isOpen={isAddPersonelOpen || isEditPersonel}
+                        onClose={() => { setIsAddPersonelOpen(false); setIsEditPersonel(false); setSelectedPersonel(null); }}
+                        onSuccess={handlePersonelSuccess}
+                        isEdit={isEditPersonel}
+                        initialData={selectedPersonel}
+                    />
+                </Suspense>
+            ) : null}
 
-            <PersonelHistoryModal
-                isOpen={!!selectedPersonelDetail}
-                onClose={handleCloseModal}
-                personelId={selectedPersonelDetail?.id}
-                onRefresh={() => {
-                    fetchStats();
-                    fetchModalList();
-                }}
-            />
+            {hasOpenedHistory ? (
+                <Suspense fallback={null}>
+                    <PersonelHistoryModal
+                        isOpen={!!selectedPersonelDetail}
+                        onClose={handleCloseModal}
+                        personelId={selectedPersonelDetail?.id}
+                        onRefresh={() => {
+                            fetchStats();
+                            fetchModalList();
+                        }}
+                    />
+                </Suspense>
+            ) : null}
 
             {/* Modal Penghapusan (Audit Log / Soft Delete / Nonaktif) */}
             <Modal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null, alasan: '', statusKeaktifan: '' })} title="Konfirmasi Nonaktif / Hapus Personel">
