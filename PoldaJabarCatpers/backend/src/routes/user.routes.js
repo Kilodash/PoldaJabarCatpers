@@ -4,6 +4,9 @@ const userController = require('../controllers/user.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 const rbacMiddleware = require('../middleware/rbac.middleware');
 
+// Rute publik (semua user yang login bisa akses)
+router.put('/change-password', authMiddleware, userController.changeSelfPassword);
+
 // Halaman Manajemen User mutlak hanya ADMIN_POLDA
 router.use(authMiddleware, rbacMiddleware(['ADMIN_POLDA']));
 

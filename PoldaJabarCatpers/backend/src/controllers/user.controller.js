@@ -113,4 +113,38 @@ const deleteUser = async (req, res) => {
     }
 };
 
-module.exports = { getAllUsers, createUser, updateUser, deleteUser };
+const changeSelfPassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user.id;
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return res.status(404).json({ message: 'User tidak ditemukan.' });
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) return res.status(400).json({ message: 'Password lama tidak sesuai.' });
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedPassword }
+        });
+
+        await prisma.auditLog.create({
+            data: {
+                userId: userId,
+                aksi: 'CHANGE_PASSWORD_SELF',
+                targetId: String(userId),
+                deskripsi: `User "${user.email}" mengubah password sendiri.`,
+                alasan: 'Perubahan Password Mandiri'
+            }
+        });
+
+        res.json({ message: 'Password berhasil diperbarui.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Terjadi kesalahan server saat mengubah password.' });
+    }
+};
+
+module.exports = { getAllUsers, createUser, updateUser, deleteUser, changeSelfPassword };

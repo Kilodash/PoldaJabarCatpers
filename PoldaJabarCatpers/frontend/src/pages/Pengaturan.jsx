@@ -63,7 +63,7 @@ import Loading from '../components/Loading';
 
 const Pengaturan = () => {
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState('users'); // users | satker | app | impor_ekspor
+    const [activeTab, setActiveTab] = useState(user?.role === 'ADMIN_POLDA' ? 'users' : 'profil'); // profil | users | satker | app | impor_ekspor
 
     // States for data
     const [usersList, setUsersList] = useState([]);
@@ -101,6 +101,10 @@ const Pengaturan = () => {
     const [isEdit, setIsEdit] = useState(false);
     const [formData, setFormData] = useState({});
     const [modalPosition, setModalPosition] = useState(null);
+
+    // Self Password State
+    const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    const [passwordLoading, setPasswordLoading] = useState(false);
 
     // Fetch master data
     const fetchData = async () => {
@@ -178,6 +182,27 @@ const Pengaturan = () => {
         }
     }, [user]);
 
+    const handlePasswordChange = async (e) => {
+        e.preventDefault();
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            return toast.error('Konfirmasi password baru tidak cocok.');
+        }
+
+        try {
+            setPasswordLoading(true);
+            await api.put('/users/change-password', {
+                currentPassword: passwordData.currentPassword,
+                newPassword: passwordData.newPassword
+            });
+            toast.success('Password berhasil diperbarui.');
+            setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Gagal memperbarui password.');
+        } finally {
+            setPasswordLoading(false);
+        }
+    };
+
     const fetchAudit = async () => {
         try {
             const res = await api.get(`/audit?page=${auditPage}&limit=${auditItemsPerPage}&search=${auditSearch}`);
@@ -199,8 +224,8 @@ const Pengaturan = () => {
         setAuditPage(1);
     }, [auditSearch, activeTab]);
 
-    if (user?.role !== 'ADMIN_POLDA') {
-        return <div className="p-8 text-center text-[var(--danger)] font-semibold mt-10">AKSES DITOLAK. Hanya Admin Polda yang dapat mengakses halaman ini.</div>;
+    if (!user) {
+        return <div className="p-8 text-center text-[var(--danger)] font-semibold mt-10">AKSES DITOLAK. Silahkan login terlebih dahulu.</div>;
     }
 
     const handleDownloadAudit = async () => {
@@ -427,12 +452,13 @@ const Pengaturan = () => {
                 boxShadow: 'var(--shadow-premium)'
             }}>
                 {[
-                    { id: 'users', label: 'User', icon: <Users size={18} /> },
-                    { id: 'satker', label: 'Satker', icon: <Building size={18} /> },
-                    { id: 'app', label: 'Variabel', icon: <Settings size={18} /> },
-                    { id: 'impor_ekspor', label: 'Database', icon: <Database size={18} /> },
-                    { id: 'audit', label: 'Audit Log', icon: <FileText size={18} /> }
-                ].map(tab => (
+                    { id: 'profil', label: 'Profil & Keamanan', icon: <User size={18} /> },
+                    { id: 'users', label: 'User', icon: <Users size={18} />, adminOnly: true },
+                    { id: 'satker', label: 'Satker', icon: <Building size={18} />, adminOnly: true },
+                    { id: 'app', label: 'Variabel', icon: <Settings size={18} />, adminOnly: true },
+                    { id: 'impor_ekspor', label: 'Database', icon: <Database size={18} />, adminOnly: true },
+                    { id: 'audit', label: 'Audit Log', icon: <FileText size={18} />, adminOnly: true }
+                ].filter(tab => !tab.adminOnly || user?.role === 'ADMIN_POLDA').map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
@@ -458,6 +484,84 @@ const Pengaturan = () => {
 
             {loading ? <div className="loading-state">Memuat Konfigurasi...</div> : (
                 <div className="tab-content">
+                    {/* TAB: PROFIL */}
+                    {activeTab === 'profil' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+                            {/* Akun Info */}
+                            <div className="glass-panel p-8">
+                                <h3 className="flex items-center gap-2 text-xl font-bold mb-6 text-[var(--primary-color)]">
+                                    <User size={24} /> Informasi Akun
+                                </h3>
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="text-xs font-bold uppercase text-gray-400 block mb-1">Email / Username</label>
+                                        <div className="text-lg font-semibold">{user.email}</div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold uppercase text-gray-400 block mb-1">Hak Akses</label>
+                                        <div className="inline-block px-3 py-1 rounded-full bg-[var(--primary-color)] text-white text-sm font-bold">
+                                            {user.role?.replace('_', ' ')}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold uppercase text-gray-400 block mb-1">Unit Kerja / Satker</label>
+                                        <div className="text-lg font-semibold text-[var(--primary-color)]">
+                                            {user.satker?.nama || "POLDA JABAR (ADMIN UTAMA)"}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Change Password Form */}
+                            <div className="glass-panel p-8">
+                                <h3 className="flex items-center gap-2 text-xl font-bold mb-6 text-[var(--danger)]">
+                                    <ShieldCheck size={24} /> Keamanan & Password
+                                </h3>
+                                <form onSubmit={handlePasswordChange} className="space-y-4">
+                                    <div className="form-group">
+                                        <label>Password Saat Ini</label>
+                                        <input 
+                                            type="password" 
+                                            className="form-input" 
+                                            required 
+                                            value={passwordData.currentPassword}
+                                            onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Password Baru</label>
+                                        <input 
+                                            type="password" 
+                                            className="form-input" 
+                                            required 
+                                            minLength={6}
+                                            value={passwordData.newPassword}
+                                            onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Konfirmasi Password Baru</label>
+                                        <input 
+                                            type="password" 
+                                            className="form-input" 
+                                            required 
+                                            value={passwordData.confirmPassword}
+                                            onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                                        />
+                                    </div>
+                                    <button 
+                                        type="submit" 
+                                        className="btn-primary w-full justify-center py-3" 
+                                        disabled={passwordLoading}
+                                        style={{ background: 'var(--danger)' }}
+                                    >
+                                        {passwordLoading ? 'Memproses...' : 'Perbarui Password Akun'}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
                     {/* TAB: USERS */}
                     {activeTab === 'users' && (
                         <div>

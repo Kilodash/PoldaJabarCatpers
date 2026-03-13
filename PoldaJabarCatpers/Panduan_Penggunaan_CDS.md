@@ -72,15 +72,27 @@ Aplikasi dilengkapi fitur pencarian cerdas untuk mempercepat penemuan data.
 
 ---
 
-## 6. Pengaturan & Administrasi
-Halaman ini khusus untuk konfigurasi sistem (Admin Polda).
+## 6. Administrasi & Konfigurasi (Admin Polda Only)
+Menu ini khusus untuk pengelolaan infrastruktur aplikasi oleh Admin Polda.
 - **Manajemen Satker**: Menambah atau mengurutkan Unit Kerja.
-- **Audit Log**: Melihat riwayat aksi penghapusan data secara mendetail.
+- **Audit Log**: Melihat riwayat aksi modifikasi data secara mendetail.
 - **User Management**: Mengelola akun operator di tiap-tiap Satker.
 
 ---
 
-## 7. Dukungan Teknis
+## 7. Pengaturan & Keamanan Mandiri (Semua User)
+Kini **Operator Satker** dapat mengakses menu Pengaturan untuk keperluan mandiri:
+- **Profil**: Melihat rincian akun Anda sendiri (Email, Role, Satker).
+- **Ubah Password**: Disarankan untuk mengubah password secara berkala.
+  1. Masuk ke menu **Pengaturan**.
+  2. Klik tab **Profil & Keamanan**.
+  3. Masukkan **Password Saat Ini**.
+  4. Masukkan **Password Baru** (min. 6 karakter).
+  5. Klik **Perbarui Password Akun**.
+
+---
+
+## 8. Dukungan Teknis
 Jika Anda mengalami kendala teknis atau memerlukan bantuan login, silakan hubungi:
 
 **Admin Aplikasi:**
