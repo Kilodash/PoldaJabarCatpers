@@ -106,18 +106,34 @@ const Pengaturan = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [resUsers, resSatker, resPengaturan] = await Promise.all([
+            const res = await Promise.allSettled([
                 api.get('/users'),
                 api.get('/satker'),
                 api.get('/pengaturan')
             ]);
-            setUsersList(resUsers.data);
-            setSatkerList(resSatker.data);
-            setPengaturanList(resPengaturan.data);
+            
+            // Check results individually
+            if (res[0].status === 'fulfilled') setUsersList(res[0].value.data);
+            else {
+                const errMsg = res[0].reason?.response?.data?.message || 'Gagal memuat daftar User.';
+                toast.error(`Error Users: ${errMsg}`);
+            }
+
+            if (res[1].status === 'fulfilled') setSatkerList(res[1].value.data);
+            else {
+                const errMsg = res[1].reason?.response?.data?.message || 'Gagal memuat daftar Satker.';
+                toast.error(`Error Satker: ${errMsg}`);
+            }
+
+            if (res[2].status === 'fulfilled') setPengaturanList(res[2].value.data);
+            else {
+                const errMsg = res[2].reason?.response?.data?.message || 'Gagal memuat Variabel Sistem.';
+                toast.error(`Error Variabel: ${errMsg}`);
+            }
+
         } catch (error) {
-            console.error('Pengaturan Fetch Error:', error);
-            const msg = error.response?.data?.message || 'Gagal memuat data pengaturan.';
-            toast.error(`${msg} Pastikan Anda memiliki hak akses Admin.`);
+            console.error('Pengaturan Fetch Critical Error:', error);
+            toast.error('Gagal memproses data pengaturan secara keseluruhan.');
         } finally {
             setLoading(false);
         }
