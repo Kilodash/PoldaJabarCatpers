@@ -11,13 +11,14 @@ const checkEnv = (name) => {
     return `EXISTS (Len: ${val.length})`;
 };
 
-console.log('--- RUNTIME STARTUP (v1.1.7-FIX) ---');
+console.log('--- RUNTIME STARTUP (v1.1.9-DEBUG) ---');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('DATABASE_URL:', checkEnv('DATABASE_URL'));
 console.log('JWT_SECRET:', checkEnv('JWT_SECRET'));
 console.log('ALLOWED_ORIGIN:', checkEnv('ALLOWED_ORIGIN'));
+console.log('DIRECT_URL:', checkEnv('DIRECT_URL'));
 console.log('TIMESTAMP:', new Date().toISOString());
-console.log('-------------------------------------');
+console.log('--------------------------------------');
 
 const app = express();
 
@@ -47,10 +48,33 @@ try {
         res.json({ 
             message: 'Polda Jabar API Diagnostics', 
             status: 'READY',
-            version: 'v1.1.6-CLEAN-BOOT',
+            version: 'v1.1.9-DEBUG',
             node: process.version,
+            env: {
+                db: checkEnv('DATABASE_URL'),
+                directUrl: checkEnv('DIRECT_URL'),
+                jwt: checkEnv('JWT_SECRET'),
+                origin: checkEnv('ALLOWED_ORIGIN')
+            },
             time: new Date().toISOString()
         });
+    });
+
+    // Debug endpoint — test DB connection directly
+    app.get('/api/debug/ping', async (req, res) => {
+        const prisma = require('./prisma');
+        try {
+            await prisma.$queryRaw`SELECT 1`;
+            res.json({ db: 'OK', time: new Date().toISOString() });
+        } catch (err) {
+            res.status(500).json({
+                db: 'FAILED',
+                error: err.message,
+                code: err.code,
+                name: err.constructor.name,
+                time: new Date().toISOString()
+            });
+        }
     });
 
     // Routes
