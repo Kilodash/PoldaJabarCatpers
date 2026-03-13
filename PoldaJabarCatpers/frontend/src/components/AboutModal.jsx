@@ -1,6 +1,6 @@
 import React from 'react';
 import Modal from './Modal';
-import { Info, MapPin, Phone, User, Users, ShieldCheck, Mail } from 'lucide-react';
+import { Info, MapPin, Phone, User, Users, ShieldCheck, Mail, FileText } from 'lucide-react';
 
 const AboutModal = ({ isOpen, onClose }) => {
     return (
@@ -18,6 +18,27 @@ const AboutModal = ({ isOpen, onClose }) => {
                             <MapPin size={18} /> Alamat Kantor
                         </h4>
                         <p style={{ margin: 0, paddingLeft: '1.75rem' }}>Jl. Soekarno-Hatta 748 Kota Bandung</p>
+                    </section>
+
+                    <section>
+                        <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--primary-color)' }}>
+                            <FileText size={18} /> Dokumentasi
+                        </h4>
+                        <div style={{ paddingLeft: '1.75rem' }}>
+                            <a 
+                                href="/Panduan_Penggunaan_CDS.md" 
+                                target="_blank" 
+                                rel="noreferrer"
+                                style={{ 
+                                    color: 'var(--info)', 
+                                    fontWeight: 600, 
+                                    textDecoration: 'underline',
+                                    fontSize: '0.95rem'
+                                }}
+                            >
+                                Buka Panduan Penggunaan (User Manual)
+                            </a>
+                        </div>
                     </section>
 
                     <section>
