@@ -18,12 +18,16 @@ import Loading from '../components/Loading';
 const getExportPersonelPDF = () => import('../utils/pdfGenerator').then(m => m.exportPersonelPDF);
 
 
-const StatCard = ({ title, value, icon: Icon, colorClass, onClick }) => {
+const StatCard = ({ title, value, icon: Icon, colorClass, onClick, isLoading }) => {
     return (
         <div className={`stat-card ${colorClass}`} onClick={onClick} title="Klik untuk melihat detail">
             <div className="stat-card-top">
                 <div className="stat-info">
-                    <h3>{value}</h3>
+                    {isLoading ? (
+                        <div className="skeleton skeleton-bold" style={{ width: '80px', marginBottom: '8px' }}></div>
+                    ) : (
+                        <h3>{value}</h3>
+                    )}
                     <p>{title}</p>
                 </div>
                 <div className="stat-icon-wrapper">
@@ -361,21 +365,7 @@ const Dashboard = () => {
     return (
         <>
             <Toaster position="top-right" richColors />
-            {loading && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(255,255,255,0.7)',
-                    zIndex: 9999,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '1rem',
-                }}>
-                    <Loading variant="inline" text="Memperbarui data ..." />
-                </div>
-            )}
+            {/* Full-screen blocking overlay removed. We now use Skeleton Loaders. */}
             <div className="dashboard animate-fade-in">
                 <div className="page-header mb-8 no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
                     <div style={{ flex: '1 1 auto', minWidth: '300px' }}>
@@ -411,34 +401,34 @@ const Dashboard = () => {
 
                 <div className="stats-grid no-print" style={{ marginBottom: '2rem' }}>
                     {/* 1. Total Personel */}
-                    <StatCard title="Total Personel" value={stats?.totalPersonel || 0} icon={Users} colorClass="card-primary" onClick={() => handleOpenModal('Total Seluruh Personel', '')} />
+                    <StatCard title="Total Personel" value={stats?.totalPersonel || 0} icon={Users} colorClass="card-primary" onClick={() => handleOpenModal('Total Seluruh Personel', '')} isLoading={loading} />
 
                     {/* 2. Catpers Aktif */}
-                    <StatCard title="Catpers Aktif" value={stats?.catpersAktif || 0} icon={AlertCircle} colorClass="card-danger" onClick={() => handleOpenModal('Personel Dengan Catatan Aktif', 'catpersAktif')} />
+                    <StatCard title="Catpers Aktif" value={stats?.catpersAktif || 0} icon={AlertCircle} colorClass="card-danger" onClick={() => handleOpenModal('Personel Dengan Catatan Aktif', 'catpersAktif')} isLoading={loading} />
 
                     {/* 3. Pernah Tercatat */}
-                    <StatCard title="Pernah Tercatat" value={stats?.pernahTercatat || 0} icon={History} colorClass="card-warning" onClick={() => handleOpenModal('Personel Pernah Tercatat', 'pernahTercatat')} />
+                    <StatCard title="Pernah Tercatat" value={stats?.pernahTercatat || 0} icon={History} colorClass="card-warning" onClick={() => handleOpenModal('Personel Pernah Tercatat', 'pernahTercatat')} isLoading={loading} />
 
                     {/* 4. Belum Rekomendasi */}
-                    <StatCard title="Belum Rekomendasi" value={stats?.belumRekomendasi || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Belum Rekomendasi', 'belumRps')} />
+                    <StatCard title="Belum Rekomendasi" value={stats?.belumRekomendasi || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Belum Rekomendasi', 'belumRps')} isLoading={loading} />
 
                     {/* 5. Tidak Terbukti */}
-                    <StatCard title="Tidak Terbukti" value={stats.tidakTerbukti || 0} icon={ShieldCheck} colorClass="card-success" onClick={() => handleOpenModal('Tidak Terbukti (Final)', 'tidakTerbukti')} />
+                    <StatCard title="Tidak Terbukti" value={stats.tidakTerbukti || 0} icon={ShieldCheck} colorClass="card-success" onClick={() => handleOpenModal('Tidak Terbukti (Final)', 'tidakTerbukti')} isLoading={loading} />
 
                     {/* 6. Belum SKTT */}
-                    <StatCard title="Belum Ada SKTT" value={stats.belumSktt || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTT (Riksa)', 'belumSktt')} />
+                    <StatCard title="Belum Ada SKTT" value={stats.belumSktt || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTT (Riksa)', 'belumSktt')} isLoading={loading} />
 
                     {/* 7. Belum SKTB */}
-                    <StatCard title="Belum Ada SKTB" value={stats.belumSktb || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTB (Sidang)', 'belumSktb')} />
+                    <StatCard title="Belum Ada SKTB" value={stats.belumSktb || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTB (Sidang)', 'belumSktb')} isLoading={loading} />
 
                     {/* 8. Perdamaian */}
-                    <StatCard title="Perdamaian" value={stats?.perdamaian || 0} icon={CheckCircle} colorClass="card-success" onClick={() => handleOpenModal('Personel Perdamaian', 'perdamaian')} />
+                    <StatCard title="Perdamaian" value={stats?.perdamaian || 0} icon={CheckCircle} colorClass="card-success" onClick={() => handleOpenModal('Personel Perdamaian', 'perdamaian')} isLoading={loading} />
 
                     {/* 9. Personel Tidak Aktif */}
-                    <StatCard title="Personel Tidak Aktif" value={stats?.tidakAktif || 0} icon={UserMinus} colorClass="card-secondary" onClick={() => handleOpenModal('Personel Tidak Aktif / Pensiun', 'tidakAktif')} />
+                    <StatCard title="Personel Tidak Aktif" value={stats?.tidakAktif || 0} icon={UserMinus} colorClass="card-secondary" onClick={() => handleOpenModal('Personel Tidak Aktif / Pensiun', 'tidakAktif')} isLoading={loading} />
 
                     {/* 10. Draft Approval */}
-                    <StatCard title="Draft Approval" value={stats.butuhApproval || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Menunggu Persetujuan Admin', 'DRAFT')} />
+                    <StatCard title="Draft Approval" value={stats.butuhApproval || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Menunggu Persetujuan Admin', 'DRAFT')} isLoading={loading} />
                 </div>
 
                 {user?.role === 'ADMIN_POLDA' && (
@@ -473,7 +463,19 @@ const Dashboard = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {sortedSatkerStats.length === 0 ? (
+                                    {loading ? (
+                                        Array.from({ length: 5 }).map((_, idx) => (
+                                            <tr key={`skel-${idx}`} className="hover-row">
+                                                <td><div className="skeleton skeleton-text" style={{ width: '80%' }}></div></td>
+                                                <td style={{ textAlign: 'center' }}><div className="skeleton skeleton-badge"></div></td>
+                                                <td style={{ textAlign: 'center' }}><div className="skeleton skeleton-badge"></div></td>
+                                                <td style={{ textAlign: 'center' }}><div className="skeleton skeleton-badge"></div></td>
+                                                <td style={{ textAlign: 'center' }}><div className="skeleton skeleton-badge"></div></td>
+                                                <td style={{ textAlign: 'center' }}><div className="skeleton skeleton-badge"></div></td>
+                                                <td style={{ textAlign: 'center' }}><div className="skeleton skeleton-badge"></div></td>
+                                            </tr>
+                                        ))
+                                    ) : sortedSatkerStats.length === 0 ? (
                                         <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>Data kesatuan tidak ditemukan</td></tr>
                                     ) : (
                                         sortedSatkerStats.map(s => (
@@ -592,16 +594,9 @@ const Dashboard = () => {
                         </button>
                     </div>
 
-                    {modalLoading ? (
-                        <div className="loading-state py-8">
-                            <Loading variant="inline" text="Mensinkronisasi Data..." />
-                            <div style={{ marginTop: '1rem', width: '100%' }}>
-                                <Loading variant="skeleton-list" />
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Batasan Tinggi Tabel List Mengikuti Dimensi Layar (Max Height & Overflow y) */}
+                    {/* Modal Loading handled within the table body now */}
+                    <>
+                        {/* Batasan Tinggi Tabel List Mengikuti Dimensi Layar (Max Height & Overflow y) */}
                             <div className="modal-table-container" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 22rem)' }}>
                                 <table className="data-table" style={{ fontSize: '0.85em' }}>
                                     <thead>
@@ -615,7 +610,28 @@ const Dashboard = () => {
                                             <th style={{ textAlign: 'center' }}>Aksi</th>
                                         </tr>
                                     </thead>
-                                    {sortedModalList.length === 0 ? (
+                                    {modalLoading ? (
+                                        <tbody>
+                                            {Array.from({ length: Math.min(itemsPerPage, 5) }).map((_, idx) => (
+                                                <tr key={`skel-modal-${idx}`}>
+                                                    <td style={{ textAlign: 'center' }}><div className="skeleton skeleton-text" style={{ width: '20px' }}></div></td>
+                                                    <td><div className="skeleton skeleton-text" style={{ width: '120px' }}></div></td>
+                                                    <td>
+                                                        <div className="skeleton skeleton-text" style={{ width: '180px' }}></div>
+                                                    </td>
+                                                    <td><div className="skeleton skeleton-text" style={{ width: '100px' }}></div></td>
+                                                    <td><div className="skeleton skeleton-text" style={{ width: '150px' }}></div></td>
+                                                    <td><div className="skeleton skeleton-badge" style={{ width: '80px', height: '24px' }}></div></td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                                            <div className="skeleton skeleton-badge" style={{ width: '24px', height: '24px', borderRadius: '4px' }}></div>
+                                                            <div className="skeleton skeleton-badge" style={{ width: '24px', height: '24px', borderRadius: '4px' }}></div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    ) : sortedModalList.length === 0 ? (
                                         <tbody>
                                             <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>Pencarian / Kategori tidak menghasilkan temuan.</td></tr>
                                         </tbody>
@@ -749,7 +765,6 @@ const Dashboard = () => {
                                 </div>
                             )}
                         </>
-                    )}
                 </>
             </Modal>
 
