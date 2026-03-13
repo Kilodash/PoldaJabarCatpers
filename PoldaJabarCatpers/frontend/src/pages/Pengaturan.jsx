@@ -70,6 +70,7 @@ const Pengaturan = () => {
     const [satkerList, setSatkerList] = useState([]);
     const [pengaturanList, setPengaturanList] = useState([]);
     const [auditList, setAuditList] = useState([]);
+    const [auditMeta, setAuditMeta] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
     const [auditSearch, setAuditSearch] = useState('');
     const [loading, setLoading] = useState(false);
     const [reorderLoading, setReorderLoading] = useState(false);
@@ -105,16 +106,14 @@ const Pengaturan = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [resUsers, resSatker, resPengaturan, resAudit] = await Promise.all([
+            const [resUsers, resSatker, resPengaturan] = await Promise.all([
                 api.get('/users'),
                 api.get('/satker'),
-                api.get('/pengaturan'),
-                api.get('/audit')
+                api.get('/pengaturan')
             ]);
             setUsersList(resUsers.data);
             setSatkerList(resSatker.data);
             setPengaturanList(resPengaturan.data);
-            setAuditList(resAudit.data);
         } catch (error) {
             console.error('Pengaturan Fetch Error:', error);
             const msg = error.response?.data?.message || 'Gagal memuat data pengaturan.';
@@ -163,6 +162,23 @@ const Pengaturan = () => {
         }
     }, [user]);
 
+    const fetchAudit = async () => {
+        try {
+            const res = await api.get(`/audit?page=${auditPage}&limit=${auditItemsPerPage}&search=${auditSearch}`);
+            setAuditList(res.data.data);
+            setAuditMeta(res.data.meta);
+        } catch (error) {
+            console.error('Audit Fetch Error:', error);
+            toast.error('Gagal memuat data audit log.');
+        }
+    };
+
+    useEffect(() => {
+        if (user?.role === 'ADMIN_POLDA' && activeTab === 'audit') {
+            fetchAudit();
+        }
+    }, [auditPage, auditSearch, activeTab, user]);
+
     useEffect(() => {
         setAuditPage(1);
     }, [auditSearch, activeTab]);
@@ -171,26 +187,34 @@ const Pengaturan = () => {
         return <div className="p-8 text-center text-[var(--danger)] font-semibold mt-10">AKSES DITOLAK. Hanya Admin Polda yang dapat mengakses halaman ini.</div>;
     }
 
-    const handleDownloadAudit = () => {
-        if (auditList.length === 0) { toast.error('Tidak ada data log untuk diunduh.'); return; }
-        const header = ['Waktu Eksekusi', 'Operator / Aktor', 'Satker', 'Tipe Aksi', 'Rincian Deskripsi', 'Alasan'];
-        const rows = auditList.map(log => [
-            new Date(log.createdAt).toLocaleString('id-ID'),
-            log.userEmail,
-            log.satker || '-',
-            log.aksi,
-            `"${(log.deskripsi || '').replace(/"/g, '""')}"`,
-            `"${(log.alasan || '').replace(/"/g, '""')}"`
-        ]);
-        const csvContent = [header, ...rows].map(r => r.join(';')).join('\n');
-        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
-        toast.success('Audit log berhasil diunduh.');
+    const handleDownloadAudit = async () => {
+        try {
+            toast.info('Menyiapkan file unduhan...');
+            const res = await api.get(`/audit?page=1&limit=5000&search=${auditSearch}`);
+            const allLogs = res.data.data;
+            if (allLogs.length === 0) { toast.error('Tidak ada data log untuk diunduh.'); return; }
+            
+            const header = ['Waktu Eksekusi', 'Operator / Aktor', 'Satker', 'Tipe Aksi', 'Rincian Deskripsi', 'Alasan'];
+            const rows = allLogs.map(log => [
+                new Date(log.createdAt).toLocaleString('id-ID'),
+                log.userEmail,
+                log.satker || '-',
+                log.aksi,
+                `"${(log.deskripsi || '').replace(/"/g, '""')}"`,
+                `"${(log.alasan || '').replace(/"/g, '""')}"`
+            ]);
+            const csvContent = [header, ...rows].map(r => r.join(';')).join('\n');
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+            toast.success('Audit log berhasil diunduh.');
+        } catch (error) {
+            toast.error('Gagal mengunduh audit log.');
+        }
     };
 
     // Handlers
@@ -353,24 +377,9 @@ const Pengaturan = () => {
             setBulkUpdateLoading(false);
         }
     };
-    const filteredAuditList = auditList.filter(log => {
-        const term = (auditSearch || '').toLowerCase();
-        if (!term) return true;
-        return (
-            (log.userEmail && String(log.userEmail).toLowerCase().includes(term)) ||
-            (log.satker && String(log.satker).toLowerCase().includes(term)) ||
-            (log.aksi && String(log.aksi).toLowerCase().includes(term)) ||
-            (log.deskripsi && String(log.deskripsi).toLowerCase().includes(term)) ||
-            (log.alasan && String(log.alasan).toLowerCase().includes(term))
-        );
-    });
-
-    const paginatedAuditList = filteredAuditList.slice(
-        (auditPage - 1) * auditItemsPerPage,
-        auditPage * auditItemsPerPage
-    );
-
-    const auditTotalPages = Math.ceil(filteredAuditList.length / auditItemsPerPage);
+    const paginatedAuditList = auditList;
+    const auditTotalPages = auditMeta.totalPages;
+    const totalAuditItems = auditMeta.total;
 
     return (
         <div className="animate-fade-in">
@@ -729,9 +738,9 @@ const Pengaturan = () => {
                             </div>
 
                             {/* Audit Log Summary (Top) */}
-                            {filteredAuditList.length > 0 && (
+                            {totalAuditItems > 0 && (
                                 <div style={{ marginBottom: '1rem', background: 'var(--bg-color)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                                    Menampilkan <strong>{(auditPage - 1) * auditItemsPerPage + 1} - {Math.min(auditPage * auditItemsPerPage, filteredAuditList.length)}</strong> dari <strong>{filteredAuditList.length}</strong> log transaksi keamanan.
+                                    Menampilkan <strong>{(auditPage - 1) * auditItemsPerPage + 1} - {Math.min(auditPage * auditItemsPerPage, totalAuditItems)}</strong> dari <strong>{totalAuditItems}</strong> log transaksi keamanan.
                                 </div>
                             )}
 
@@ -759,7 +768,7 @@ const Pengaturan = () => {
                                         {auditList.length === 0 && (
                                             <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>Belum ada entri log keamanan yang tercatat.</td></tr>
                                         )}
-                                        {auditList.length > 0 && filteredAuditList.length === 0 && (
+                                        {totalAuditItems === 0 && auditSearch && (
                                             <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>Pencarian tidak menemukan entri log.</td></tr>
                                         )}
                                     </tbody>
@@ -769,7 +778,7 @@ const Pengaturan = () => {
                                 {auditTotalPages > 1 && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '0 0.5rem' }}>
                                         <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                            Menampilkan {(auditPage - 1) * auditItemsPerPage + 1} - {Math.min(auditPage * auditItemsPerPage, filteredAuditList.length)} dari {filteredAuditList.length} log
+                                            Menampilkan {(auditPage - 1) * auditItemsPerPage + 1} - {Math.min(auditPage * auditItemsPerPage, totalAuditItems)} dari {totalAuditItems} log
                                         </div>
                                         <div style={{ display: 'flex', gap: '0.4rem' }}>
                                             <button

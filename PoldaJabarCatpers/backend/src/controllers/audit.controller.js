@@ -2,14 +2,36 @@ const prisma = require('../prisma');
 
 const getAllAuditLogs = async (req, res) => {
     try {
-        const logs = await prisma.auditLog.findMany({
-            orderBy: { createdAt: 'desc' },
-            include: {
-                user: {
-                    select: { email: true, role: true, satkerId: true, satker: { select: { nama: true } } }
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        
+        const skip = (page - 1) * limit;
+
+        const whereClause = search ? {
+            OR: [
+                { aksi: { contains: search, mode: 'insensitive' } },
+                { deskripsi: { contains: search, mode: 'insensitive' } },
+                { alasan: { contains: search, mode: 'insensitive' } },
+                { user: { email: { contains: search, mode: 'insensitive' } } },
+                { user: { satker: { nama: { contains: search, mode: 'insensitive' } } } }
+            ]
+        } : {};
+
+        const [total, logs] = await prisma.$transaction([
+            prisma.auditLog.count({ where: whereClause }),
+            prisma.auditLog.findMany({
+                where: whereClause,
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit,
+                include: {
+                    user: {
+                        select: { email: true, role: true, satkerId: true, satker: { select: { nama: true } } }
+                    }
                 }
-            }
-        });
+            })
+        ]);
 
         // Transform the nested relations for easier UI rendering
         const formattedLogs = logs.map(log => ({
@@ -24,7 +46,15 @@ const getAllAuditLogs = async (req, res) => {
             satker: log.user && log.user.satker ? log.user.satker.nama : 'Polda Jabar'
         }));
 
-        res.json(formattedLogs);
+        res.json({
+            data: formattedLogs,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
     } catch (error) {
         console.error("Gagal mengambil Audit Log:", error);
         res.status(500).json({ message: 'Terjadi kesalahan sistem.' });
