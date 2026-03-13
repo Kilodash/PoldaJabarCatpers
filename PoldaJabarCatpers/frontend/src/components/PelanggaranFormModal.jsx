@@ -522,10 +522,10 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
             submitData.append('deletedItems', JSON.stringify(deletedItems));
 
             if (isEdit) {
-                await api.put(`/pelanggaran/${formData.id}`, submitData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                await api.put(`/pelanggaran/${formData.id}`, submitData);
                 toast.success('Catatan pelanggaran berhasil diperbarui.');
             } else {
-                await api.post('/pelanggaran', submitData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                await api.post('/pelanggaran', submitData);
                 toast.success('Catatan pelanggaran baru berhasil disimpan.');
             }
 

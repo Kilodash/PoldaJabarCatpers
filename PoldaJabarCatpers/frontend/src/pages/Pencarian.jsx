@@ -97,9 +97,7 @@ const Pencarian = () => {
         formData.append('dokumen', selectedFile);
 
         try {
-            const response = await api.post('/pencarian/document', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const response = await api.post('/pencarian/document', formData);
 
             setSearchResults(response.data.data);
             setHasSearched(true);
