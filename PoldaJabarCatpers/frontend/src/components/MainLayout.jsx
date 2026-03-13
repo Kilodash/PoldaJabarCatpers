@@ -31,12 +31,10 @@ const Sidebar = ({ isOpen, toggleSidebar, onOpenAbout }) => {
                         <span>Pencarian</span>
                     </NavLink>
                 )}
-                {user?.role === 'ADMIN_POLDA' && (
-                    <NavLink to="/pengaturan" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
-                        <Settings size={20} />
-                        <span>Pengaturan</span>
-                    </NavLink>
-                )}
+                <NavLink to="/pengaturan" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
+                    <Settings size={20} />
+                    <span>Pengaturan</span>
+                </NavLink>
             </nav>
             <div className="sidebar-footer">
                 <div className="about-link" onClick={onOpenAbout}>
