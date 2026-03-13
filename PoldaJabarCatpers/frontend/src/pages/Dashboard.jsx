@@ -196,6 +196,14 @@ const Dashboard = () => {
         fetchStats({ force: true }); // Initial load selalu force fetch
     }, [fetchStats]);
 
+    // Polling otomatis setiap 60 detik untuk sinkronisasi data antar-pengguna
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchStats({ force: true });
+        }, 60000);
+        return () => clearInterval(interval);
+    }, [fetchStats]);
+
     const fetchModalList = useCallback(async (overrideModalData) => {
         const target = overrideModalData || modalData;
         if (!target.isOpen) return;
@@ -800,7 +808,7 @@ const Dashboard = () => {
                         onClose={handleCloseModal}
                         personelId={selectedPersonelDetail?.id}
                         onRefresh={() => {
-                            fetchStats();
+                            fetchStats({ force: true });
                             fetchModalList();
                         }}
                     />
