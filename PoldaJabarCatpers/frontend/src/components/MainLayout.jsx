@@ -1,10 +1,11 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FileWarning, Search, LogOut, Menu, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, FileWarning, Search, LogOut, Menu, Settings, Info } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import AboutModal from './AboutModal';
 import './MainLayout.css';
 
-const Sidebar = ({ isOpen, toggleSidebar }) => {
+const Sidebar = ({ isOpen, toggleSidebar, onOpenAbout }) => {
     const { user } = useAuth();
     return (
         <aside className={`sidebar ${isOpen ? 'open' : 'closed'}`}>
@@ -37,6 +38,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                     </NavLink>
                 )}
             </nav>
+            <div className="sidebar-footer">
+                <div className="about-link" onClick={onOpenAbout}>
+                    <Info size={16} />
+                    <span>Tentang Aplikasi</span>
+                </div>
+            </div>
         </aside>
     );
 };
@@ -76,6 +83,7 @@ const Navbar = ({ toggleSidebar }) => {
 
 const MainLayout = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = React.useState(window.innerWidth > 768);
+    const [isAboutModalOpen, setIsAboutModalOpen] = React.useState(false);
 
     React.useEffect(() => {
         const handleResize = () => {
@@ -93,7 +101,11 @@ const MainLayout = ({ children }) => {
 
     return (
         <div className="layout-wrapper">
-            <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
+            <Sidebar 
+                isOpen={sidebarOpen} 
+                toggleSidebar={toggleSidebar} 
+                onOpenAbout={() => setIsAboutModalOpen(true)} 
+            />
 
             {/* Overlay for mobile responsive */}
             {sidebarOpen && window.innerWidth <= 768 && <div className="sidebar-overlay" onClick={toggleSidebar}></div>}
@@ -104,6 +116,11 @@ const MainLayout = ({ children }) => {
                     {children}
                 </div>
             </main>
+
+            <AboutModal 
+                isOpen={isAboutModalOpen} 
+                onClose={() => setIsAboutModalOpen(false)} 
+            />
         </div>
     );
 };
