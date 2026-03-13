@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Settings, Users, Building, ShieldCheck, Plus, Edit2, Trash2, FileText, Download, Upload, Database, GripVertical, Search } from 'lucide-react';
+import { Settings, Users, User, Building, ShieldCheck, Plus, Edit2, Trash2, FileText, Download, Upload, Database, GripVertical, Search } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
