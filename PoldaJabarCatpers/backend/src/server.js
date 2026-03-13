@@ -53,7 +53,7 @@ try {
         });
     });
 
-    // Lazy load routes to prevent startup crash
+    // Routes
     console.log('Mounting routes...');
     app.use('/api/auth', require('./routes/auth.routes'));
     app.use('/api/satker', require('./routes/satker.routes'));
@@ -65,6 +65,26 @@ try {
     app.use('/api/audit', require('./routes/audit.routes'));
     app.use('/api/pencarian', require('./routes/pencarian.routes'));
     console.log('Routes mounted.');
+
+    // 404 Handler
+    app.use((req, res) => {
+        res.status(404).json({ message: `Route ${req.originalUrl} tidak ditemukan.` });
+    });
+
+    // Global Error Handler
+    app.use((err, req, res, next) => {
+        console.error('--- [SERVER_ERROR] ---');
+        console.error('Time:', new Date().toISOString());
+        console.error('Path:', req.path);
+        console.error('Message:', err.message);
+        if (err.stack) console.error('Stack:', err.stack);
+        console.error('----------------------');
+
+        res.status(err.status || 500).json({
+            message: 'Terjadi kesalahan pada server.',
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+    });
 
 } catch (err) {
     console.error('FATAL BOOT ERROR:', err);
