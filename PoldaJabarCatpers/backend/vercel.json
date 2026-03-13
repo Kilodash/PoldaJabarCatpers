@@ -1,25 +1,18 @@
 {
   "version": 2,
-  "regions": ["sin1"],
-  "builds": [
-    {
-      "src": "src/server.js",
-      "use": "@vercel/node"
-    }
-  ],
   "functions": {
     "src/server.js": {
       "maxDuration": 30
     }
   },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "src/server.js"
+      "source": "/api/(.*)",
+      "destination": "src/server.js"
     },
     {
-      "src": "/(.*)",
-      "dest": "src/server.js"
+      "source": "/(.*)",
+      "destination": "src/server.js"
     }
   ]
 }
