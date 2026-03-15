@@ -7,7 +7,7 @@ const AboutModal = ({ isOpen, onClose }) => {
     const RELEASE_DATE = "15 Maret 2026";
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Tentang Aplikasi" maxWidth="550px">
+        <Modal isOpen={isOpen} onClose={onClose} title="Tentang Aplikasi" maxWidth="650px">
             <div className="about-content" style={{ color: 'var(--text-main)', padding: '0.5rem' }}>
                 {/* Header Section */}
                 <div style={{
