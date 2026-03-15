@@ -89,6 +89,22 @@ const AboutModal = ({ isOpen, onClose }) => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Personel Litpers Section */}
+                        <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <ShieldCheck size={14} /> Personel Urlitpers
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                                <div>• KOMPOL ANGGA HANDIMAN</div>
+                                <div>• IPTU KIKI HAJAR SAMUDRA</div>
+                                <div>• AIPTU ASEP MAKSUM</div>
+                                <div>• AIPDA ERY YUNUS, S.M.</div>
+                                <div>• BRIPTU RAHMAT SOMANTRI</div>
+                                <div>• SRI CASMIATI, S.H.</div>
+                                <div>• WAHYU SOVIAN</div>
+                            </div>
+                        </div>
                     </section>
 
                     <a
