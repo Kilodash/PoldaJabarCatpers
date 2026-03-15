@@ -115,7 +115,7 @@ const Pengaturan = () => {
                 api.get('/satker'),
                 api.get('/pengaturan')
             ]);
-            
+
             // Check results individually
             if (res[0].status === 'fulfilled') setUsersList(res[0].value.data);
             else {
@@ -234,7 +234,7 @@ const Pengaturan = () => {
             const res = await api.get(`/audit?page=1&limit=5000&search=${auditSearch}`);
             const allLogs = res.data.data;
             if (allLogs.length === 0) { toast.error('Tidak ada data log untuk diunduh.'); return; }
-            
+
             const header = ['Waktu Eksekusi', 'Operator / Aktor', 'Satker', 'Tipe Aksi', 'Rincian Deskripsi', 'Alasan'];
             const rows = allLogs.map(log => [
                 new Date(log.createdAt).toLocaleString('id-ID'),
@@ -439,14 +439,14 @@ const Pengaturan = () => {
             </div>
 
             {/* Tabs */}
-            <div className="tabs-container" style={{ 
-                display: 'flex', 
-                gap: '0.5rem', 
-                background: 'rgba(255,255,255,0.4)', 
+            <div className="tabs-container" style={{
+                display: 'flex',
+                gap: '0.5rem',
+                background: 'rgba(255,255,255,0.4)',
                 backdropFilter: 'blur(8px)',
                 padding: '10px',
                 borderRadius: '16px',
-                marginBottom: '2rem', 
+                marginBottom: '2rem',
                 overflowX: 'auto',
                 border: '1px solid var(--border-color)',
                 boxShadow: 'var(--shadow-premium)'
@@ -492,22 +492,26 @@ const Pengaturan = () => {
                                 <h3 className="flex items-center gap-2 text-xl font-bold mb-6 text-[var(--primary-color)]">
                                     <User size={24} /> Informasi Akun
                                 </h3>
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="text-xs font-bold uppercase text-gray-400 block mb-1">Email / Username</label>
-                                        <div className="text-lg font-semibold">{user.email}</div>
+                                <div className="space-y-4">
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                        <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Email / Username:</span>
+                                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{user.email}</span>
                                     </div>
-                                    <div>
-                                        <label className="text-xs font-bold uppercase text-gray-400 block mb-1">Hak Akses</label>
-                                        <div className="inline-block px-3 py-1 rounded-full bg-[var(--primary-color)] text-white text-sm font-bold">
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                        <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Hak Akses:</span>
+                                        <span style={{
+                                            fontWeight: 800,
+                                            color: 'var(--primary-color)',
+                                            textTransform: 'uppercase'
+                                        }}>
                                             {user.role?.replace('_', ' ')}
-                                        </div>
+                                        </span>
                                     </div>
-                                    <div>
-                                        <label className="text-xs font-bold uppercase text-gray-400 block mb-1">Unit Kerja / Satker</label>
-                                        <div className="text-lg font-semibold text-[var(--primary-color)]">
-                                            {user.satker?.nama || "POLDA JABAR (ADMIN UTAMA)"}
-                                        </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                        <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Unit Kerja / Satker:</span>
+                                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                                            {user.satker?.nama || "Polda Jawa Barat"}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -520,43 +524,49 @@ const Pengaturan = () => {
                                 <form onSubmit={handlePasswordChange} className="space-y-4">
                                     <div className="form-group">
                                         <label>Password Saat Ini</label>
-                                        <input 
-                                            type="password" 
-                                            className="form-input" 
-                                            required 
+                                        <input
+                                            type="password"
+                                            className="form-input"
+                                            required
                                             value={passwordData.currentPassword}
-                                            onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                                            onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                                         />
                                     </div>
                                     <div className="form-group">
                                         <label>Password Baru</label>
-                                        <input 
-                                            type="password" 
-                                            className="form-input" 
-                                            required 
+                                        <input
+                                            type="password"
+                                            className="form-input"
+                                            required
                                             minLength={6}
                                             value={passwordData.newPassword}
-                                            onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                                            onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                                         />
                                     </div>
                                     <div className="form-group">
                                         <label>Konfirmasi Password Baru</label>
-                                        <input 
-                                            type="password" 
-                                            className="form-input" 
-                                            required 
+                                        <input
+                                            type="password"
+                                            className="form-input"
+                                            required
                                             value={passwordData.confirmPassword}
-                                            onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                                            onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                                         />
                                     </div>
-                                    <button 
-                                        type="submit" 
-                                        className="btn-primary w-full justify-center py-3" 
-                                        disabled={passwordLoading}
-                                        style={{ background: 'var(--danger)' }}
-                                    >
-                                        {passwordLoading ? 'Memproses...' : 'Perbarui Password Akun'}
-                                    </button>
+                                    <div className="flex justify-start">
+                                        <button
+                                            type="submit"
+                                            className="btn-primary"
+                                            disabled={passwordLoading}
+                                            style={{
+                                                background: 'var(--danger)',
+                                                padding: '0.75rem 2rem',
+                                                width: 'fit-content'
+                                            }}
+                                        >
+                                            {passwordLoading ? 'Memproses...' : 'Perbarui Password Akun'}
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
                         </div>
@@ -648,18 +658,49 @@ const Pengaturan = () => {
                                 <h2>Parameter Sistem (Umur Pensiun, dll)</h2>
                                 <p className="text-sm text-gray-500">Nilai diatur secara global untuk validasi input form Personel.</p>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                {pengaturanList.map(sett => (
-                                    <div key={sett.key} style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border-color)' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-color)' }}><ShieldCheck size={20} /> <h3 style={{ margin: 0 }}>{sett.key.replace(/_/g, ' ')}</h3></div>
-                                            <button className="btn-icon" onClick={(e) => handleOpenModal('app', sett, e)} title="Ubah Konfigurasi"><Edit2 size={18} /></button>
-                                        </div>
-                                        <div style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '0.5rem' }}>{sett.value}</div>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{sett.deskripsi || 'Tidak ada deskripsi'}</p>
-                                    </div>
-                                ))}
-                            </div>
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nama Variabel (Sistem)</th>
+                                        <th style={{ textAlign: 'center' }}>Nilai / Value</th>
+                                        <th>Deskripsi Penggunaan</th>
+                                        <th style={{ textAlign: 'center' }}>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {pengaturanList.map(sett => (
+                                        <tr key={sett.key}>
+                                            <td style={{ fontWeight: 600 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-color)' }}>
+                                                    <ShieldCheck size={18} />
+                                                    {sett.key.replace(/_/g, ' ')}
+                                                </div>
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <span style={{
+                                                    fontSize: '1.25rem',
+                                                    fontWeight: 800,
+                                                    display: 'inline-block',
+                                                    padding: '2px 12px',
+                                                    background: 'var(--bg-light)',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid var(--border-color)'
+                                                }}>
+                                                    {sett.value}
+                                                </span>
+                                            </td>
+                                            <td style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                                                {sett.deskripsi || 'Tidak ada deskripsi'}
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <button className="btn-icon" onClick={(e) => handleOpenModal('app', sett, e)} title="Ubah Konfigurasi">
+                                                    <Edit2 size={18} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
 
@@ -763,13 +804,13 @@ const Pengaturan = () => {
                                         <Users size={24} />
                                         <h2 style={{ margin: 0 }}>Pindai Anggota Pensiun</h2>
                                     </div>
-                                    <button 
-                                        className="btn-primary" 
-                                        onClick={handleScanPensiun} 
+                                    <button
+                                        className="btn-primary"
+                                        onClick={handleScanPensiun}
                                         disabled={scanLoading}
                                         style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                                     >
-                                        <Search size={18} /> 
+                                        <Search size={18} />
                                         {scanLoading ? <Loading variant="inline" text="Memindai..." /> : 'Mulai Pindai Anggota Pensiun'}
                                     </button>
                                 </div>
@@ -799,29 +840,29 @@ const Pengaturan = () => {
                                                 </tbody>
                                             </table>
                                         </div>
-                                        
+
                                         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', background: '#f8fafc', padding: '1.5rem', borderRadius: '8px' }}>
                                             <div style={{ flex: 1 }}>
                                                 <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem' }}>Alasan/Keterangan Mutasi Pensiun:</label>
-                                                <input 
-                                                    type="text" 
-                                                    className="form-input" 
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
                                                     placeholder="Contoh: Pembersihan database periode Maret 2026"
                                                     value={retiringAlasan}
                                                     onChange={(e) => setRetiringAlasan(e.target.value)}
                                                 />
                                             </div>
-                                            <button 
-                                                className="btn-primary" 
-                                                onClick={handleBulkUpdatePensiun} 
+                                            <button
+                                                className="btn-primary"
+                                                onClick={handleBulkUpdatePensiun}
                                                 disabled={bulkUpdateLoading}
                                                 style={{ background: 'var(--success-color)', height: '42px', display: 'flex', alignItems: 'center', gap: '8px' }}
                                             >
                                                 {bulkUpdateLoading ? <Loading variant="inline" text="Memproses..." /> : 'Pindahkan Semua ke PENSIUN'}
                                             </button>
-                                            <button 
-                                                onClick={() => { setRetiringPersonnel([]); setRetiringAlasan(''); }} 
-                                                className="btn-secondary" 
+                                            <button
+                                                onClick={() => { setRetiringPersonnel([]); setRetiringAlasan(''); }}
+                                                className="btn-secondary"
                                                 style={{ height: '42px' }}
                                             >
                                                 Batal
@@ -1033,7 +1074,7 @@ const Pengaturan = () => {
                                 <label>Kunci Pengaturan</label>
                                 <input type="text" name="key" className="form-input" value={formData.key || ''} disabled style={{ background: 'var(--bg-color)', cursor: 'not-allowed' }} />
                             </div>
-                            
+
                             {formData.key === 'FIELD_WAJIB_PELANGGARAN' ? (
                                 <div className="form-group" style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                                     <label style={{ fontSize: '1rem', color: 'var(--primary-color)' }}>Pilih Field Tambahan yang Diwajibkan (Admin)</label>
@@ -1056,20 +1097,20 @@ const Pengaturan = () => {
                                             { id: 'fileRekomendasi', label: '12. Berkas Rekomendasi Pemulihan' }
                                         ].map(opt => {
                                             let isChecked = false;
-                                            try { isChecked = JSON.parse(formData.value || '[]').includes(opt.id); } catch (e) {}
+                                            try { isChecked = JSON.parse(formData.value || '[]').includes(opt.id); } catch (e) { }
                                             return (
                                                 <label key={opt.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={isChecked} 
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
                                                         onChange={(e) => {
                                                             let arr = [];
-                                                            try { arr = JSON.parse(formData.value || '[]'); } catch (e) {}
+                                                            try { arr = JSON.parse(formData.value || '[]'); } catch (e) { }
                                                             if (e.target.checked) arr.push(opt.id);
                                                             else arr = arr.filter(i => i !== opt.id);
                                                             setFormData(p => ({ ...p, value: JSON.stringify(arr) }));
-                                                        }} 
-                                                        style={{ marginTop: '0.25rem' }} 
+                                                        }}
+                                                        style={{ marginTop: '0.25rem' }}
                                                     />
                                                     <span>{opt.label}</span>
                                                 </label>
@@ -1083,7 +1124,7 @@ const Pengaturan = () => {
                                     <input type="text" name="value" className="form-input" value={formData.value || ''} onChange={handleFormChange} required />
                                 </div>
                             )}
-                            
+
                             <div className="form-group">
                                 <label>Keterangan</label>
                                 <textarea name="deskripsi" className="form-input" value={formData.deskripsi || ''} onChange={handleFormChange} rows="3" />

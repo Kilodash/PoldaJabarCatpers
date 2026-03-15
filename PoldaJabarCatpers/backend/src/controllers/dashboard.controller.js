@@ -127,6 +127,7 @@ const getDashboardStats = async (req, res) => {
                 catpersAktif,
                 pernahTercatat,
                 belumRps,
+                belumRekomendasi: belumRps,
                 perdamaian,
                 tidakTerbukti,
                 belumSktt,
@@ -215,7 +216,7 @@ const getSatkerStats = async (req, res) => {
                 if (!isAktif || pl.isDraft) return;
 
                 const status = pl.statusPenyelesaian;
-                
+
                 if (status === 'PERDAMAIAN') s.perdamaian++;
                 if (status === 'TIDAK_TERBUKTI') s.tidakTerbukti++;
                 if (status === 'Belum ada SKTT') s.belumSktt++;

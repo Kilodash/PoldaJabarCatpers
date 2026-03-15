@@ -20,6 +20,7 @@ export const DashboardProvider = ({ children }) => {
         catpersAktif: 0,
         pernahTercatat: 0,
         belumRps: 0,
+        belumRekomendasi: 0,
         perdamaian: 0,
         tidakTerbukti: 0,
         belumSktt: 0,
@@ -75,7 +76,7 @@ export const DashboardProvider = ({ children }) => {
             }
             // Reset state
             setStats({
-                totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRps: 0, perdamaian: 0,
+                totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRps: 0, belumRekomendasi: 0, perdamaian: 0,
                 tidakTerbukti: 0, belumSktt: 0, belumSktb: 0, butuhApproval: 0
             });
             setSatkerStatsList([]);

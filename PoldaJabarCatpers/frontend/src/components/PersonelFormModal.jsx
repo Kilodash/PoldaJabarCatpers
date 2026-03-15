@@ -205,18 +205,29 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
             let response;
             if (isEdit) {
                 response = await api.put(`/personel/${formData.id}`, payload);
-                toast.success('Data Personel berhasil diupdate');
             } else {
                 response = await api.post('/personel', payload);
-                toast.success('Data Personel berhasil ditambahkan');
             }
 
-            refreshDashboard(); // Sync dashboard stats
-            if (onSuccess) onSuccess(response.data.data || response.data);
+            // Sync stats but don't block the UI if it fails
+            try {
+                refreshDashboard();
+            } catch (err) {
+                console.error("Dashboard refresh failed:", err);
+            }
+
+            try {
+                if (onSuccess) onSuccess(response.data.data || response.data);
+            } catch (err) {
+                console.error("onSuccess callback failed:", err);
+            }
             onClose();
+
+            toast.success(isEdit ? 'Data Personel berhasil diupdate' : 'Data Personel berhasil ditambahkan');
         } catch (error) {
             toast.error(error.response?.data?.message || 'Terjadi kesalahan saat menyimpan data');
         }
+
     };
 
     const listPangkat = formData.jenisPegawai === 'POLRI' ? pangkatPolri : pangkatPns;

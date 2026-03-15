@@ -525,26 +525,38 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
             if (isEdit) {
                 await api.put(`/pelanggaran/${formData.id}`, submitData);
-                toast.success('Catatan pelanggaran berhasil diperbarui.');
             } else {
                 await api.post('/pelanggaran', submitData);
-                toast.success('Catatan pelanggaran baru berhasil disimpan.');
             }
 
-            refreshDashboard(); // Sync dashboard stats
+            // Sync stats but don't block the UI if it fails
+            try {
+                refreshDashboard();
+            } catch (err) {
+                console.error("Dashboard refresh failed:", err);
+            }
 
             // PTDH Cek
-            const hasPtdh = payload.jenisSidang === 'KEPP' && payload.hukuman && payload.hukuman.includes('PTDH');
+            const hasPtdh = payload.jenisSidang === 'KEPP' &&
+                typeof payload.hukuman === 'string' &&
+                payload.hukuman.includes('PTDH');
 
             if (hasPtdh) {
                 setShowPtdhWarning(true);
             } else {
-                if (onSuccess) onSuccess();
+                try {
+                    if (onSuccess) onSuccess();
+                } catch (err) {
+                    console.error("onSuccess callback failed:", err);
+                }
                 onClose();
             }
+
+            toast.success(isEdit ? 'Catatan pelanggaran berhasil diperbarui.' : 'Catatan pelanggaran baru berhasil disimpan.');
         } catch (error) {
             toast.error(error.response?.data?.message || 'Gagal menyimpan riwayat ke sistem.');
         }
+
     };
 
     const handleResetClick = (section) => {

@@ -16,27 +16,46 @@ const AboutModal = ({ isOpen, onClose }) => {
                     padding: '1.5rem',
                     background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.03) 0%, rgba(15, 23, 42, 0.08) 100%)',
                     borderRadius: '16px',
-                    border: '1px solid var(--border-color)'
+                    border: '1px solid var(--border-color)',
+                    position: 'relative',
+                    overflow: 'hidden'
                 }}>
-                    <img
-                        src="https://bidpropam.sumsel.polri.go.id/ecpp/public/images/logo/logo-paminal.png"
-                        alt="Logo Paminal"
-                        style={{ height: '70px', marginBottom: '1rem', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }}
-                    />
-                    <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary-color)', margin: '0 0 0.25rem 0', letterSpacing: '-0.02em' }}>
-                        CDS POLDA JABAR
-                    </h2>
-                    <p style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                        Catatan Personel Polda Jawa Barat
-                    </p>
+                    {/* Background Image Overlay for Header Only */}
+                    <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundImage: 'url("/bg-polda.png")',
+                        backgroundSize: '100% auto',
+                        backgroundPosition: 'center',
+                        opacity: 0.08,
+                        zIndex: 0,
+                        pointerEvents: 'none'
+                    }}></div>
 
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', fontSize: '0.75rem' }}>
-                        <span style={{ background: 'var(--primary-color)', color: 'white', padding: '3px 10px', borderRadius: '20px', fontWeight: 700 }}>
-                            v{APP_VERSION}
-                        </span>
-                        <span style={{ background: '#e2e8f0', color: '#475569', padding: '3px 10px', borderRadius: '20px', fontWeight: 600 }}>
-                            Rilis: {RELEASE_DATE}
-                        </span>
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                        <img
+                            src="https://bidpropam.sumsel.polri.go.id/ecpp/public/images/logo/logo-paminal.png"
+                            alt="Logo Paminal"
+                            style={{ height: '70px', marginBottom: '1rem', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }}
+                        />
+                        <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary-color)', margin: '0 0 0.25rem 0', letterSpacing: '-0.02em' }}>
+                            CDS POLDA JABAR
+                        </h2>
+                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                            Catatan Personel Polda Jawa Barat
+                        </p>
+
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', fontSize: '0.75rem' }}>
+                            <span style={{ background: 'var(--primary-color)', color: 'white', padding: '3px 10px', borderRadius: '20px', fontWeight: 700 }}>
+                                v{APP_VERSION}
+                            </span>
+                            <span style={{ background: '#e2e8f0', color: '#475569', padding: '3px 10px', borderRadius: '20px', fontWeight: 600 }}>
+                                Rilis: {RELEASE_DATE}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -75,16 +94,16 @@ const AboutModal = ({ isOpen, onClose }) => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '4px' }}>
                                 <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Penanggung Jawab</span>
-                                <span style={{ fontWeight: 600 }}>KOMBES POL. ADIWIJAYA, S.I.K.</span>
+                                <span style={{ fontWeight: 600 }}>Kombes Pol. Adiwijaya, S.I.K.</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '4px' }}>
                                 <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Ketua Pelaksana</span>
-                                <span style={{ fontWeight: 600 }}>KOMPOL CANDRA KIRANA PUTRA, S.I.K.</span>
+                                <span style={{ fontWeight: 600 }}>Kompol Candra Kirana Putra,S.H., S.I.K., M.H., CPHR.</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Admin Sistem</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ fontWeight: 600 }}>DANI PERMANA</span>
+                                    <span style={{ fontWeight: 600 }}>Dani Permana</span>
                                     <a href="mailto:danipermanax@gmail.com" style={{ color: 'var(--info)' }}><Mail size={14} /></a>
                                 </div>
                             </div>
@@ -95,14 +114,14 @@ const AboutModal = ({ isOpen, onClose }) => {
                             <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <ShieldCheck size={14} /> Personel Urlitpers
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                                <div>• KOMPOL ANGGA HANDIMAN</div>
-                                <div>• IPTU KIKI HAJAR SAMUDRA</div>
-                                <div>• AIPTU ASEP MAKSUM</div>
-                                <div>• AIPDA ERY YUNUS, S.M.</div>
-                                <div>• BRIPTU RAHMAT SOMANTRI</div>
-                                <div>• PENGATUR TK1 SRI CASMIATI, SH.</div>
-                                <div>• WAHYU SOVIAN</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                                <div>• Kompol Angga Handiman, S.H., S.I.K., M.H.</div>
+                                <div>• Iptu Kiki Hajar Samudra</div>
+                                <div>• Aiptu Asep Maksum</div>
+                                <div>• Aipda Ery Yunus, S.M.</div>
+                                <div>• Briptu Rahmat Somantri</div>
+                                <div>• Pengatur TK1 Sri Casmiati, SH.</div>
+                                <div>• Wahyu Sovian</div>
                             </div>
                         </div>
                     </section>

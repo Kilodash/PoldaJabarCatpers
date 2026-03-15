@@ -26,9 +26,18 @@
 .search-card {
     background: white;
     padding: 24px;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+}
+
+.search-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-premium);
 }
 
 .search-card h3 {
@@ -40,8 +49,15 @@
     color: #334155;
 }
 
+.search-card form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
 .form-group {
-    margin-bottom: 16px;
+    margin-bottom: 20px;
+    flex: 1;
 }
 
 .form-group label {
@@ -78,11 +94,17 @@
 
 .file-input {
     width: 100%;
-    padding: 10px;
-    border: 1px dashed #cbd5e1;
-    border-radius: 8px;
+    padding: 1rem;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
     background-color: #f8fafc;
     cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-input:hover {
+    border-color: var(--primary-color);
+    background-color: rgba(87, 108, 188, 0.05);
 }
 
 .btn-primary {
