@@ -190,7 +190,7 @@ const updatePelanggaran = async (req, res) => {
         // Helper fungsi untuk handle upload baru dan penghapusan link dari eksisting file
         const handleFilesUpdate = async (existingUrls, newFiles, isAllDeleted, deletedItems = [], folderName = 'pelanggaran') => {
             let urls = [];
-            
+
             if (!isAllDeleted) {
                 urls = existingUrls ? existingUrls.split(',').filter(u => u) : [];
                 if (deletedItems && deletedItems.length > 0) {
@@ -205,7 +205,7 @@ const updatePelanggaran = async (req, res) => {
             } else if (existingUrls) { // Jika semua file ditiadakan, hapus semuanya dari Storage
                 const oldUrls = existingUrls.split(',').filter(u => u);
                 for (const oldUrl of oldUrls) {
-                     await deleteFileFromSupabase(oldUrl).catch(console.error);
+                    await deleteFileFromSupabase(oldUrl).catch(console.error);
                 }
             }
 
@@ -219,14 +219,26 @@ const updatePelanggaran = async (req, res) => {
             return urls.length > 0 ? urls.join(',') : null;
         };
 
-        const fileDasarUrl = await handleFilesUpdate(existingCatpers.fileDasarUrl, req.files?.fileDasar, deletedFiles.includes('fileDasar'), deletedItems);
-        const fileSelesaiUrl = await handleFilesUpdate(existingCatpers.fileSelesaiUrl, req.files?.fileSelesai, deletedFiles.includes('fileSelesai'), deletedItems);
-        const filePutusanUrl = await handleFilesUpdate(existingCatpers.filePutusanUrl, req.files?.filePutusan, deletedFiles.includes('filePutusan'), deletedItems);
-        const fileRekomendasiUrl = await handleFilesUpdate(existingCatpers.fileRekomendasiUrl, req.files?.fileRekomendasi, deletedFiles.includes('fileRekomendasi'), deletedItems);
-        const fileSkttUrl = await handleFilesUpdate(existingCatpers.fileSkttUrl, req.files?.fileSktt, deletedFiles.includes('fileSktt'), deletedItems);
-        const fileSktbUrl = await handleFilesUpdate(existingCatpers.fileSktbUrl, req.files?.fileSktb, deletedFiles.includes('fileSktb'), deletedItems);
-        const fileSp3Url = await handleFilesUpdate(existingCatpers.fileSp3Url, req.files?.fileSp3, deletedFiles.includes('fileSp3'), deletedItems);
-        const fileBandingUrl = await handleFilesUpdate(existingCatpers.fileBandingUrl, req.files?.fileBanding, deletedFiles.includes('fileBanding'), deletedItems);
+        // Parallelize physical file handling (upload new, delete marked) to improve response time
+        const [
+            fileDasarUrl,
+            fileSelesaiUrl,
+            filePutusanUrl,
+            fileRekomendasiUrl,
+            fileSkttUrl,
+            fileSktbUrl,
+            fileSp3Url,
+            fileBandingUrl
+        ] = await Promise.all([
+            handleFilesUpdate(existingCatpers.fileDasarUrl, req.files?.fileDasar, deletedFiles.includes('fileDasar'), deletedItems),
+            handleFilesUpdate(existingCatpers.fileSelesaiUrl, req.files?.fileSelesai, deletedFiles.includes('fileSelesai'), deletedItems),
+            handleFilesUpdate(existingCatpers.filePutusanUrl, req.files?.filePutusan, deletedFiles.includes('filePutusan'), deletedItems),
+            handleFilesUpdate(existingCatpers.fileRekomendasiUrl, req.files?.fileRekomendasi, deletedFiles.includes('fileRekomendasi'), deletedItems),
+            handleFilesUpdate(existingCatpers.fileSkttUrl, req.files?.fileSktt, deletedFiles.includes('fileSktt'), deletedItems),
+            handleFilesUpdate(existingCatpers.fileSktbUrl, req.files?.fileSktb, deletedFiles.includes('fileSktb'), deletedItems),
+            handleFilesUpdate(existingCatpers.fileSp3Url, req.files?.fileSp3, deletedFiles.includes('fileSp3'), deletedItems),
+            handleFilesUpdate(existingCatpers.fileBandingUrl, req.files?.fileBanding, deletedFiles.includes('fileBanding'), deletedItems)
+        ]);
 
         const tglSuratObj = tanggalSurat ? new Date(tanggalSurat) : existingCatpers.tanggalSurat;
 
@@ -262,11 +274,11 @@ const updatePelanggaran = async (req, res) => {
             const hasSktt = (nomorSktt || existingCatpers.nomorSktt) && (tglSkttObj || existingCatpers.tanggalSktt);
 
             // Jika asalnya TIDAK_TERBUKTI_RIKSA, kita evaluasi ulang statusnya
-            if (statusPenyelesaian === 'TIDAK_TERBUKTI_RIKSA' || 
+            if (statusPenyelesaian === 'TIDAK_TERBUKTI_RIKSA' ||
                 existingCatpers.statusPenyelesaian === 'TIDAK_TERBUKTI_RIKSA' ||
                 existingCatpers.statusPenyelesaian === 'Belum ada SKTT' ||
                 existingCatpers.statusPenyelesaian === 'PROSES') {
-                
+
                 if (!hasSp3) {
                     finalStatus = 'PROSES';
                 } else if (!hasSktt) {
@@ -507,7 +519,7 @@ const rejectPelanggaran = async (req, res) => {
 const resetPelanggaranSection = async (req, res) => {
     try {
         const { id } = req.params;
-        const { section, alasan } = req.body; // section: 'sidang' | 'rekomendasi'
+        const { section, alasan } = req.body; // section: 'sidang' | 'rekomendasi' | 'penyelesaian'
 
         if (!alasan) return res.status(400).json({ message: 'Alasan reset wajib diisi.' });
 
@@ -524,6 +536,7 @@ const resetPelanggaranSection = async (req, res) => {
 
         let updateData = {};
         let sectionName = '';
+        const filesToDelete = [];
 
         if (section === 'sidang') {
             sectionName = 'Putusan Sidang & Sanksi (Serta Data Rekomendasi)';
@@ -542,13 +555,12 @@ const resetPelanggaranSection = async (req, res) => {
                 nomorRekomendasi: null,
                 tanggalRekomendasi: null,
                 fileRekomendasiUrl: null,
-                // Juga bersihkan data penyelesaian lainnya agar benar-benar bersih
-                nomorSuratSelesai: null,
-                tanggalSuratSelesai: null,
-                keteranganSelesai: null,
-                fileSelesaiUrl: null,
                 statusPenyelesaian: 'PROSES'
             };
+            if (existing.fileBandingUrl) filesToDelete.push(...existing.fileBandingUrl.split(','));
+            if (existing.filePutusanUrl) filesToDelete.push(...existing.filePutusanUrl.split(','));
+            if (existing.fileRekomendasiUrl) filesToDelete.push(...existing.fileRekomendasiUrl.split(','));
+
         } else if (section === 'rekomendasi') {
             sectionName = 'Detail Pemulihan Status (Rekomendasi)';
             updateData = {
@@ -556,16 +568,59 @@ const resetPelanggaranSection = async (req, res) => {
                 tanggalRekomendasi: null,
                 fileRekomendasiUrl: null
             };
+            if (existing.fileRekomendasiUrl) filesToDelete.push(...existing.fileRekomendasiUrl.split(','));
+
+        } else if (section === 'penyelesaian') {
+            sectionName = 'Seluruh Data Penyelesaian (Status Kembali Progres)';
+            updateData = {
+                statusPenyelesaian: 'PROSES',
+                nomorSuratSelesai: null,
+                tanggalSuratSelesai: null,
+                keteranganSelesai: null,
+                fileSelesaiUrl: null,
+                jenisSidang: null,
+                hukuman: null,
+                banding: false,
+                nomorSkepBanding: null,
+                tanggalSkepBanding: null,
+                fileBandingUrl: null,
+                nomorSkep: null,
+                tanggalSkep: null,
+                tanggalBisaAjukanRps: null,
+                filePutusanUrl: null,
+                nomorRekomendasi: null,
+                tanggalRekomendasi: null,
+                fileRekomendasiUrl: null,
+                nomorSktt: null,
+                tanggalSktt: null,
+                fileSkttUrl: null,
+                nomorSp3: null,
+                tanggalSp3: null,
+                fileSp3Url: null,
+                nomorSktb: null,
+                tanggalSktb: null,
+                fileSktbUrl: null
+            };
+            // Collect all files related to resolution
+            const fileFields = [
+                'fileSelesaiUrl', 'filePutusanUrl', 'fileRekomendasiUrl', 'fileSkttUrl',
+                'fileSp3Url', 'fileSktbUrl', 'fileBandingUrl'
+            ];
+            fileFields.forEach(field => {
+                if (existing[field]) filesToDelete.push(...existing[field].split(','));
+            });
+
         } else {
             return res.status(400).json({ message: 'Grup data (section) tidak valid.' });
         }
 
-        await prisma.$transaction([
-            prisma.pelanggaran.update({
+        await prisma.$transaction(async (tx) => {
+            await tx.pelanggaran.update({
                 where: { id },
                 data: updateData
-            }),
-            prisma.auditLog.create({
+            });
+
+            await tx.auditLog.create({
                 data: {
                     userId: req.user.id,
                     aksi: `RESET_${section.toUpperCase()}`,
@@ -573,8 +628,15 @@ const resetPelanggaranSection = async (req, res) => {
                     deskripsi: `Mereset data ${sectionName} untuk ${existing.personel.namaLengkap} (NRP/NIP: ${existing.personel.nrpNip})`,
                     alasan: alasan
                 }
-            })
-        ]);
+            });
+
+            // Physical file deletion (best effort inside transaction or outside if preferred)
+            // Note: Since deleteFileFromSupabase is async and can fail, we usually do it after or use a background job.
+            // For simplicity and immediate effect, we'll try to do it here.
+            for (const url of filesToDelete) {
+                if (url) await deleteFileFromSupabase(url).catch(console.error);
+            }
+        });
 
         res.json({ message: `Data ${sectionName} berhasil dikosongkan.` });
     } catch (error) {

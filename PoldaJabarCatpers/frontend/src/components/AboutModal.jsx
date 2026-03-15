@@ -28,7 +28,7 @@ const AboutModal = ({ isOpen, onClose }) => {
                         right: 0,
                         bottom: 0,
                         backgroundImage: 'url("/bg-polda.png")',
-                        backgroundSize: '100% auto',
+                        backgroundSize: '100% 100%',
                         backgroundPosition: 'center',
                         opacity: 0.08,
                         zIndex: 0,

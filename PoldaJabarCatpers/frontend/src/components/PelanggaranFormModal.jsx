@@ -8,7 +8,7 @@ import api from '../utils/api';
 import Modal from './Modal';
 import { useAuth } from '../context/AuthContext';
 import { useDashboard } from '../context/DashboardContext';
-import { RotateCcw, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
+import { RotateCcw, Trash2, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 
 
 // Opsi Sanksi
@@ -98,6 +98,9 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
     const [fileBanding, setFileBanding] = useState([]); // File SKEP Banding
     const [deletedFiles, setDeletedFiles] = useState([]); // Track whole fields to be deleted
     const [deletedItems, setDeletedItems] = useState([]); // Track individual file URLs to be deleted
+    const [isResetting, setIsResetting] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [satkerList, setSatkerList] = useState([]);
 
     const [mandatoryFields, setMandatoryFields] = useState([]);
@@ -212,6 +215,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
             // Rekonstruksi Form
             setFormData({
+                ...defaultFormState, // Start with defaults to ensure old fields are cleared
                 ...data,
                 jenisDasar: data.jenisDasar || 'Hasil Lidik Terbukti',
                 statusPenyelesaian: mappedStatus,
@@ -423,8 +427,10 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
 
         try {
+            setIsSubmitting(true);
             // Validasi file yang diwajibkan admin
             const missingFiles = [];
             const checkFileM = (key, stateArr, urlExist, nameStr) => {
@@ -523,10 +529,17 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
             submitData.append('deletedFiles', JSON.stringify(deletedFiles));
             submitData.append('deletedItems', JSON.stringify(deletedItems));
 
+            const axiosConfig = {
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    setUploadProgress(percentCompleted);
+                }
+            };
+
             if (isEdit) {
-                await api.put(`/pelanggaran/${formData.id}`, submitData);
+                await api.put(`/pelanggaran/${formData.id}`, submitData, axiosConfig);
             } else {
-                await api.post('/pelanggaran', submitData);
+                await api.post('/pelanggaran', submitData, axiosConfig);
             }
 
             // Sync stats but don't block the UI if it fails
@@ -555,6 +568,9 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
             toast.success(isEdit ? 'Catatan pelanggaran berhasil diperbarui.' : 'Catatan pelanggaran baru berhasil disimpan.');
         } catch (error) {
             toast.error(error.response?.data?.message || 'Gagal menyimpan riwayat ke sistem.');
+        } finally {
+            setIsSubmitting(false);
+            setUploadProgress(0);
         }
 
     };
@@ -617,20 +633,22 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
         }
 
         try {
+            setIsResetting(true);
             await api.post(`/pelanggaran/reset-section/${formData.id}`, {
                 section: resetModal.section,
                 alasan: resetModal.alasan
             });
 
-            // Re-fetch record untuk refresh tampilan modal (sync dengan DB)
-            const res = await api.get(`/pelanggaran/${formData.id}`);
-            reinitializeForm(res.data);
-
-            toast.success(`Data ${resetModal.section === 'sidang' ? 'Sidang' : 'Rekomendasi'} berhasil dikosongkan.`);
-            setResetModal({ isOpen: false, section: '', alasan: '' });
+            // TUTUP MODAL & REFRESH DAFTAR (Kembali ke Daftar Catatan Personel)
+            toast.success(`Data ${resetModal.section.toUpperCase()} berhasil dikosongkan.`);
             if (onSuccess) onSuccess();
+            if (onClose) onClose();
+
+            setResetModal({ isOpen: false, section: '', alasan: '' });
         } catch (error) {
             toast.error(error.response?.data?.message || 'Gagal mereset data.');
+        } finally {
+            setIsResetting(false);
         }
     };
 
@@ -645,7 +663,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
     const isRekomendasiFilled = !!(formData.nomorRekomendasi || formData.tanggalRekomendasi || (fileRekomendasi && fileRekomendasi.length > 0) || (isEdit && initialData?.fileRekomendasiUrl && !deletedFiles.includes('fileRekomendasi')));
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? "Revisi Catatan Pelanggaran" : "Entri Catatan Pelanggaran Baru"}>
+        <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? "Revisi Catatan Pelanggaran" : "Entri Catatan Pelanggaran Baru"} disableClose={isSubmitting || isResetting}>
             <form onSubmit={handleSubmit} style={{ minWidth: '700px', maxHeight: '80vh', overflowY: 'auto', paddingRight: '1rem' }}>
 
                 {targetPersonel && (
@@ -763,6 +781,8 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                             <input type="file" multiple className="form-input" accept=".pdf,image/*" onChange={(e) => handleFileChangeLocal(e, setFileDasar)} />
                             {renderLocalFiles(fileDasar, setFileDasar)}
                             {isEdit && currentRecord?.fileDasarUrl && renderServerFiles(currentRecord.fileDasarUrl, 'fileDasar', 'Dasar')}
+
+
                         </div>
                         <div className="form-group w-full">
                             <label>Keterangan Dasar {isMandatory('keteranganDasar') ? null : "(Opsional)"} {renderAsterisk('keteranganDasar')}</label>
@@ -795,7 +815,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                                         formData.statusPenyelesaian === 'TIDAK_TERBUKTI_RIKSA' ? 'Formulir SP3 / SP4 & SKTT' :
                                             'Formulir Surat Keterangan Tidak Bersalah (SKTB)'}
                                 </h4>
-                                <button type="button" onClick={() => handleResetClick(formData.statusPenyelesaian === 'PERDAMAIAN' ? 'damai' : (formData.statusPenyelesaian === 'TIDAK_TERBUKTI_RIKSA' ? 'sp3' : 'sktb'))} style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: '4px' }}>
+                                <button type="button" onClick={() => handleResetClick('penyelesaian')} style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: '4px' }}>
                                     <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET DATA
                                 </button>
                             </div>
@@ -961,8 +981,8 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                         <legend style={{ padding: '0 0.75rem', fontWeight: 700, color: 'var(--warning)', fontSize: '1.05rem', background: 'white', border: '1px solid var(--warning)', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             3. Rekam Putusan Sidang & Sanksi
                             {(formData.jenisSidang || (isEdit && currentRecord?.jenisSidang)) && (
-                                <button type="button" onClick={() => handleResetClick('sidang')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600, padding: '2px 8px', borderRadius: '4px' }} title="Kosongkan Bagian Ini">
-                                    <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET
+                                <button type="button" onClick={() => handleResetClick('penyelesaian')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600, padding: '2px 8px', borderRadius: '4px' }} title="Mereset Seluruh Data Penyelesaian">
+                                    <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET DATA
                                 </button>
                             )}
                         </legend>
@@ -1146,19 +1166,37 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                 )}
 
 
-                <div className="form-actions" style={{ position: 'sticky', bottom: 0, background: 'var(--bg-color)', padding: '1rem 0', borderTop: '1px solid var(--border)' }}>
-                    <button type="button" className="btn-secondary" onClick={onClose} style={{ padding: '0.75rem 1.5rem' }}>Batalkan</button>
-                    <button type="submit" className="btn-primary" style={{ padding: '0.75rem 2rem' }}>&#10004; {isEdit ? "Simpan Perubahan Catatan" : "Tambah ke Riwayat"}</button>
+
+
+                <div className="form-actions" style={{ position: 'sticky', bottom: 0, background: 'var(--bg-color)', padding: '1rem 0', borderTop: '1px solid var(--border)', zIndex: 10 }}>
+                    {isSubmitting && (
+                        <div style={{ position: 'absolute', top: '-1px', left: 0, width: '100%', height: '3px', background: 'rgba(226, 232, 240, 0.5)', overflow: 'hidden' }}>
+                            <div
+                                style={{
+                                    width: `${uploadProgress}%`,
+                                    height: '100%',
+                                    background: 'var(--info)',
+                                    transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    boxShadow: '0 0 10px rgba(52, 152, 219, 0.4)'
+                                }}
+                            />
+                        </div>
+                    )}
+                    <button type="button" className="btn-secondary" onClick={onClose} style={{ padding: '0.75rem 1.5rem' }} disabled={isSubmitting}>Batalkan</button>
+                    <button type="submit" className="btn-primary" style={{ padding: '0.75rem 2rem' }} disabled={isSubmitting}>
+                        {isSubmitting ? <RotateCcw size={18} className="animate-spin" /> : <span>&#10004;</span>}
+                        {isSubmitting ? " Menyimpan..." : (isEdit ? " Simpan Perubahan Catatan" : " Tambah ke Riwayat")}
+                    </button>
                 </div>
             </form>
 
             {/* Dialog Konfirmasi Reset */}
-            <Modal isOpen={resetModal.isOpen} onClose={() => setResetModal({ ...resetModal, isOpen: false })} title={`Konfirmasi Kosongkan Data ${resetModal.section === 'sidang' ? 'Sidang' : 'Rekomendasi'}`}>
+            <Modal isOpen={resetModal.isOpen} onClose={() => setResetModal({ ...resetModal, isOpen: false })} title={`Konfirmasi Kosongkan Data ${resetModal.section === 'sidang' ? 'Sidang' : resetModal.section === 'penyelesaian' ? 'Penyelesaian' : 'Rekomendasi'}`}>
                 <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
-                    Anda akan menghapus seluruh data pada bagian <strong>{resetModal.section === 'sidang' ? '3. Rekam Putusan Sidang & Sanksi' : '4. Detail Pemulihan Status'}</strong>.
-                    {resetModal.section === 'sidang' && (
+                    Anda akan menghapus seluruh data pada bagian <strong>{resetModal.section === 'sidang' ? '3. Rekam Putusan Sidang & Sanksi' : resetModal.section === 'penyelesaian' ? 'Seluruh Data & Alur Penyelesaian' : '4. Detail Pemulihan Status'}</strong>.
+                    {(resetModal.section === 'sidang' || resetModal.section === 'penyelesaian') && (
                         <div style={{ marginTop: '0.5rem', color: 'var(--danger)', fontWeight: 600 }}>
-                            ⚠️ PERHATIAN: Menghapus data Sidang juga akan otomatis menghapus data pada bagian 4. Detail Pemulihan Status (Rekomendasi).
+                            ⚠️ PERHATIAN: Tindakan ini akan mengembalikan status perkara menjadi 'DALAM PROSES' dan menghapus seluruh lampiran terkait penyelesaian.
                         </div>
                     )}
                     <div style={{ marginTop: '0.5rem' }}>Tindakan ini permanen dan akan dicatat di log audit.</div>
@@ -1177,9 +1215,10 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                 </div>
 
                 <div className="form-actions mt-4">
-                    <button type="button" className="btn-secondary" onClick={() => setResetModal({ ...resetModal, isOpen: false })}>Batal</button>
-                    <button type="button" onClick={confirmResetSection} className="btn-primary" style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={!resetModal.alasan.trim()}>
-                        <Trash2 size={16} /> Ya, Kosongkan Data
+                    <button type="button" className="btn-secondary" onClick={() => setResetModal({ ...resetModal, isOpen: false })} disabled={isResetting}>Batal</button>
+                    <button type="button" onClick={confirmResetSection} className="btn-primary" style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={!resetModal.alasan.trim() || isResetting}>
+                        {isResetting ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                        {isResetting ? ' Memproses...' : ' Ya, Kosongkan Data'}
                     </button>
                 </div>
             </Modal>

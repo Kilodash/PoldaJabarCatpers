@@ -45,8 +45,12 @@ export const DashboardProvider = ({ children }) => {
                 api.get('/dashboard/satker-stats')
             ]);
 
-            setStats(resStats.data.stats);
-            setSatkerStatsList(resSatkerStats.data);
+            if (resStats.data?.stats) {
+                setStats(resStats.data.stats);
+            }
+            if (resSatkerStats.data) {
+                setSatkerStatsList(Array.isArray(resSatkerStats.data) ? resSatkerStats.data : []);
+            }
             setLastUpdated(new Date());
         } catch (error) {
             console.error("Gagal mengambil data dashboard", error);

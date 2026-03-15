@@ -246,7 +246,7 @@ const Personel = () => {
                                                 </td>
                                                 <td className="no-print">
                                                     <div className="action-btns">
-                                                        {(user.role === 'ADMIN_POLDA' || Number(p.satkerId) === Number(user?.satker?.id || user?.satkerId)) && (
+                                                        {(user.role === 'ADMIN_POLDA' || Number(p.satkerId) === Number(user?.satker?.id || user?.satkerId)) && p.statusKeaktifan === 'AKTIF' && (
                                                             <button
                                                                 className="btn-primary"
                                                                 style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: 'var(--danger)' }}
@@ -258,8 +258,12 @@ const Personel = () => {
                                                         )}
                                                         {user.role === 'ADMIN_POLDA' && (
                                                             <>
-                                                                <button className="btn-icon" style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }} onClick={() => p.statusKeaktifan === 'AKTIF' && handleOpenModal(p)} disabled={p.statusKeaktifan !== 'AKTIF'} title="Edit"><Edit2 size={18} /></button>
-                                                                <button className="btn-icon delete" style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }} onClick={() => p.statusKeaktifan === 'AKTIF' && triggerDelete(p.id)} disabled={p.statusKeaktifan !== 'AKTIF'} title="Hapus"><Trash2 size={18} /></button>
+                                                                {p.statusKeaktifan === 'AKTIF' && (
+                                                                    <>
+                                                                        <button className="btn-icon" onClick={() => handleOpenModal(p)} title="Edit"><Edit2 size={18} /></button>
+                                                                        <button className="btn-icon delete" onClick={() => triggerDelete(p.id)} title="Hapus"><Trash2 size={18} /></button>
+                                                                    </>
+                                                                )}
                                                                 {p.statusKeaktifan !== 'AKTIF' && (
                                                                     <button className="btn-icon" style={{ color: 'var(--success)' }} onClick={() => triggerRestorePersonel(p.id)} title="Aktifkan Kembali Personel"><RefreshCw size={18} /></button>
                                                                 )}
@@ -291,7 +295,7 @@ const Personel = () => {
 
                         {/* Pagination Controls */}
                         {totalPages > 1 && (
-                            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '0 0.5rem' }}>
+                            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2.5rem', padding: '0 0.5rem' }}>
                                 <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                                     Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedPersonelList.length)} dari {sortedPersonelList.length} personel
                                 </div>

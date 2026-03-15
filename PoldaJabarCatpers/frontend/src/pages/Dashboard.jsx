@@ -386,13 +386,13 @@ const Dashboard = () => {
                     <StatCard title="Belum Rekomendasi" value={stats?.belumRekomendasi || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Belum Rekomendasi', 'belumRps')} isLoading={loading} />
 
                     {/* 5. Tidak Terbukti */}
-                    <StatCard title="Tidak Terbukti" value={stats.tidakTerbukti || 0} icon={ShieldCheck} colorClass="card-success" onClick={() => handleOpenModal('Tidak Terbukti (Final)', 'tidakTerbukti')} isLoading={loading} />
+                    <StatCard title="Tidak Terbukti" value={stats?.tidakTerbukti || 0} icon={ShieldCheck} colorClass="card-success" onClick={() => handleOpenModal('Tidak Terbukti (Final)', 'tidakTerbukti')} isLoading={loading} />
 
                     {/* 6. Belum SKTT */}
-                    <StatCard title="Belum Ada SKTT" value={stats.belumSktt || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTT (Riksa)', 'belumSktt')} isLoading={loading} />
+                    <StatCard title="Belum Ada SKTT" value={stats?.belumSktt || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTT (Riksa)', 'belumSktt')} isLoading={loading} />
 
                     {/* 7. Belum SKTB */}
-                    <StatCard title="Belum Ada SKTB" value={stats.belumSktb || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTB (Sidang)', 'belumSktb')} isLoading={loading} />
+                    <StatCard title="Belum Ada SKTB" value={stats?.belumSktb || 0} icon={FileWarning} colorClass="card-warning" onClick={() => handleOpenModal('Belum Ada SKTB (Sidang)', 'belumSktb')} isLoading={loading} />
 
                     {/* 8. Perdamaian */}
                     <StatCard title="Perdamaian" value={stats?.perdamaian || 0} icon={CheckCircle} colorClass="card-success" onClick={() => handleOpenModal('Personel Perdamaian', 'perdamaian')} isLoading={loading} />
@@ -401,7 +401,7 @@ const Dashboard = () => {
                     <StatCard title="Personel Tidak Aktif" value={stats?.tidakAktif || 0} icon={UserMinus} colorClass="card-secondary" onClick={() => handleOpenModal('Personel Tidak Aktif / Pensiun', 'tidakAktif')} isLoading={loading} />
 
                     {/* 10. Draft Approval */}
-                    <StatCard title="Draft Approval" value={stats.butuhApproval || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Menunggu Persetujuan Admin', 'DRAFT')} isLoading={loading} />
+                    <StatCard title="Draft Approval" value={stats?.butuhApproval || 0} icon={Clock} colorClass="card-info" onClick={() => handleOpenModal('Menunggu Persetujuan Admin', 'DRAFT')} isLoading={loading} />
                 </div>
 
                 {user?.role === 'ADMIN_POLDA' ? (
@@ -644,14 +644,16 @@ const Dashboard = () => {
                                                 </td>
                                                 <td>
                                                     <div style={{ display: 'flex', gap: '4px' }}>
-                                                        <button
-                                                            className="btn-icon"
-                                                            style={{ color: 'var(--info)' }}
-                                                            onClick={() => setSelectedPersonelDetail(p)}
-                                                            title="Lihat Histori Catpers"
-                                                        >
-                                                            <Eye size={18} />
-                                                        </button>
+                                                        {p.statusKeaktifan === 'AKTIF' && (
+                                                            <button
+                                                                className="btn-icon"
+                                                                style={{ color: 'var(--info)' }}
+                                                                onClick={() => setSelectedPersonelDetail(p)}
+                                                                title="Lihat Histori Catpers"
+                                                            >
+                                                                <Eye size={18} />
+                                                            </button>
+                                                        )}
                                                         {user?.role === 'ADMIN_POLDA' && p.isDraft && (
                                                             <>
                                                                 <button
@@ -672,22 +674,18 @@ const Dashboard = () => {
                                                                 </button>
                                                             </>
                                                         )}
-                                                        {(user?.role === 'ADMIN_POLDA') && !p.isDraft && (
+                                                        {(user?.role === 'ADMIN_POLDA') && !p.isDraft && p.statusKeaktifan === 'AKTIF' && (
                                                             <>
                                                                 <button
                                                                     className="btn-icon"
-                                                                    style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }}
-                                                                    onClick={() => p.statusKeaktifan === 'AKTIF' && handleEditPersonel(p)}
-                                                                    disabled={p.statusKeaktifan !== 'AKTIF'}
+                                                                    onClick={() => handleEditPersonel(p)}
                                                                     title="Edit Data Dasar Personel"
                                                                 >
                                                                     <Edit2 size={18} />
                                                                 </button>
                                                                 <button
                                                                     className="btn-icon delete"
-                                                                    style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }}
-                                                                    onClick={() => p.statusKeaktifan === 'AKTIF' && triggerDeletePersonel(p.id)}
-                                                                    disabled={p.statusKeaktifan !== 'AKTIF'}
+                                                                    onClick={() => triggerDeletePersonel(p.id)}
                                                                     title="Nonaktifkan / Hapus"
                                                                 >
                                                                     <Trash2 size={18} />
@@ -715,7 +713,7 @@ const Dashboard = () => {
 
                         {/* Pagination Controls */}
                         {totalPages > 1 ? (
-                            <div className="flex justify-between items-center mt-4 pt-4 no-print" style={{ borderTop: '1px solid var(--border)', fontSize: '0.9rem' }}>
+                            <div className="flex justify-between items-center mt-8 pt-4 no-print" style={{ borderTop: '1px solid var(--border)', fontSize: '0.9rem' }}>
                                 <span>Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, modalList.length)} dari {modalList.length}</span>
                                 <div className="flex gap-2">
                                     <button
@@ -760,7 +758,7 @@ const Dashboard = () => {
                         onClose={handleCloseModal}
                         personelId={selectedPersonelDetail?.id}
                         onRefresh={() => {
-                            fetchStats({ force: true });
+                            refreshDashboard();
                             fetchModalList();
                         }}
                     />

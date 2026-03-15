@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 
-const Modal = ({ isOpen, onClose, title, children, position, maxWidth }) => {
+const Modal = ({ isOpen, onClose, title, children, position, maxWidth, disableClose = false }) => {
     React.useEffect(() => {
         if (isOpen) {
             document.body.classList.add('modal-open');
@@ -40,7 +40,7 @@ const Modal = ({ isOpen, onClose, title, children, position, maxWidth }) => {
     };
 
     const modalJSX = (
-        <div className="modal-overlay" style={overlayStyle} onClick={onClose}>
+        <div className="modal-overlay" style={overlayStyle} onClick={() => !disableClose && onClose()}>
             <div
                 className="modal-container animate-fade-in"
                 style={containerStyle}
@@ -48,7 +48,7 @@ const Modal = ({ isOpen, onClose, title, children, position, maxWidth }) => {
             >
                 <div className="modal-header no-print">
                     <h3>{title}</h3>
-                    <button className="modal-close" onClick={onClose}>&times;</button>
+                    <button className="modal-close" onClick={() => !disableClose && onClose()} disabled={disableClose}>&times;</button>
                 </div>
                 <div className="modal-content">
                     {children}
