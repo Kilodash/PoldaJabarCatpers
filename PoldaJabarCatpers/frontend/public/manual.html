@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panduan Penggunaan CDS Polda Jabar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0f172a;
+            --secondary: #334155;
+            --accent: #2563eb;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.6;
+            color: var(--text-main);
+            background-color: var(--bg);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            background: var(--card-bg);
+            padding: 60px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        header img {
+            height: 100px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 0 0 10px 0;
+            letter-spacing: -0.025em;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--accent);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--secondary);
+            margin: 25px 0 15px 0;
+        }
+
+        p, ul, ol {
+            margin-bottom: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        strong {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .info-box {
+            background: #eff6ff;
+            border-left: 4px solid var(--accent);
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 30px 0;
+        }
+
+        .info-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .footer {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: var(--primary);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 0;
+                padding: 30px 20px;
+                border-radius: 0;
+            }
+            h1 { font-size: 1.75rem; }
+        }
+
+        @media print {
+            body { background: white; }
+            .container { 
+                box-shadow: none; 
+                border: none; 
+                margin: 0; 
+                width: 100%; 
+                max-width: none;
+            }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="https://bidpropam.sumsel.polri.go.id/ecpp/public/images/logo/logo-paminal.png" alt="Logo Paminal">
+            <h1>CDS POLDA JABAR</h1>
+            <div class="subtitle">Subbidpaminal Bidpropam Polda Jawa Barat</div>
+            <p style="margin-top: 10px; color: var(--text-muted);">Sistem Catatan Personel & Manajemen Pelanggaran</p>
+        </header>
+
+        <section id="intro">
+            <div class="badge">USER MANUAL V1.1</div>
+            <p>Selamat datang di Sistem <strong>CDS (Catatan Personel)</strong>. Panduan ini disusun untuk membantu Operator Satker dan Admin Polda dalam mengoperasikan aplikasi secara efektif dan akurat untuk mendukung data kepolisian yang presisi.</p>
+        </section>
+
+        <h2>1. Akses dan Keamanan</h2>
+        <h3>1.1 Login Ke Sistem</h3>
+        <ol>
+            <li>Buka peramban (browser) modern seperti Google Chrome atau Microsoft Edge.</li>
+            <li>Akses alamat URL aplikasi yang telah diberikan oleh Admin.</li>
+            <li>Masukkan <strong>Alamat Email</strong> dan <strong>Kata Sandi</strong> Anda.</li>
+            <li>Klik tombol <strong>Login</strong>.</li>
+        </ol>
+
+        <div class="info-box">
+            <p><strong>Penting:</strong> Jika Anda lupa password, segera hubungi Admin Polda untuk dilakukan reset akun.</p>
+        </div>
+
+        <h3>1.2 Keamanan Akun</h3>
+        <ul>
+            <li>Selalu jaga kerahasiaan kata sandi Anda, jangan berbagi akun dengan personel lain.</li>
+            <li>Gunakan fitur <strong>Ganti Password</strong> di menu <strong>Pengaturan > Profil</strong> secara berkala untuk menjaga integritas data.</li>
+            <li><strong>Logout</strong> segera setelah selesai menggunakan aplikasi, terutama jika menggunakan perangkat bersama atau komputer kantor.</li>
+        </ul>
+
+        <h2>2. Dashboard (Beranda)</h2>
+        <p>Halaman utama memberikan ringkasan data personil secara real-time melalui visualisasi kartu dan tabel rekap.</p>
+        <ul>
+            <li><strong>Kartu Statistik:</strong> Menampilkan jumlah total personil, catatan aktif, penanganan hukuman, hingga jumlah data yang membutuhkan persetujuan (Approval) dari Admin.</li>
+            <li><strong>Auto-Refresh:</strong> Sistem secara cerdas memperbarui data statistik setiap <strong>60 detik</strong> tanpa perlu menyegarkan halaman secara manual.</li>
+            <li><strong>Tabel Rekap Satker:</strong> Menampilkan perincian kasus per Satuan Kerja. Angka di dalam kolom dapat diklik untuk melihat rincian personil pada kategori tersebut.</li>
+            <li><strong>Live Indicator:</strong> Perhatikan titik hijau berkedip di pojok kanan atas dashboard. Jika berkedip, berarti data Anda sedang sinkron dengan server pusat.</li>
+        </ul>
+
+        <h2>3. Manajemen Data Personel</h2>
+        <p>Menu ini digunakan untuk mengelola basis data induk anggota Polri dan PNS di lingkungan Polda Jabar.</p>
+        <h3>3.1 Menambah Personel Baru</h3>
+        <ol>
+            <li>Navigasi ke menu <strong>Personel</strong>.</li>
+            <li>Klik tombol <strong>Tambah Personel</strong>.</li>
+            <li>Isi formulir dengan lengkap. Pastikan <strong>NRP/NIP</strong> sesuai dengan identitas asli karena sistem akan melakukan validasi keunikan data.</li>
+            <li>Klik <strong>Simpan</strong>.</li>
+        </ol>
+
+        <h3>3.2 Menonaktifkan / Menghapus Personel</h3>
+        <p>Sistem CDS tidak menghapus data secara permanen demi kepentingan audit sejarah. Untuk menonaktifkan data:</p>
+        <ol>
+            <li>Klik ikon <strong>Tempat Sampah</strong> pada baris personel.</li>
+            <li>Pilih alasan status data (Meninggal Dunia, Pensiun, atau Kesalahan Input).</li>
+            <li><strong>Wajib</strong> mengisi kolom alasan sebagai dasar arsip digital.</li>
+            <li>Data akan berpindah secara otomatis ke kategori <strong>Tidak Aktif</strong>.</li>
+        </ol>
+
+        <h2>4. Catatan Pelanggaran</h2>
+        <p>Halaman ini adalah inti dari sistem CDS, berfungsi sebagai buku catatan riwayat pelanggaran personil.</p>
+        <h3>4.1 Menambah Catatan Baru</h3>
+        <ol>
+            <li>Gunakan kolom pencarian untuk menemukan personel yang dimaksud.</li>
+            <li>Klik tombol <strong>Action > Tambah Pelanggaran</strong>.</li>
+            <li>Isi detail lengkap termasuk wujud perbuatan, nomor surat dasar, dan tanggal kejadian.</li>
+            <li><strong>Lampiran:</strong> Unggah berkas pendukung (PDF/Gambar) dengan ukuran maksimal 5MB per file.</li>
+            <li>Klik <strong>Simpan</strong>. Catatan akan berstatus <strong>Draft</strong> hingga diverifikasi oleh Admin.</li>
+        </ol>
+
+        <h2>5. Administrasi & Konfigurasi</h2>
+        <div class="info-box">
+            <p>Fitur ini hanya dapat diakses oleh pengguna dengan level akses <strong>Admin Polda</strong> atau <strong>Superadmin</strong>.</p>
+        </div>
+        <ul>
+            <li><strong>Manajemen Satker:</strong> Untuk menambahkan unit kerja baru atau melakukan perubahan nama Satker.</li>
+            <li><strong>Audit Log:</strong> Rekam jejak seluruh aktifitas user di dalam sistem (siapa, melakukan apa, kapan, dan alasannya).</li>
+            <li><strong>User Management:</strong> Pengelolaan hak akses akun operator di seluruh Satuan Wilayah dan Satuan Kerja.</li>
+        </ul>
+
+        <h2>6. Dukungan Teknis</h2>
+        <p>Apabila Anda menemukan kendala dalam pengoperasian sistem atau membutuhkan bantuan teknis lainnya, silakan hubungi saluran dukungan berikut:</p>
+        
+        <p>
+            <strong>Admin Aplikasi:</strong><br>
+            Dani Permana (<a href="mailto:danipermanax@gmail.com">danipermanax@gmail.com</a>)
+        </p>
+        <p>
+            <strong>WhatsApp Helpdesk:</strong><br>
+            <a href="https://wa.me/628122129882">0812-2129-882 (Chat Only)</a>
+        </p>
+
+        <div class="footer">
+            &copy; 2026 Subbidpaminal Bidpropam Polda Jabar<br>
+            Jl. Soekarno-Hatta 748 Kota Bandung
+        </div>
+        
+        <div class="no-print" style="text-align: center; margin-top: 20px;">
+            <button onclick="window.print()" style="padding: 10px 20px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Cetak / Simpan PDF</button>
+        </div>
+    </div>
+</body>
+</html>
