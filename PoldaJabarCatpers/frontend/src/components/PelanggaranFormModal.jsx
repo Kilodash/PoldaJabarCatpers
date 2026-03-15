@@ -856,7 +856,14 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                             {/* SP3 / SP4 SECTION */}
                             {(formData.statusPenyelesaian === 'TIDAK_TERBUKTI_RIKSA' || formData.statusPenyelesaian === 'Belum ada SKTT') && (
                                 <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1.5rem' }}>
-                                    <h4 style={{ color: 'var(--primary-color)', marginTop: 0, marginBottom: '1rem' }}>Formulir Surat Perintah Penghentian Penyelidikan/Penyidikan (SP3/SP4)</h4>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                        <h4 style={{ color: 'var(--primary-color)', margin: 0 }}>Formulir Surat Perintah Penghentian Penyelidikan/Penyidikan (SP3/SP4)</h4>
+                                        {(formData.nomorSp3 || formData.tanggalSp3 || fileSp3.length > 0) && (
+                                            <button type="button" onClick={() => handleResetClick('sp3')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.7rem', fontWeight: 600 }}>
+                                                <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET SP3 / SP4
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="flex gap-4">
                                         <div className="form-group w-full">
                                             <label>No. SP3 / SP4 <span style={{ color: 'var(--danger)' }}>*</span></label>
@@ -945,7 +952,14 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                             {/* SKTB SECTION */}
                             {(formData.statusPenyelesaian === 'TIDAK_TERBUKTI_SIDANG' || formData.statusPenyelesaian === 'Belum ada SKTB') && (
                                 <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                                    <h4 style={{ color: 'var(--primary-color)', marginTop: 0, marginBottom: '1rem' }}>Formulir Surat Keterangan Tidak Bersalah (SKTB)</h4>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                        <h4 style={{ color: 'var(--primary-color)', margin: 0 }}>Formulir Surat Keterangan Tidak Bersalah (SKTB)</h4>
+                                        {(formData.nomorSktb || formData.tanggalSktb || fileSktb.length > 0) && (
+                                            <button type="button" onClick={() => handleResetClick('sktb')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.7rem', fontWeight: 600 }}>
+                                                <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET SKTB
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="flex gap-4">
                                         <div className="form-group w-full">
                                             <label>No. SKTB <span style={{ color: 'var(--danger)' }}>*</span></label>
@@ -1191,9 +1205,21 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
             </form>
 
             {/* Dialog Konfirmasi Reset */}
-            <Modal isOpen={resetModal.isOpen} onClose={() => setResetModal({ ...resetModal, isOpen: false })} title={`Konfirmasi Kosongkan Data ${resetModal.section === 'sidang' ? 'Sidang' : resetModal.section === 'penyelesaian' ? 'Penyelesaian' : 'Rekomendasi'}`}>
+            <Modal isOpen={resetModal.isOpen} onClose={() => setResetModal({ ...resetModal, isOpen: false })} title={`Konfirmasi Kosongkan Data ${resetModal.section === 'sidang' ? 'Sidang' :
+                    resetModal.section === 'penyelesaian' ? 'Penyelesaian' :
+                        resetModal.section === 'rekomendasi' ? 'Rekomendasi' :
+                            resetModal.section.toUpperCase()
+                }`}>
                 <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
-                    Anda akan menghapus seluruh data pada bagian <strong>{resetModal.section === 'sidang' ? '3. Rekam Putusan Sidang & Sanksi' : resetModal.section === 'penyelesaian' ? 'Seluruh Data & Alur Penyelesaian' : '4. Detail Pemulihan Status'}</strong>.
+                    Anda akan menghapus seluruh data pada bagian <strong>{
+                        resetModal.section === 'sidang' ? '3. Rekam Putusan Sidang & Sanksi' :
+                            resetModal.section === 'penyelesaian' ? 'Seluruh Data & Alur Penyelesaian' :
+                                resetModal.section === 'rekomendasi' ? '4. Detail Pemulihan Status' :
+                                    resetModal.section === 'sp3' ? 'Surat Perintah Penghentian (SP3/SP4)' :
+                                        resetModal.section === 'sktt' ? 'Surat Ket. Tidak Terbukti (SKTT)' :
+                                            resetModal.section === 'sktb' ? 'Surat Ket. Tidak Bersalah (SKTB)' :
+                                                resetModal.section.toUpperCase()
+                    }</strong>.
                     {(resetModal.section === 'sidang' || resetModal.section === 'penyelesaian') && (
                         <div style={{ marginTop: '0.5rem', color: 'var(--danger)', fontWeight: 600 }}>
                             ⚠️ PERHATIAN: Tindakan ini akan mengembalikan status perkara menjadi 'DALAM PROSES' dan menghapus seluruh lampiran terkait penyelesaian.

@@ -570,6 +570,38 @@ const resetPelanggaranSection = async (req, res) => {
             };
             if (existing.fileRekomendasiUrl) filesToDelete.push(...existing.fileRekomendasiUrl.split(','));
 
+        } else if (section === 'sktt') {
+            sectionName = 'Surat Keterangan Tidak Terbukti (SKTT)';
+            updateData = {
+                nomorSktt: null,
+                tanggalSktt: null,
+                fileSkttUrl: null
+            };
+            if (existing.fileSkttUrl) filesToDelete.push(...existing.fileSkttUrl.split(','));
+
+        } else if (section === 'sp3') {
+            sectionName = 'Surat Perintah Penghentian Penyelidikan/Penyidikan (SP3/SP4)';
+            updateData = {
+                nomorSp3: null,
+                tanggalSp3: null,
+                fileSp3Url: null,
+                // Jika SP3 direset, SKTT juga harus direset karena dependensi UI/logic
+                nomorSktt: null,
+                tanggalSktt: null,
+                fileSkttUrl: null
+            };
+            if (existing.fileSp3Url) filesToDelete.push(...existing.fileSp3Url.split(','));
+            if (existing.fileSkttUrl) filesToDelete.push(...existing.fileSkttUrl.split(','));
+
+        } else if (section === 'sktb') {
+            sectionName = 'Surat Keterangan Tidak Bersalah (SKTB)';
+            updateData = {
+                nomorSktb: null,
+                tanggalSktb: null,
+                fileSktbUrl: null
+            };
+            if (existing.fileSktbUrl) filesToDelete.push(...existing.fileSktbUrl.split(','));
+
         } else if (section === 'penyelesaian') {
             sectionName = 'Seluruh Data Penyelesaian (Status Kembali Progres)';
             updateData = {
