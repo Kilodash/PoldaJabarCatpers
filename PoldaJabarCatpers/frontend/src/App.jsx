@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { DashboardProvider } from './context/DashboardContext';
 import Login from './pages/Login';
 
 import Dashboard from './pages/Dashboard';
@@ -20,42 +21,44 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
+    <DashboardProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
 
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <Dashboard />
-        </ProtectedRoute>
-      } />
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
 
-      <Route path="/personel" element={
-        <ProtectedRoute>
-          <Personel />
-        </ProtectedRoute>
-      } />
+        <Route path="/personel" element={
+          <ProtectedRoute>
+            <Personel />
+          </ProtectedRoute>
+        } />
 
-      <Route path="/pelanggaran" element={
-        <ProtectedRoute>
-          <Pelanggaran />
-        </ProtectedRoute>
-      } />
+        <Route path="/pelanggaran" element={
+          <ProtectedRoute>
+            <Pelanggaran />
+          </ProtectedRoute>
+        } />
 
-      <Route path="/pencarian" element={
-        <ProtectedRoute>
-          <Pencarian />
-        </ProtectedRoute>
-      } />
+        <Route path="/pencarian" element={
+          <ProtectedRoute>
+            <Pencarian />
+          </ProtectedRoute>
+        } />
 
-      <Route path="/pengaturan" element={
-        <ProtectedRoute>
-          <Pengaturan />
-        </ProtectedRoute>
-      } />
+        <Route path="/pengaturan" element={
+          <ProtectedRoute>
+            <Pengaturan />
+          </ProtectedRoute>
+        } />
 
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </DashboardProvider>
   );
 }
 

@@ -7,6 +7,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import api from '../utils/api';
 import Modal from './Modal';
 import { useAuth } from '../context/AuthContext';
+import { useDashboard } from '../context/DashboardContext';
 import { RotateCcw, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
 
 
@@ -40,6 +41,7 @@ const pangkatPns = ["Pengatur Muda (II/a)", "Pengatur Muda Tk. I (II/b)", "Penga
 
 const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initialData = null, targetPersonel = null }) => {
     const { user } = useAuth();
+    const { refresh: refreshDashboard } = useDashboard();
     const defaultFormState = {
         id: '',
         personelId: '',
@@ -163,7 +165,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
             setDeletedItems([]);
             api.get('/satker').then(res => setSatkerList(res.data)).catch(() => { });
             api.get('/pengaturan/FIELD_WAJIB_PELANGGARAN').then(res => {
-                try { setMandatoryFields(JSON.parse(res.data.value || '[]')); } catch(e) { setMandatoryFields([]); }
+                try { setMandatoryFields(JSON.parse(res.data.value || '[]')); } catch (e) { setMandatoryFields([]); }
             }).catch(() => setMandatoryFields([]));
         }
     }, [isOpen]);
@@ -430,7 +432,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                     if (stateArr.length === 0 && !(isEdit && urlExist && !deletedFiles.includes(key))) missingFiles.push(nameStr);
                 }
             };
-            
+
             checkFileM('fileDasar', fileDasar, currentRecord?.fileDasarUrl, 'Berkas Dasar (LHP/LP)');
             if (formData.statusPenyelesaian === 'SIDANG') {
                 checkFileM('filePutusan', filePutusan, currentRecord?.filePutusanUrl, 'Berkas Putusan SKEP Hukuman');
@@ -528,6 +530,8 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                 await api.post('/pelanggaran', submitData);
                 toast.success('Catatan pelanggaran baru berhasil disimpan.');
             }
+
+            refreshDashboard(); // Sync dashboard stats
 
             // PTDH Cek
             const hasPtdh = payload.jenisSidang === 'KEPP' && payload.hukuman && payload.hukuman.includes('PTDH');
@@ -1016,7 +1020,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
                         <div className="form-group mb-4">
                             <label>Saran Tanggal Bisa Mengajukan Rekomendasi <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <div style={{border: '1px solid var(--info)', borderRadius: '6px', overflow: 'hidden'}}>
+                            <div style={{ border: '1px solid var(--info)', borderRadius: '6px', overflow: 'hidden' }}>
                                 <DatePicker
                                     locale={id}
                                     dateFormat="d MMMM yyyy"

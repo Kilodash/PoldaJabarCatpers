@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useDashboard } from '../context/DashboardContext';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -13,6 +14,7 @@ const pangkatPns = ["Pengatur Muda (II/a)", "Pengatur Muda Tk. I (II/b)", "Penga
 
 const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initialData = null }) => {
     const { user } = useAuth();
+    const { refresh: refreshDashboard } = useDashboard();
     const [satkerList, setSatkerList] = useState([]);
     const [loading, setLoading] = useState(false);
     const [appSettings, setAppSettings] = useState({
@@ -209,6 +211,7 @@ const PersonelFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, initial
                 toast.success('Data Personel berhasil ditambahkan');
             }
 
+            refreshDashboard(); // Sync dashboard stats
             if (onSuccess) onSuccess(response.data.data || response.data);
             onClose();
         } catch (error) {

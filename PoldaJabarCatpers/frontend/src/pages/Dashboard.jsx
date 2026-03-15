@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useDashboard } from '../context/DashboardContext';
 import { useNavigate } from 'react-router-dom';
 import {
     Users, FileWarning, Search, ShieldCheck,
@@ -72,20 +73,11 @@ const STALE_TIME_MS = 30_000; // 30 detik — tidak refetch jika data masih sega
 
 const Dashboard = () => {
     const { user } = useAuth();
+    const { stats, satkerStatsList, loading, lastUpdated, refresh: refreshDashboard } = useDashboard();
     const navigate = useNavigate();
-    const lastFetchRef = useRef(0); // timestamp fetch terakhir (ms)
 
-    const [stats, setStats] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('dashboard_stats')) || { totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRekomendasi: 0 }; }
-        catch { return { totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRekomendasi: 0 }; }
-    });
-    const [satkerStatsList, setSatkerStatsList] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('dashboard_satker_stats')) || []; }
-        catch { return []; }
-    });
     const [globalSearch, setGlobalSearch] = useState('');
     const [satkerSearch, setSatkerSearch] = useState('');
-    const [loading, setLoading] = useState(true);
 
     // Sorting State
     const [sortConfig, setSortConfig] = useState({ key: 'urutan', direction: 'asc' });
@@ -119,38 +111,6 @@ const Dashboard = () => {
         if (selectedPersonelDetail) setHasOpenedHistory(true);
     }, [selectedPersonelDetail]);
 
-    // Fetch stats — dengan stale-time agar tidak refetch berulang dalam 30 detik
-    const fetchStats = useCallback(async ({ force = false } = {}) => {
-        const now = Date.now();
-        if (!force && now - lastFetchRef.current < STALE_TIME_MS) return;
-
-        const fetchMainStats = async () => {
-            try {
-                const res = await api.get('/dashboard/stats');
-                const newStats = { ...res.data.stats, belumRekomendasi: res.data.stats.belumRps };
-                setStats(newStats);
-                localStorage.setItem('dashboard_stats', JSON.stringify(newStats));
-            } catch (error) {
-                console.error('Gagal mengambil statistik utama', error);
-            }
-        };
-
-        const fetchSatkerStats = async () => {
-            try {
-                const res = await api.get('/dashboard/satker-stats');
-                const newSatkerStats = res.data.map(s => ({ ...s, belumRekomendasi: s.belumRps }));
-                setSatkerStatsList(newSatkerStats);
-                localStorage.setItem('dashboard_satker_stats', JSON.stringify(newSatkerStats));
-            } catch (error) {
-                console.error('Gagal mengambil statistik satker', error);
-            }
-        };
-
-        setLoading(true);
-        lastFetchRef.current = now;
-        await Promise.allSettled([fetchMainStats(), fetchSatkerStats()]);
-        setLoading(false);
-    }, []);
 
     const requestSort = useCallback((key) => {
         setSortConfig(prev => ({
@@ -192,17 +152,6 @@ const Dashboard = () => {
         [modalList, personelSortConfig]
     );
 
-    useEffect(() => {
-        fetchStats({ force: true }); // Initial load selalu force fetch
-    }, [fetchStats]);
-
-    // Polling otomatis setiap 60 detik untuk sinkronisasi data antar-pengguna
-    useEffect(() => {
-        const interval = setInterval(() => {
-            fetchStats({ force: true });
-        }, 60000);
-        return () => clearInterval(interval);
-    }, [fetchStats]);
 
     const fetchModalList = useCallback(async (overrideModalData) => {
         const target = overrideModalData || modalData;
@@ -224,10 +173,10 @@ const Dashboard = () => {
     // Smart refresh: setelah action, paksa fetch stats + modal list paralel
     const refreshAfterAction = useCallback(async () => {
         await Promise.allSettled([
-            fetchStats({ force: true }),
+            refreshDashboard(),
             fetchModalList()
         ]);
-    }, [fetchStats, fetchModalList]);
+    }, [refreshDashboard, fetchModalList]);
 
     // Debounced effect untuk modal search
     useEffect(() => {
@@ -398,7 +347,10 @@ const Dashboard = () => {
                                 Live Data
                             </div>
                         </h1>
-                        <p className="page-subtitle">Ringkasan data {user?.role === 'ADMIN_POLDA' ? 'seluruh Satker Polda Jabar' : `Satker ${user?.satker?.nama} `}. Diperbarui secara otomatis.</p>
+                        <p className="page-subtitle">
+                            Ringkasan data {user?.role === 'ADMIN_POLDA' ? 'seluruh Satker Polda Jabar' : `Satker ${user?.satker?.nama} `}. Diperbarui secara otomatis.
+                            {lastUpdated && <span style={{ marginLeft: '10px', fontSize: '0.85em', opacity: 0.8 }}> (Terakhir diperbarui: {format(lastUpdated, 'HH:mm:ss')})</span>}
+                        </p>
                     </div>
 
                     {/* Pencarian Global (Personel) */}
@@ -618,174 +570,174 @@ const Dashboard = () => {
                     {/* Modal Loading handled within the table body now */}
                     <>
                         {/* Batasan Tinggi Tabel List Mengikuti Dimensi Layar (Max Height & Overflow y) */}
-                            <div className="modal-table-container" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 22rem)' }}>
-                                <table className="data-table" style={{ fontSize: '0.85em' }}>
-                                    <thead>
-                                        <tr>
-                                            <th style={{ width: '40px', textAlign: 'center' }}>No.</th>
-                                            <th onClick={() => requestPersonelSort('nrpNip')} style={{ cursor: 'pointer', textAlign: 'center' }}>NRP / NIP {personelSortConfig.key === 'nrpNip' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                            <th onClick={() => requestPersonelSort('namaLengkap')} style={{ cursor: 'pointer', textAlign: 'center' }}>Nama Lengkap {personelSortConfig.key === 'namaLengkap' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                            <th onClick={() => requestPersonelSort('pangkat')} style={{ cursor: 'pointer', textAlign: 'center' }}>Pangkat {personelSortConfig.key === 'pangkat' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                            <th onClick={() => requestPersonelSort('satker')} style={{ cursor: 'pointer', textAlign: 'center' }}>Kesatuan {personelSortConfig.key === 'satker' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                            <th onClick={() => requestPersonelSort('statusPersonel')} style={{ cursor: 'pointer', textAlign: 'center' }}>Status Personel {personelSortConfig.key === 'statusPersonel' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-                                            <th style={{ textAlign: 'center' }}>Aksi</th>
-                                        </tr>
-                                    </thead>
-                                    {modalLoading ? (
-                                        <tbody>
-                                            {Array.from({ length: Math.min(itemsPerPage, 5) }).map((_, idx) => (
-                                                <tr key={`skel-modal-${idx}`}>
-                                                    <td style={{ textAlign: 'center' }}><div className="skeleton skeleton-text" style={{ width: '20px' }}></div></td>
-                                                    <td><div className="skeleton skeleton-text" style={{ width: '120px' }}></div></td>
-                                                    <td>
-                                                        <div className="skeleton skeleton-text" style={{ width: '180px' }}></div>
-                                                    </td>
-                                                    <td><div className="skeleton skeleton-text" style={{ width: '100px' }}></div></td>
-                                                    <td><div className="skeleton skeleton-text" style={{ width: '150px' }}></div></td>
-                                                    <td><div className="skeleton skeleton-badge" style={{ width: '80px', height: '24px' }}></div></td>
-                                                    <td>
-                                                        <div style={{ display: 'flex', gap: '4px' }}>
-                                                            <div className="skeleton skeleton-badge" style={{ width: '24px', height: '24px', borderRadius: '4px' }}></div>
-                                                            <div className="skeleton skeleton-badge" style={{ width: '24px', height: '24px', borderRadius: '4px' }}></div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    ) : sortedModalList.length === 0 ? (
-                                        <tbody>
-                                            <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>Pencarian / Kategori tidak menghasilkan temuan.</td></tr>
-                                        </tbody>
-                                    ) : (
-                                        <tbody>
-                                            {sortedModalList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((p, index) => (
-                                                <tr key={`screen-${p.id}`}>
-                                                    <td style={{ textAlign: 'center' }}>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
-                                                    <td><span style={{ fontWeight: 600 }}>{p.nrpNip}</span></td>
-                                                    <td>
-                                                        {p.namaLengkap}
-                                                        {p.isDraft && <span style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', padding: '1px 4px', borderRadius: '4px' }}>DRAFT</span>}
-                                                        {p.hasDraftViolation && <span style={{ marginLeft: '8px', color: 'var(--warning)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--warning)', padding: '1px 4px', borderRadius: '4px' }}>CATATAN DRAFT</span>}
-                                                        {p.statusKeaktifan !== 'AKTIF' && (
-                                                            <span style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', padding: '1px 4px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                                                                {p.statusKeaktifan?.replace('PTHD', 'PTDH')}
-                                                            </span>
-                                                        )}
-                                                        {p.catatanRevisi && (
-                                                            <div style={{ marginTop: '5px', padding: '5px 8px', background: '#fff5f5', borderLeft: '3px solid var(--danger)', fontSize: '0.75rem', color: 'var(--danger)', borderRadius: '4px' }}>
-                                                                <strong>⚠️ Perlu Perbaikan:</strong> {p.catatanRevisi}
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td>{p.pangkat}</td>
-                                                    <td>{p.satker?.nama || '-'}</td>
-                                                    <td>
-                                                        <span style={{
-                                                            padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
-                                                            background: p.statusPersonel === 'Proses' ? 'var(--danger)' :
-                                                                ['Pernah Tercatat', 'Belum SKTT', 'Belum SKTB', 'Belum Rekomendasi'].includes(p.statusPersonel) ? 'var(--warning)' :
-                                                                    'var(--success)',
-                                                            color: ['Bersih', 'Tidak Ada Catatan', 'Tidak Terbukti', 'Perdamaian'].includes(p.statusPersonel) ? 'white' : (['Pernah Tercatat', 'Belum SKTT', 'Belum SKTB', 'Belum Rekomendasi'].includes(p.statusPersonel) ? '#000' : 'white')
-                                                        }}>
-                                                            {p.statusKeaktifan?.includes('PTDH') ? 'PTDH' : p.statusPersonel}
+                        <div className="modal-table-container" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 22rem)' }}>
+                            <table className="data-table" style={{ fontSize: '0.85em' }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ width: '40px', textAlign: 'center' }}>No.</th>
+                                        <th onClick={() => requestPersonelSort('nrpNip')} style={{ cursor: 'pointer', textAlign: 'center' }}>NRP / NIP {personelSortConfig.key === 'nrpNip' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestPersonelSort('namaLengkap')} style={{ cursor: 'pointer', textAlign: 'center' }}>Nama Lengkap {personelSortConfig.key === 'namaLengkap' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestPersonelSort('pangkat')} style={{ cursor: 'pointer', textAlign: 'center' }}>Pangkat {personelSortConfig.key === 'pangkat' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestPersonelSort('satker')} style={{ cursor: 'pointer', textAlign: 'center' }}>Kesatuan {personelSortConfig.key === 'satker' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => requestPersonelSort('statusPersonel')} style={{ cursor: 'pointer', textAlign: 'center' }}>Status Personel {personelSortConfig.key === 'statusPersonel' ? (personelSortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th style={{ textAlign: 'center' }}>Aksi</th>
+                                    </tr>
+                                </thead>
+                                {modalLoading ? (
+                                    <tbody>
+                                        {Array.from({ length: Math.min(itemsPerPage, 5) }).map((_, idx) => (
+                                            <tr key={`skel-modal-${idx}`}>
+                                                <td style={{ textAlign: 'center' }}><div className="skeleton skeleton-text" style={{ width: '20px' }}></div></td>
+                                                <td><div className="skeleton skeleton-text" style={{ width: '120px' }}></div></td>
+                                                <td>
+                                                    <div className="skeleton skeleton-text" style={{ width: '180px' }}></div>
+                                                </td>
+                                                <td><div className="skeleton skeleton-text" style={{ width: '100px' }}></div></td>
+                                                <td><div className="skeleton skeleton-text" style={{ width: '150px' }}></div></td>
+                                                <td><div className="skeleton skeleton-badge" style={{ width: '80px', height: '24px' }}></div></td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                                        <div className="skeleton skeleton-badge" style={{ width: '24px', height: '24px', borderRadius: '4px' }}></div>
+                                                        <div className="skeleton skeleton-badge" style={{ width: '24px', height: '24px', borderRadius: '4px' }}></div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                ) : sortedModalList.length === 0 ? (
+                                    <tbody>
+                                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>Pencarian / Kategori tidak menghasilkan temuan.</td></tr>
+                                    </tbody>
+                                ) : (
+                                    <tbody>
+                                        {sortedModalList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((p, index) => (
+                                            <tr key={`screen-${p.id}`}>
+                                                <td style={{ textAlign: 'center' }}>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
+                                                <td><span style={{ fontWeight: 600 }}>{p.nrpNip}</span></td>
+                                                <td>
+                                                    {p.namaLengkap}
+                                                    {p.isDraft && <span style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', padding: '1px 4px', borderRadius: '4px' }}>DRAFT</span>}
+                                                    {p.hasDraftViolation && <span style={{ marginLeft: '8px', color: 'var(--warning)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--warning)', padding: '1px 4px', borderRadius: '4px' }}>CATATAN DRAFT</span>}
+                                                    {p.statusKeaktifan !== 'AKTIF' && (
+                                                        <span style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.7em', border: '1px solid var(--danger)', padding: '1px 4px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                                            {p.statusKeaktifan?.replace('PTHD', 'PTDH')}
                                                         </span>
-                                                    </td>
-                                                    <td>
-                                                        <div style={{ display: 'flex', gap: '4px' }}>
-                                                            <button
-                                                                className="btn-icon"
-                                                                style={{ color: 'var(--info)' }}
-                                                                onClick={() => setSelectedPersonelDetail(p)}
-                                                                title="Lihat Histori Catpers"
-                                                            >
-                                                                <Eye size={18} />
-                                                            </button>
-                                                            {user?.role === 'ADMIN_POLDA' && p.isDraft && (
-                                                                <>
-                                                                    <button
-                                                                        className="btn-icon"
-                                                                        style={{ color: 'var(--success)' }}
-                                                                        onClick={() => handleApprovePersonel(p.id)}
-                                                                        title="Setujui Personel Baru"
-                                                                    >
-                                                                        <CheckCircle size={20} />
-                                                                    </button>
-                                                                    <button
-                                                                        className="btn-icon"
-                                                                        style={{ color: 'var(--danger)' }}
-                                                                        onClick={() => handleRejectPersonel(p.id)}
-                                                                        title="Tolak & Hapus Draft"
-                                                                    >
-                                                                        <XCircle size={20} />
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                            {(user?.role === 'ADMIN_POLDA') && !p.isDraft && (
-                                                                <>
-                                                                    <button
-                                                                        className="btn-icon"
-                                                                        style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }}
-                                                                        onClick={() => p.statusKeaktifan === 'AKTIF' && handleEditPersonel(p)}
-                                                                        disabled={p.statusKeaktifan !== 'AKTIF'}
-                                                                        title="Edit Data Dasar Personel"
-                                                                    >
-                                                                        <Edit2 size={18} />
-                                                                    </button>
-                                                                    <button
-                                                                        className="btn-icon delete"
-                                                                        style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }}
-                                                                        onClick={() => p.statusKeaktifan === 'AKTIF' && triggerDeletePersonel(p.id)}
-                                                                        disabled={p.statusKeaktifan !== 'AKTIF'}
-                                                                        title="Nonaktifkan / Hapus"
-                                                                    >
-                                                                        <Trash2 size={18} />
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                            {(user?.role === 'ADMIN_POLDA') && !p.isDraft && p.statusKeaktifan !== 'AKTIF' && (
+                                                    )}
+                                                    {p.catatanRevisi && (
+                                                        <div style={{ marginTop: '5px', padding: '5px 8px', background: '#fff5f5', borderLeft: '3px solid var(--danger)', fontSize: '0.75rem', color: 'var(--danger)', borderRadius: '4px' }}>
+                                                            <strong>⚠️ Perlu Perbaikan:</strong> {p.catatanRevisi}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td>{p.pangkat}</td>
+                                                <td>{p.satker?.nama || '-'}</td>
+                                                <td>
+                                                    <span style={{
+                                                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600,
+                                                        background: p.statusPersonel === 'Proses' ? 'var(--danger)' :
+                                                            ['Pernah Tercatat', 'Belum SKTT', 'Belum SKTB', 'Belum Rekomendasi'].includes(p.statusPersonel) ? 'var(--warning)' :
+                                                                'var(--success)',
+                                                        color: ['Bersih', 'Tidak Ada Catatan', 'Tidak Terbukti', 'Perdamaian'].includes(p.statusPersonel) ? 'white' : (['Pernah Tercatat', 'Belum SKTT', 'Belum SKTB', 'Belum Rekomendasi'].includes(p.statusPersonel) ? '#000' : 'white')
+                                                    }}>
+                                                        {p.statusKeaktifan?.includes('PTDH') ? 'PTDH' : p.statusPersonel}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                                        <button
+                                                            className="btn-icon"
+                                                            style={{ color: 'var(--info)' }}
+                                                            onClick={() => setSelectedPersonelDetail(p)}
+                                                            title="Lihat Histori Catpers"
+                                                        >
+                                                            <Eye size={18} />
+                                                        </button>
+                                                        {user?.role === 'ADMIN_POLDA' && p.isDraft && (
+                                                            <>
                                                                 <button
                                                                     className="btn-icon"
                                                                     style={{ color: 'var(--success)' }}
-                                                                    onClick={() => triggerRestorePersonel(p.id)}
-                                                                    title="Aktifkan Kembali Personel"
+                                                                    onClick={() => handleApprovePersonel(p.id)}
+                                                                    title="Setujui Personel Baru"
                                                                 >
-                                                                    <RefreshCw size={18} />
+                                                                    <CheckCircle size={20} />
                                                                 </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    )}
-                                </table>
-                            </div>
+                                                                <button
+                                                                    className="btn-icon"
+                                                                    style={{ color: 'var(--danger)' }}
+                                                                    onClick={() => handleRejectPersonel(p.id)}
+                                                                    title="Tolak & Hapus Draft"
+                                                                >
+                                                                    <XCircle size={20} />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {(user?.role === 'ADMIN_POLDA') && !p.isDraft && (
+                                                            <>
+                                                                <button
+                                                                    className="btn-icon"
+                                                                    style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }}
+                                                                    onClick={() => p.statusKeaktifan === 'AKTIF' && handleEditPersonel(p)}
+                                                                    disabled={p.statusKeaktifan !== 'AKTIF'}
+                                                                    title="Edit Data Dasar Personel"
+                                                                >
+                                                                    <Edit2 size={18} />
+                                                                </button>
+                                                                <button
+                                                                    className="btn-icon delete"
+                                                                    style={{ opacity: p.statusKeaktifan !== 'AKTIF' ? 0.4 : 1 }}
+                                                                    onClick={() => p.statusKeaktifan === 'AKTIF' && triggerDeletePersonel(p.id)}
+                                                                    disabled={p.statusKeaktifan !== 'AKTIF'}
+                                                                    title="Nonaktifkan / Hapus"
+                                                                >
+                                                                    <Trash2 size={18} />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {(user?.role === 'ADMIN_POLDA') && !p.isDraft && p.statusKeaktifan !== 'AKTIF' && (
+                                                            <button
+                                                                className="btn-icon"
+                                                                style={{ color: 'var(--success)' }}
+                                                                onClick={() => triggerRestorePersonel(p.id)}
+                                                                title="Aktifkan Kembali Personel"
+                                                            >
+                                                                <RefreshCw size={18} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                )}
+                            </table>
+                        </div>
 
-                            {/* Pagination Controls */}
-                            {totalPages > 1 ? (
-                                <div className="flex justify-between items-center mt-4 pt-4 no-print" style={{ borderTop: '1px solid var(--border)', fontSize: '0.9rem' }}>
-                                    <span>Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, modalList.length)} dari {modalList.length}</span>
-                                    <div className="flex gap-2">
-                                        <button
-                                            className="btn-secondary"
-                                            style={{ padding: '4px 8px' }}
-                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                            disabled={currentPage === 1}
-                                        >
-                                            <ChevronLeft size={16} /> Prev
-                                        </button>
-                                        <button
-                                            className="btn-secondary"
-                                            style={{ padding: '4px 8px' }}
-                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                            disabled={currentPage === totalPages}
-                                        >
-                                            Next <ChevronRight size={16} />
-                                        </button>
-                                    </div>
+                        {/* Pagination Controls */}
+                        {totalPages > 1 ? (
+                            <div className="flex justify-between items-center mt-4 pt-4 no-print" style={{ borderTop: '1px solid var(--border)', fontSize: '0.9rem' }}>
+                                <span>Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, modalList.length)} dari {modalList.length}</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        className="btn-secondary"
+                                        style={{ padding: '4px 8px' }}
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                    >
+                                        <ChevronLeft size={16} /> Prev
+                                    </button>
+                                    <button
+                                        className="btn-secondary"
+                                        style={{ padding: '4px 8px' }}
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                    >
+                                        Next <ChevronRight size={16} />
+                                    </button>
                                 </div>
-                            ) : null}
-                        </>
+                            </div>
+                        ) : null}
+                    </>
                 </>
             </Modal>
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useDashboard } from '../context/DashboardContext';
 import { ShieldCheck, User, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import './Login.css';
@@ -12,6 +13,7 @@ const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
 
     const { login } = useAuth();
+    const { refresh: prefetchDashboard } = useDashboard();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -19,6 +21,7 @@ const Login = () => {
         setIsLoading(true);
         try {
             await login(email, password);
+            prefetchDashboard(); // Silent pre-fetch immediately
             toast.success('Login berhasil!');
             setTimeout(() => {
                 navigate('/dashboard');
