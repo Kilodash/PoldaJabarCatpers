@@ -101,7 +101,7 @@ const AboutModal = ({ isOpen, onClose }) => {
                                 <div>• AIPTU ASEP MAKSUM</div>
                                 <div>• AIPDA ERY YUNUS, S.M.</div>
                                 <div>• BRIPTU RAHMAT SOMANTRI</div>
-                                <div>• SRI CASMIATI, S.H.</div>
+                                <div>• PENGATUR TK1 SRI CASMIATI, SH.</div>
                                 <div>• WAHYU SOVIAN</div>
                             </div>
                         </div>

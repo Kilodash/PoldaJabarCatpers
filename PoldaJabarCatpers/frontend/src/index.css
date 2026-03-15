@@ -185,8 +185,17 @@ a:hover {
 }
 
 @keyframes pulseDot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.4); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(1.4);
+  }
 }
 
 /* Button Reset */
@@ -262,6 +271,13 @@ button {
   padding: 1rem;
 }
 
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 0.5rem;
+    /* Reduce overlay padding on mobile */
+  }
+}
+
 .modal-container {
   background: var(--surface-color);
   width: 95%;
@@ -275,6 +291,25 @@ button {
   display: flex;
   flex-direction: column;
   animation: modalEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (max-width: 640px) {
+  .modal-container {
+    width: 100%;
+    /* Full width on mobile */
+    margin: 0;
+    /* Remove margins on mobile */
+    border-radius: var(--radius-md);
+    /* Slightly smaller radius for more 'edge' look */
+  }
+
+  .modal-header {
+    padding: 1rem;
+  }
+
+  .modal-content {
+    padding: 1rem;
+  }
 }
 
 @keyframes modalEnter {
@@ -572,8 +607,10 @@ select.form-input {
 }
 
 @media print {
+
   /* 1. Global Reset */
-  html, body {
+  html,
+  body {
     background: white !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -582,8 +619,8 @@ select.form-input {
   }
 
   /* 2. Reset Modal Containers */
-  .modal-overlay, 
-  .modal-container, 
+  .modal-overlay,
+  .modal-container,
   .modal-content {
     display: block !important;
     position: static !important;
@@ -602,7 +639,7 @@ select.form-input {
   }
 
   /* 3. Hide EVERYTHING except modal path */
-  body > *:not(.modal-overlay) {
+  body>*:not(.modal-overlay) {
     display: none !important;
   }
 
@@ -619,7 +656,8 @@ select.form-input {
   .only-print {
     display: block !important;
     width: 100% !important;
-    padding: 0.5cm !important; /* Some padding to prevent clipping */
+    padding: 0.5cm !important;
+    /* Some padding to prevent clipping */
     background: white !important;
     font-size: 11pt !important;
   }
@@ -638,24 +676,36 @@ select.form-input {
   }
 
   /* 5. Natural White-space for Monospace text */
-  pre, [style*="white-space: pre-wrap"] {
+  pre,
+  [style*="white-space: pre-wrap"] {
     white-space: pre-wrap !important;
     word-break: break-all !important;
   }
 
   /* Prevent footer from clipping or breaking weirdly */
-  .only-print > div:last-child {
+  .only-print>div:last-child {
     page-break-inside: avoid !important;
   }
 
   /* Multi-page table support */
-  table { page-break-inside: auto !important; }
-  tr    { page-break-inside: avoid !important; page-break-after: auto !important; }
-  thead { display: table-header-group !important; }
-  tfoot { display: table-footer-group !important; }
+  table {
+    page-break-inside: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
 
   @page {
     margin: 1cm;
   }
 }
-

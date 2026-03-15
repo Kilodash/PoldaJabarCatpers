@@ -28,12 +28,14 @@ const Modal = ({ isOpen, onClose, title, children, position, maxWidth }) => {
     };
 
     const containerStyle = position ? {
-        width: '450px', // Hardcoded width for small contextual modals (Satker, etc)
-        margin: '0 1rem',
+        width: '100%',
+        maxWidth: '450px', // Maximum width for contextual modals
+        margin: '0 0.5rem',
         zIndex: 10001,
         position: 'relative'
     } : {
-        maxWidth: maxWidth || '900px', // Fallback to CSS default if not provided
+        width: '100%',
+        maxWidth: maxWidth || '900px',
         zIndex: 10001
     };
 
