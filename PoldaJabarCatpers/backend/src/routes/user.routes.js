@@ -14,5 +14,7 @@ router.get('/', userController.getAllUsers);
 router.post('/', userController.createUser);
 router.put('/:id', userController.updateUser);
 router.delete('/:id', userController.deleteUser);
+router.post('/:id/reset-password', userController.adminResetPassword);
+router.post('/:id/toggle-status', userController.toggleUserStatus);
 
 module.exports = router;

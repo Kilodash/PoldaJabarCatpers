@@ -27,7 +27,9 @@ const Login = () => {
                 navigate('/dashboard');
             }, 1000);
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Gagal login. Periksa kembali kredensial Anda.');
+            console.error('Login error:', error);
+            const errorMessage = error.message || (error.response?.data?.message) || 'Gagal login. Periksa kembali kredensial Anda.';
+            toast.error(errorMessage);
         } finally {
             setIsLoading(false);
         }

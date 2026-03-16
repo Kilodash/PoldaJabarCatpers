@@ -228,7 +228,22 @@
             </p>
         </div>
 
-        <h3>1.2 Keamanan Akun</h3>
+        <h3>1.2 Fitur Keamanan Terintegrasi</h3>
+        <p>Aplikasi CDS dibangun dengan standar keamanan modern untuk melindungi data sensitif:</p>
+        <ul>
+            <li><strong>Enkripsi Supabase Auth:</strong> Identitas dan password dikelola secara terenkripsi oleh
+                infrastruktur Supabase global.</li>
+            <li><strong>Keamanan JWT:</strong> Setiap sesi diamankan dengan Token JWT (JSON Web Token) yang memiliki
+                masa berlaku terbatas.</li>
+            <li><strong>Role-Based Access Control (RBAC):</strong> Hak akses dibatasi secara ketat berdasarkan peran
+                (Operator vs Admin).</li>
+            <li><strong>Audit Logging:</strong> Setiap tindakan kritis (menambah, mengubah, mereset data) dicatat secara
+                permanen beserta ID User, waktu, dan alasannya.</li>
+            <li><strong>Proteksi DDoS:</strong> Sistem dilengkapi dengan pembatasan frekuensi akses (Rate Limiting)
+                untuk mencegah serangan siber.</li>
+        </ul>
+
+        <h3>1.3 Keamanan Akun</h3>
         <ul>
             <li>Selalu jaga kerahasiaan kata sandi Anda, jangan berbagi akun dengan personel lain.</li>
             <li>Gunakan fitur <strong>Ganti Password</strong> di menu <strong>Pengaturan > Profil</strong> secara
@@ -251,43 +266,136 @@
                 berkedip, berarti data Anda sedang sinkron dengan server pusat.</li>
         </ul>
 
-        <h2>3. Manajemen Data Personel</h2>
-        <p>Menu ini digunakan untuk mengelola basis data induk anggota Polri dan PNS di lingkungan Polda Jabar.</p>
-        <h3>3.1 Menambah Personel Baru</h3>
+        <h2>3. Panduan Operasional Mendalam</h2>
+
+        <h3>3.1 Manajemen Data Personel</h3>
+        <p>Gunakan menu ini untuk pendaftaran unit personel ke dalam sistem:</p>
+        <ul>
+            <li><strong>Tambah Personel:</strong> Masukkan identitas lengkap. Sistem akan menolak jika NRP/NIP sudah
+                terdaftar untuk menghindari duplikasi.</li>
+            <li><strong>Edit Personel:</strong> Melakukan perbaikan identitas. Perubahan ini memerlukan verifikasi ulang
+                jika data personel tersebut memiliki catatan aktif.</li>
+            <li><strong>Soft-Delete:</strong> Menghapus personel tidak akan melenyapkan data dari database, melainkan
+                mengubah statusnya menjadi 'TIDAK AKTIF' (Pensiun/MD/Mutasi) agar sejarah riwayat tetap terjaga.</li>
+        </ul>
+
+        <h3>3.2 Siklus Catatan Pelanggaran (Catpers)</h3>
+        <p>Setiap input pelanggaran melewati alur kerja berikut:</p>
         <ol>
-            <li>Navigasi ke menu <strong>Personel</strong>.</li>
-            <li>Klik tombol <strong>Tambah Personel</strong>.</li>
-            <li>Isi formulir dengan lengkap. Pastikan <strong>NRP/NIP</strong> sesuai dengan identitas asli karena
-                sistem akan melakukan validasi keunikan data.</li>
-            <li>Klik <strong>Simpan</strong>.</li>
+            <li><strong>Entri Data Dasar:</strong> Operator memasukkan wujud perbuatan dan nomor surat dasar
+                (LHP/Riksa/LP).</li>
+            <li><strong>Penentuan Penyelesaian:</strong> Pilih metode akhir (Damai, Tidak Terbukti, atau Sidang).</li>
+            <li><strong>Input Putusan (Jika Sidang):</strong> Masukkan nomor SKEP hukuman, jenis vonis, dan lampirkan
+                berkas putusan.</li>
+            <li><strong>Pemulihan Status (Rekomendasi):</strong> Setelah masa hukuman selesai, operator menginput nomor
+                Surat Rekomendasi Pemulihan Status untuk menetralkan catatan.</li>
+            <li><strong>Verifikasi Admin:</strong> Semua perubahan data (Revisi) harus disetujui oleh Admin Polda
+                sebelum status 'verified' muncul.</li>
         </ol>
 
-        <h3>3.2 Menonaktifkan / Menghapus Personel</h3>
-        <p>Sistem CDS tidak menghapus data secara permanen demi kepentingan audit sejarah. Untuk menonaktifkan data:</p>
-        <ol>
-            <li>Klik ikon <strong>Tempat Sampah</strong> pada baris personel.</li>
-            <li>Pilih alasan status data (Meninggal Dunia, Pensiun, atau Kesalahan Input).</li>
-            <li><strong>Wajib</strong> mengisi kolom alasan sebagai dasar arsip digital.</li>
-            <li>Data akan berpindah secara otomatis ke kategori <strong>Tidak Aktif</strong>.</li>
-        </ol>
+        <h3>3.3 Pencetakan & Laporan</h3>
+        <p>Gunakan ikon <strong>Printer</strong> pada tabel personel untuk menghasilkan laporan PDF profesional yang
+            berisi riwayat lengkap personel tersebut untuk digunakan dalam sidang atau keperluan administrasi lainnya.
+        </p>
 
-        <h2>4. Catatan Pelanggaran</h2>
-        <p>Halaman ini adalah inti dari sistem CDS, berfungsi sebagai buku catatan riwayat pelanggaran personil.</p>
-        <h3>4.1 Menambah Catatan Baru</h3>
-        <ol>
-            <li>Gunakan kolom pencarian untuk menemukan personel yang dimaksud.</li>
-            <li>Klik tombol <strong>Action > Tambah Pelanggaran</strong>.</li>
-            <li>Isi detail lengkap termasuk wujud perbuatan, nomor surat dasar, dan tanggal kejadian.</li>
-            <li><strong>Lampiran:</strong> Unggah berkas pendukung (PDF/Gambar) dengan ukuran maksimal 5MB per file.
-            </li>
-            <li>Klik <strong>Simpan</strong>. Catatan akan berstatus <strong>Draft</strong> hingga diverifikasi oleh
-                Admin.</li>
-        </ol>
+        <h2>4. Tabel Perbandingan Peran</h2>
+        <div style="overflow-x: auto; margin-bottom: 30px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; border: 1px solid var(--border);">
+                <thead>
+                    <tr style="background: var(--bg); border-bottom: 2px solid var(--border);">
+                        <th style="padding: 12px; text-align: left; border: 1px solid var(--border);">Fitur Aplikasi
+                        </th>
+                        <th style="padding: 12px; text-align: center; border: 1px solid var(--border);">Operator Satker
+                        </th>
+                        <th style="padding: 12px; text-align: center; border: 1px solid var(--border);">Admin Polda</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid var(--border);">Lihat & Cari Data Personel</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid var(--border);">Input Personel & Pelanggaran Baru
+                        </td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid var(--border);">Revisi/Ubah Data (Pending Approval)
+                        </td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid var(--border);">Approve / Reject Revisi Data</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--danger); font-weight: bold;">
+                            ✖</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid var(--border);">Reset Section Pelanggaran
+                            (Penyelesaian)</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--danger); font-weight: bold;">
+                            ✖</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid var(--border);">Manajemen User & Satker</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--danger); font-weight: bold;">
+                            ✖</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid var(--border);">Lihat Audit Log (Jejak Aktivitas)
+                        </td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--danger); font-weight: bold;">
+                            ✖</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid var(--border);">Reset Password User Lain</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--danger); font-weight: bold;">
+                            ✖</td>
+                        <td
+                            style="padding: 12px; text-align: center; border: 1px solid var(--border); color: var(--success); font-weight: bold;">
+                            ✔</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
 
         <h2>5. Administrasi & Konfigurasi</h2>
         <div class="info-box">
             <p>Fitur ini hanya dapat diakses oleh pengguna dengan level akses <strong>Admin Polda</strong> atau
-                <strong>Superadmin</strong>.</p>
+                <strong>Superadmin</strong>.
+            </p>
         </div>
         <ul>
             <li><strong>Manajemen Satker:</strong> Untuk menambahkan unit kerja baru atau melakukan perubahan nama

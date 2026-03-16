@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -9,6 +9,7 @@ import Modal from './Modal';
 import { useAuth } from '../context/AuthContext';
 import { useDashboard } from '../context/DashboardContext';
 import { RotateCcw, Trash2, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import { uploadMultipleFilesDirectly } from '../utils/upload';
 
 
 // Opsi Sanksi
@@ -102,6 +103,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [satkerList, setSatkerList] = useState([]);
+    const abortControllerRef = useRef(null);
 
     const [mandatoryFields, setMandatoryFields] = useState([]);
     const isMandatory = (field) => mandatoryFields.includes(field);
@@ -425,9 +427,19 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
         );
     }
 
+    const handleCancel = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            toast.info("Proses unggah dokumen dibatalkan.");
+        }
+        onClose();
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (isSubmitting) return;
+
+        abortControllerRef.current = new AbortController();
 
         try {
             setIsSubmitting(true);
@@ -515,24 +527,54 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                 }
             });
 
-            // Append Files (Multiple)
-            fileDasar.forEach(file => submitData.append('fileDasar', file));
-            fileSelesai.forEach(file => submitData.append('fileSelesai', file));
-            filePutusan.forEach(file => submitData.append('filePutusan', file));
-            fileRekomendasi.forEach(file => submitData.append('fileRekomendasi', file));
-            fileSktt.forEach(file => submitData.append('fileSktt', file));
-            fileSp3.forEach(file => submitData.append('fileSp3', file));
-            fileSktb.forEach(file => submitData.append('fileSktb', file));
-            fileBanding.forEach(file => submitData.append('fileBanding', file));
-
             // Append Deletion Flags
             submitData.append('deletedFiles', JSON.stringify(deletedFiles));
             submitData.append('deletedItems', JSON.stringify(deletedItems));
 
+            // --- OPTIMIZATION: Direct to Storage ---
+            // We'll perform all uploads locally first and collect URLs
+            const signal = abortControllerRef.current.signal;
+            const uploadTasks = [
+                { state: fileDasar, key: 'fileDasarUrl' },
+                { state: fileSelesai, key: 'fileSelesaiUrl' },
+                { state: filePutusan, key: 'filePutusanUrl' },
+                { state: fileRekomendasi, key: 'fileRekomendasiUrl' },
+                { state: fileSktt, key: 'fileSkttUrl' },
+                { state: fileSp3, key: 'fileSp3Url' },
+                { state: fileSktb, key: 'fileSktbUrl' },
+                { state: fileBanding, key: 'fileBandingUrl' }
+            ].filter(t => t.state.length > 0);
+
+            const totalFileGroups = uploadTasks.length;
+            const groupProgress = new Map();
+
+            const handleTotalProgress = (key, progress) => {
+                groupProgress.set(key, progress);
+                const avgProgress = Array.from(groupProgress.values()).reduce((a, b) => a + b, 0) / totalFileGroups;
+                setUploadProgress(Math.round(avgProgress));
+            };
+
+            // Execute all file group uploads
+            if (totalFileGroups > 0) {
+                const results = await Promise.all(uploadTasks.map(async (task) => {
+                    const urls = await uploadMultipleFilesDirectly(task.state, 'pelanggaran', (p) => handleTotalProgress(task.key, p), signal);
+                    return { key: task.key, urls };
+                }));
+
+                // Add to submitData
+                results.forEach(res => {
+                    if (res.urls) submitData.append(res.key, res.urls);
+                });
+            }
+
             const axiosConfig = {
+                signal,
                 onUploadProgress: (progressEvent) => {
-                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                    setUploadProgress(percentCompleted);
+                    // This is for the JSON metadata part, usually very small/fast
+                    if (totalFileGroups === 0) {
+                        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                        setUploadProgress(percentCompleted);
+                    }
                 }
             };
 
@@ -567,10 +609,15 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
             toast.success(isEdit ? 'Catatan pelanggaran berhasil diperbarui.' : 'Catatan pelanggaran baru berhasil disimpan.');
         } catch (error) {
+            if (error.name === 'CanceledError' || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+                // Ignore cancelation errors as they are intended
+                return;
+            }
             toast.error(error.response?.data?.message || 'Gagal menyimpan riwayat ke sistem.');
         } finally {
             setIsSubmitting(false);
             setUploadProgress(0);
+            abortControllerRef.current = null;
         }
 
     };
@@ -606,9 +653,41 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
             } else if (section === 'sktb') {
                 setFormData(prev => ({ ...prev, nomorSktb: '', tanggalSktb: '' }));
                 setFileSktb([]);
-            } else if (section === 'damai') {
-                setFormData(prev => ({ ...prev, nomorSuratSelesai: '', tanggalSuratSelesai: '', keteranganSelesai: '' }));
+            } else if (section === 'penyelesaian') {
+                setFormData(prev => ({
+                    ...prev,
+                    statusPenyelesaian: 'PROSES',
+                    nomorSuratSelesai: '',
+                    tanggalSuratSelesai: '',
+                    keteranganSelesai: '',
+                    nomorSp3: '',
+                    tanggalSp3: '',
+                    nomorSktt: '',
+                    tanggalSktt: '',
+                    nomorSktb: '',
+                    tanggalSktb: '',
+                    jenisSidang: '',
+                    hukuman: '',
+                    banding: 'false',
+                    nomorSkep: '',
+                    tanggalSkep: '',
+                    nomorSkepBanding: '',
+                    tanggalSkepBanding: '',
+                    tanggalBisaAjukanRps: '',
+                    nomorRekomendasi: '',
+                    tanggalRekomendasi: ''
+                }));
+                // Clear all files
                 setFileSelesai([]);
+                setFileSp3([]);
+                setFileSktt([]);
+                setFileSktb([]);
+                setFilePutusan([]);
+                setFileBanding([]);
+                setFileRekomendasi([]);
+                // Clear selections
+                setSelectedHukumanDisiplin([]);
+                setSelectedHukumanKepp([]);
             } else if (section === 'dasar_file') {
                 setFileDasar([]);
             } else if (section === 'daur_ulang') {
@@ -796,15 +875,40 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                 <fieldset className="form-section">
                     <legend>2. Alur Penyelesaian</legend>
 
-                    <div className="form-group">
-                        <label>Pilih Metode Penyelesaian Terakhir</label>
-                        <select className="form-input" name="statusPenyelesaian" value={formData.statusPenyelesaian} onChange={handleChange} style={{ border: '2px solid var(--primary-color)', fontWeight: 600 }} required>
-                            <option value="PROSES">DALAM PROSES (Belum Sidang / Menunggu Putusan)</option>
-                            <option value="PERDAMAIAN">PERDAMAIAN (Form Perdamaian)</option>
-                            <option value="TIDAK_TERBUKTI_RIKSA">TIDAK TERBUKTI RIKSA PROVOS/WABPROF</option>
-                            <option value="TIDAK_TERBUKTI_SIDANG">TIDAK TERBUKTI SIDANG</option>
-                            <option value="SIDANG">PROSES SIDANG</option>
-                        </select>
+                    <div className="flex gap-4 items-end">
+                        <div className="form-group flex-grow">
+                            <label>Pilih Metode Penyelesaian Terakhir</label>
+                            <select className="form-input" name="statusPenyelesaian" value={formData.statusPenyelesaian} onChange={handleChange} style={{ border: '2px solid var(--primary-color)', fontWeight: 600 }} required>
+                                <option value="PROSES">DALAM PROSES (Belum Sidang / Menunggu Putusan)</option>
+                                <option value="PERDAMAIAN">PERDAMAIAN (Form Perdamaian)</option>
+                                <option value="TIDAK_TERBUKTI_RIKSA">TIDAK TERBUKTI RIKSA PROVOS/WABPROF</option>
+                                <option value="TIDAK_TERBUKTI_SIDANG">TIDAK TERBUKTI SIDANG</option>
+                                <option value="SIDANG">PROSES SIDANG</option>
+                            </select>
+                        </div>
+                        {formData.statusPenyelesaian !== 'PROSES' && (
+                            <div className="mb-4">
+                                <button
+                                    type="button"
+                                    onClick={() => handleResetClick('penyelesaian')}
+                                    className="btn-secondary"
+                                    style={{
+                                        color: 'var(--danger)',
+                                        borderColor: 'var(--danger)',
+                                        height: '42px',
+                                        padding: '0 1rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        fontWeight: 700,
+                                        fontSize: '0.85rem'
+                                    }}
+                                    title="Hapus Seluruh Data Penyelesaian & Kembali ke Progres"
+                                >
+                                    <RotateCcw size={16} /> RESET PENYELESAIAN
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {['PERDAMAIAN', 'TIDAK_TERBUKTI_RIKSA', 'TIDAK_TERBUKTI_SIDANG'].includes(formData.statusPenyelesaian) ? (
@@ -815,9 +919,6 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                                         formData.statusPenyelesaian === 'TIDAK_TERBUKTI_RIKSA' ? 'Formulir SP3 / SP4 & SKTT' :
                                             'Formulir Surat Keterangan Tidak Bersalah (SKTB)'}
                                 </h4>
-                                <button type="button" onClick={() => handleResetClick('penyelesaian')} style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: '4px' }}>
-                                    <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET DATA
-                                </button>
                             </div>
 
                             {formData.statusPenyelesaian === 'PERDAMAIAN' && (
@@ -858,11 +959,6 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                                 <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1.5rem' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                         <h4 style={{ color: 'var(--primary-color)', margin: 0 }}>Formulir Surat Perintah Penghentian Penyelidikan/Penyidikan (SP3/SP4)</h4>
-                                        {(formData.nomorSp3 || formData.tanggalSp3 || fileSp3.length > 0) && (
-                                            <button type="button" onClick={() => handleResetClick('sp3')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.7rem', fontWeight: 600 }}>
-                                                <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET SP3 / SP4
-                                            </button>
-                                        )}
                                     </div>
                                     <div className="flex gap-4">
                                         <div className="form-group w-full">
@@ -896,11 +992,6 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                                 <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px dashed var(--border)', opacity: (!formData.nomorSp3 || !formData.tanggalSp3) ? 0.6 : 1 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                         <h4 style={{ color: 'var(--primary-color)', margin: 0 }}>Formulir Surat Keterangan Tidak Terbukti (SKTT)</h4>
-                                        {(formData.nomorSktt || formData.tanggalSktt || fileSktt.length > 0) && (
-                                            <button type="button" onClick={() => handleResetClick('sktt')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.7rem', fontWeight: 600 }}>
-                                                <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET SKTT
-                                            </button>
-                                        )}
                                     </div>
                                     {(!formData.nomorSp3 || !formData.tanggalSp3) && (
                                         <div style={{ marginBottom: '1rem', padding: '0.5rem', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '4px', fontSize: '0.8rem', color: '#92400e' }}>
@@ -954,11 +1045,6 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                                 <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                         <h4 style={{ color: 'var(--primary-color)', margin: 0 }}>Formulir Surat Keterangan Tidak Bersalah (SKTB)</h4>
-                                        {(formData.nomorSktb || formData.tanggalSktb || fileSktb.length > 0) && (
-                                            <button type="button" onClick={() => handleResetClick('sktb')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.7rem', fontWeight: 600 }}>
-                                                <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET SKTB
-                                            </button>
-                                        )}
                                     </div>
                                     <div className="flex gap-4">
                                         <div className="form-group w-full">
@@ -994,11 +1080,6 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                     <fieldset style={{ border: '2px solid var(--warning)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', background: '#fffbeb', position: 'relative' }}>
                         <legend style={{ padding: '0 0.75rem', fontWeight: 700, color: 'var(--warning)', fontSize: '1.05rem', background: 'white', border: '1px solid var(--warning)', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             3. Rekam Putusan Sidang & Sanksi
-                            {(formData.jenisSidang || (isEdit && currentRecord?.jenisSidang)) && (
-                                <button type="button" onClick={() => handleResetClick('penyelesaian')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600, padding: '2px 8px', borderRadius: '4px' }} title="Mereset Seluruh Data Penyelesaian">
-                                    <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET DATA
-                                </button>
-                            )}
                         </legend>
 
                         <div className="flex gap-4">
@@ -1123,11 +1204,6 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                     <fieldset style={{ border: `2px solid ${isRekomendasiLocked ? '#cbd5e1' : 'var(--info)'}`, borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', background: isRekomendasiLocked ? '#f8fafc' : '#eff6ff', opacity: isRekomendasiLocked ? 0.7 : 1, position: 'relative' }}>
                         <legend style={{ padding: '0 0.75rem', fontWeight: 700, color: isRekomendasiLocked ? '#64748b' : 'var(--info)', fontSize: '1.05rem', background: 'white', border: `1px solid ${isRekomendasiLocked ? '#cbd5e1' : 'var(--info)'}`, borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             4. Detail Pemulihan Status (Rekomendasi)
-                            {!isRekomendasiLocked && (
-                                <button type="button" onClick={() => handleResetClick('rekomendasi')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '0.7rem', fontWeight: 600 }}>
-                                    <RotateCcw size={12} style={{ marginRight: '4px' }} /> RESET REKOMENDASI
-                                </button>
-                            )}
                         </legend>
                         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem', marginTop: '-0.5rem' }}>
                             Wajib diisi jika Personel telah melewati masa hukuman dan mendapatkan surat Rekomendasi Pemulihan Status.
@@ -1168,9 +1244,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                                     <span style={{ color: 'var(--info)', fontWeight: 600 }}>File: {getFilename(currentRecord.fileRekomendasiUrl)}</span>
                                     <div style={{ display: 'flex', gap: '8px' }}>
                                         <a href={currentRecord.fileRekomendasiUrl.startsWith('http') ? currentRecord.fileRekomendasiUrl : `${API_BASE}${currentRecord.fileRekomendasiUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline' }}>[Lihat]</a>
-                                        {user?.role === 'ADMIN_POLDA' && (
-                                            <button type="button" onClick={() => setDeletedFiles(prev => [...prev, 'fileRekomendasi'])} style={{ color: 'var(--danger)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600 }}>[Hapus]</button>
-                                        )}
+                                        <button type="button" onClick={() => setDeletedFiles(prev => [...prev, 'fileRekomendasi'])} style={{ color: 'var(--danger)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600 }}>[Hapus]</button>
                                     </div>
                                 </div>
                             )}
@@ -1196,7 +1270,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                             />
                         </div>
                     )}
-                    <button type="button" className="btn-secondary" onClick={onClose} style={{ padding: '0.75rem 1.5rem' }} disabled={isSubmitting}>Batalkan</button>
+                    <button type="button" className="btn-secondary" onClick={handleCancel} style={{ padding: '0.75rem 1.5rem' }}>Batalkan</button>
                     <button type="submit" className="btn-primary" style={{ padding: '0.75rem 2rem' }} disabled={isSubmitting}>
                         {isSubmitting ? <RotateCcw size={18} className="animate-spin" /> : <span>&#10004;</span>}
                         {isSubmitting ? " Menyimpan..." : (isEdit ? " Simpan Perubahan Catatan" : " Tambah ke Riwayat")}
@@ -1206,9 +1280,9 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
             {/* Dialog Konfirmasi Reset */}
             <Modal isOpen={resetModal.isOpen} onClose={() => setResetModal({ ...resetModal, isOpen: false })} title={`Konfirmasi Kosongkan Data ${resetModal.section === 'sidang' ? 'Sidang' :
-                    resetModal.section === 'penyelesaian' ? 'Penyelesaian' :
-                        resetModal.section === 'rekomendasi' ? 'Rekomendasi' :
-                            resetModal.section.toUpperCase()
+                resetModal.section === 'penyelesaian' ? 'Penyelesaian' :
+                    resetModal.section === 'rekomendasi' ? 'Rekomendasi' :
+                        resetModal.section.toUpperCase()
                 }`}>
                 <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
                     Anda akan menghapus seluruh data pada bagian <strong>{

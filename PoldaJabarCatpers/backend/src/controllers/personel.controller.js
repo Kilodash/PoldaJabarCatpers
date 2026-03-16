@@ -143,130 +143,168 @@ const createPersonel = async (req, res) => {
 // Ambil semua Personel dengan Filter
 const getAllPersonel = async (req, res) => {
     try {
-        let whereClause = {};
+        // Base conditions
+        const conditions = [];
 
-        // Filter berdasarkan Role (Access Control)
+        // 1. Role-based access control
         if (req.user.role === 'OPERATOR_SATKER') {
-            whereClause.satkerId = req.user.satkerId;
+            conditions.push({ satkerId: req.user.satkerId });
         }
 
-        // TAMPILKAN YANG BELUM DIHAPUS SAJA
-        whereClause.deletedAt = null;
+        // 2. Default: show non-deleted unless specified
+        let showDeleted = false;
 
-        // Filter Draft vs Approved
-        if (req.query.isDraft === 'true') {
-            whereClause.isDraft = true;
-        } else if (req.query.isDraft === 'false') {
-            whereClause.isDraft = false;
-        } else if (req.query.category === 'butuhApproval') {
-            // Jika kategori butuh approval, jangan paksa isDraft = false
-            // Karena kita mencari yang isDraft: true ATAU pelanggaran isDraft: true
-        } else {
-            // Default: Tampilkan yang sudah approve saja 
-            whereClause.isDraft = false;
+        // 3. Search Filter (Highest priority for visibility)
+        if (req.query.search) {
+            showDeleted = true; // Allow finding deleted/inactive if searching specifically
+            conditions.push({
+                OR: [
+                    { namaLengkap: { contains: req.query.search } },
+                    { nrpNip: { contains: req.query.search } },
+                    { nrpNip: { contains: `_${req.query.search}` } },
+                    { pangkat: { contains: req.query.search } },
+                    { jabatan: { contains: req.query.search } }
+                ]
+            });
         }
 
-        // Filter tambahan dari query params jika ada
+        // 4. Draft vs Approved Filter
+        // If searching, we usually want to see both unless explicitly filtered
+        if (!req.query.search) {
+            if (req.query.isDraft === 'true') {
+                conditions.push({ isDraft: true });
+            } else if (req.query.isDraft === 'false') {
+                conditions.push({ isDraft: false });
+            } else if (req.query.category === 'DRAFT' || req.query.category === 'butuhApproval') {
+                // Handled in category logic below
+            } else {
+                conditions.push({ isDraft: false });
+            }
+        }
+
+        // 5. Satker & Jenis Pegawai Filters
         if (req.query.satkerId && req.user.role === 'ADMIN_POLDA') {
-            whereClause.satkerId = parseInt(req.query.satkerId);
+            conditions.push({ satkerId: parseInt(req.query.satkerId) });
         }
         if (req.query.jenisPegawai) {
-            whereClause.jenisPegawai = req.query.jenisPegawai;
-        }
-
-        if (req.query.search) {
-            delete whereClause.deletedAt; // Biarkan cari yang sudah tidak aktif / deleted juga jika pencarian spesifik
-            whereClause.OR = [
-                { namaLengkap: { contains: req.query.search, mode: 'insensitive' } },
-                { nrpNip: { contains: req.query.search, mode: 'insensitive' } },
-                { nrpNip: { contains: `_${req.query.search}`, mode: 'insensitive' } } // Cari juga yang sudah ber-prefix DEL_
-            ]
+            conditions.push({ jenisPegawai: req.query.jenisPegawai });
         }
 
         const currentDate = new Date();
 
-        // Filter Category untuk Drill-down Dashboard
+        // 6. Category Drill-down logic
         if (req.query.category) {
             const cat = req.query.category;
+            const catCondition = [];
 
             if (cat === 'tidakAktif') {
-                delete whereClause.deletedAt;
-                whereClause.OR = [
-                    { tanggalPensiun: { lte: currentDate } },
-                    { statusKeaktifan: { not: 'AKTIF' } },
-                    { deletedAt: { not: null } }
-                ];
+                showDeleted = true;
+                catCondition.push({
+                    OR: [
+                        { tanggalPensiun: { lte: currentDate } },
+                        { statusKeaktifan: { not: 'AKTIF' } },
+                        { deletedAt: { not: null } }
+                    ]
+                });
             } else if (cat === 'catpersAktif') {
-                whereClause.statusKeaktifan = 'AKTIF';
-                whereClause.pelanggaran = {
-                    some: {
-                        deletedAt: null,
-                        isDraft: false,
-                        OR: [
-                            { statusPenyelesaian: 'PROSES' },
-                            {
-                                statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
-                                tanggalRekomendasi: null,
-                                OR: [
-                                    { tanggalBisaAjukanRps: null },
-                                    { tanggalBisaAjukanRps: { gt: new Date() } }
-                                ]
-                            }
-                        ]
+                conditions.push({ statusKeaktifan: 'AKTIF' });
+                catCondition.push({
+                    pelanggaran: {
+                        some: {
+                            deletedAt: null,
+                            isDraft: false,
+                            OR: [
+                                { statusPenyelesaian: 'PROSES' },
+                                {
+                                    statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
+                                    tanggalRekomendasi: null,
+                                    OR: [
+                                        { tanggalBisaAjukanRps: null },
+                                        { tanggalBisaAjukanRps: { gt: new Date() } }
+                                    ]
+                                }
+                            ]
+                        }
                     }
-                };
+                });
             } else if (cat === 'pernahTercatat') {
-                whereClause.statusKeaktifan = 'AKTIF';
-                whereClause.pelanggaran = {
-                    some: {
-                        deletedAt: null,
-                        isDraft: false,
-                        statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
-                        tanggalRekomendasi: { not: null }
+                conditions.push({ statusKeaktifan: 'AKTIF' });
+                catCondition.push({
+                    pelanggaran: {
+                        some: {
+                            deletedAt: null,
+                            isDraft: false,
+                            statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
+                            tanggalRekomendasi: { not: null }
+                        }
                     }
-                };
+                });
             } else if (cat === 'belumRps') {
-                whereClause.statusKeaktifan = 'AKTIF';
-                whereClause.pelanggaran = {
-                    some: {
-                        deletedAt: null,
-                        isDraft: false,
-                        statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
-                        tanggalRekomendasi: null,
-                        tanggalBisaAjukanRps: { lte: currentDate }
+                conditions.push({ statusKeaktifan: 'AKTIF' });
+                catCondition.push({
+                    pelanggaran: {
+                        some: {
+                            deletedAt: null,
+                            isDraft: false,
+                            statusPenyelesaian: { in: ['MENJALANI_HUKUMAN', 'SIDANG'] },
+                            tanggalRekomendasi: null,
+                            tanggalBisaAjukanRps: { lte: currentDate }
+                        }
                     }
-                };
+                });
             } else if (cat === 'tidakTerbukti') {
-                whereClause.statusKeaktifan = 'AKTIF';
-                whereClause.pelanggaran = {
-                    some: {
-                        deletedAt: null,
-                        isDraft: false,
-                        statusPenyelesaian: 'TIDAK_TERBUKTI'
+                conditions.push({ statusKeaktifan: 'AKTIF' });
+                catCondition.push({
+                    pelanggaran: {
+                        some: {
+                            deletedAt: null,
+                            isDraft: false,
+                            statusPenyelesaian: 'TIDAK_TERBUKTI'
+                        }
                     }
-                };
+                });
             } else if (cat === 'belumSktt') {
-                whereClause.statusKeaktifan = 'AKTIF';
-                whereClause.pelanggaran = { some: { statusPenyelesaian: 'Belum ada SKTT', deletedAt: null, isDraft: false } };
+                conditions.push({ statusKeaktifan: 'AKTIF' });
+                catCondition.push({
+                    pelanggaran: { some: { statusPenyelesaian: 'Belum ada SKTT', deletedAt: null, isDraft: false } }
+                });
             } else if (cat === 'belumSktb') {
-                whereClause.statusKeaktifan = 'AKTIF';
-                whereClause.pelanggaran = { some: { statusPenyelesaian: 'Belum ada SKTB', deletedAt: null, isDraft: false } };
+                conditions.push({ statusKeaktifan: 'AKTIF' });
+                catCondition.push({
+                    pelanggaran: { some: { statusPenyelesaian: 'Belum ada SKTB', deletedAt: null, isDraft: false } }
+                });
             } else if (cat === 'perdamaian') {
-                whereClause.statusKeaktifan = 'AKTIF';
-                whereClause.pelanggaran = {
-                    some: {
-                        deletedAt: null,
-                        isDraft: false,
-                        statusPenyelesaian: 'PERDAMAIAN'
+                conditions.push({ statusKeaktifan: 'AKTIF' });
+                catCondition.push({
+                    pelanggaran: {
+                        some: {
+                            deletedAt: null,
+                            isDraft: false,
+                            statusPenyelesaian: 'PERDAMAIAN'
+                        }
                     }
-                };
+                });
             } else if (cat === 'DRAFT' || cat === 'butuhApproval') {
-                whereClause.OR = [
-                    { isDraft: true },
-                    { pelanggaran: { some: { isDraft: true, deletedAt: null } } }
-                ];
+                catCondition.push({
+                    OR: [
+                        { isDraft: true },
+                        { pelanggaran: { some: { isDraft: true, deletedAt: null } } }
+                    ]
+                });
+            }
+
+            if (catCondition.length > 0) {
+                conditions.push(...catCondition);
             }
         }
+
+        // Apply deletion filter if not explicitly searching or viewing 'inactive'
+        if (!showDeleted) {
+            conditions.push({ deletedAt: null });
+        }
+
+        // Final WHERE clause
+        whereClause = { AND: conditions };
 
         // Paginasi opsional — jika ada query `page`, aktifkan paginasi
         const page = req.query.page ? parseInt(req.query.page) : null;
@@ -562,7 +600,7 @@ const restorePersonel = async (req, res) => {
         });
 
         if (nrpNipTaken) {
-             return res.status(400).json({ message: `Gagal: NRP/NIP ${originalNrp} saat ini sedang dipakai oleh personel aktif lain di sistem.` });
+            return res.status(400).json({ message: `Gagal: NRP/NIP ${originalNrp} saat ini sedang dipakai oleh personel aktif lain di sistem.` });
         }
 
         await prisma.$transaction([
@@ -667,13 +705,13 @@ const rejectPersonel = async (req, res) => {
 const checkNrpNipAvailability = async (req, res) => {
     try {
         const { nrpNip } = req.params;
-        const existingPersonel = await prisma.personel.findUnique({
-            where: { nrpNip },
-            select: { namaLengkap: true }
+        const exists = await prisma.personel.findFirst({
+            where: { nrpNip, deletedAt: null },
+            select: { id: true }
         });
 
-        if (existingPersonel) {
-            return res.json({ available: false, name: existingPersonel.namaLengkap });
+        if (exists) {
+            return res.json({ available: false });
         }
         return res.json({ available: true });
     } catch (error) {

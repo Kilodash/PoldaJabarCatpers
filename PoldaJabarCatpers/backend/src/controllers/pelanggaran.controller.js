@@ -35,15 +35,21 @@ const createPelanggaran = async (req, res) => {
         const access = await checkOperatorAccess(req, personelId);
         if (!access.allowed) return res.status(access.statusCode || 403).json({ message: access.message });
 
-        // Handle Multiple Files using Supabase
-        const fileDasarUrl = await uploadMultipleFiles(req.files?.fileDasar);
-        const fileSelesaiUrl = await uploadMultipleFiles(req.files?.fileSelesai);
-        const filePutusanUrl = await uploadMultipleFiles(req.files?.filePutusan);
-        const fileRekomendasiUrl = await uploadMultipleFiles(req.files?.fileRekomendasi);
-        const fileSkttUrl = await uploadMultipleFiles(req.files?.fileSktt);
-        const fileSktbUrl = await uploadMultipleFiles(req.files?.fileSktb);
-        const fileSp3Url = await uploadMultipleFiles(req.files?.fileSp3);
-        const fileBandingUrl = await uploadMultipleFiles(req.files?.fileBanding);
+        // Handle Multiple Files using Supabase or Direct URLs
+        // Format: req.body.fileField can be a comma-separated string of URLs from direct upload
+        const getFileUrls = async (filesArray, bodyUrl, folderName) => {
+            if (bodyUrl) return bodyUrl; // Prioritaskan URL dari upload langsung di frontend
+            return await uploadMultipleFiles(filesArray, folderName);
+        };
+
+        const fileDasarUrl = await getFileUrls(req.files?.fileDasar, req.body.fileDasarUrl, 'pelanggaran');
+        const fileSelesaiUrl = await getFileUrls(req.files?.fileSelesai, req.body.fileSelesaiUrl, 'pelanggaran');
+        const filePutusanUrl = await getFileUrls(req.files?.filePutusan, req.body.filePutusanUrl, 'pelanggaran');
+        const fileRekomendasiUrl = await getFileUrls(req.files?.fileRekomendasi, req.body.fileRekomendasiUrl, 'pelanggaran');
+        const fileSkttUrl = await getFileUrls(req.files?.fileSktt, req.body.fileSkttUrl, 'pelanggaran');
+        const fileSktbUrl = await getFileUrls(req.files?.fileSktb, req.body.fileSktbUrl, 'pelanggaran');
+        const fileSp3Url = await getFileUrls(req.files?.fileSp3, req.body.fileSp3Url, 'pelanggaran');
+        const fileBandingUrl = await getFileUrls(req.files?.fileBanding, req.body.fileBandingUrl, 'pelanggaran');
 
         // Helper untuk parsing json hukuman
         const hasPtdh = (jenisSidang === 'KEPP' && hukuman) ? hukuman.includes('PTDH') : false;
@@ -220,6 +226,17 @@ const updatePelanggaran = async (req, res) => {
         };
 
         // Parallelize physical file handling (upload new, delete marked) to improve response time
+        // req.body.fileFieldNameUrl can contain pre-uploaded Supabase URLs
+        const handleFilesUpdateWithDirect = async (fieldName, existingUrls, newFiles, isAllDeleted, deletedItems = [], folderName = 'pelanggaran') => {
+            const bodyUrl = req.body[`${fieldName}Url`];
+            if (bodyUrl) {
+                // Jika frontend kirim URL matang dari Direct Upload, kita pakai itu + existing yang tidak dihapus
+                let urls = existingUrls ? existingUrls.split(',').filter(u => u && !deletedItems.includes(u)) : [];
+                return [...urls, ...bodyUrl.split(',')].join(',') || null;
+            }
+            return await handleFilesUpdate(existingUrls, newFiles, isAllDeleted, deletedItems, folderName);
+        };
+
         const [
             fileDasarUrl,
             fileSelesaiUrl,
@@ -230,14 +247,14 @@ const updatePelanggaran = async (req, res) => {
             fileSp3Url,
             fileBandingUrl
         ] = await Promise.all([
-            handleFilesUpdate(existingCatpers.fileDasarUrl, req.files?.fileDasar, deletedFiles.includes('fileDasar'), deletedItems),
-            handleFilesUpdate(existingCatpers.fileSelesaiUrl, req.files?.fileSelesai, deletedFiles.includes('fileSelesai'), deletedItems),
-            handleFilesUpdate(existingCatpers.filePutusanUrl, req.files?.filePutusan, deletedFiles.includes('filePutusan'), deletedItems),
-            handleFilesUpdate(existingCatpers.fileRekomendasiUrl, req.files?.fileRekomendasi, deletedFiles.includes('fileRekomendasi'), deletedItems),
-            handleFilesUpdate(existingCatpers.fileSkttUrl, req.files?.fileSktt, deletedFiles.includes('fileSktt'), deletedItems),
-            handleFilesUpdate(existingCatpers.fileSktbUrl, req.files?.fileSktb, deletedFiles.includes('fileSktb'), deletedItems),
-            handleFilesUpdate(existingCatpers.fileSp3Url, req.files?.fileSp3, deletedFiles.includes('fileSp3'), deletedItems),
-            handleFilesUpdate(existingCatpers.fileBandingUrl, req.files?.fileBanding, deletedFiles.includes('fileBanding'), deletedItems)
+            handleFilesUpdateWithDirect('fileDasar', existingCatpers.fileDasarUrl, req.files?.fileDasar, deletedFiles.includes('fileDasar'), deletedItems),
+            handleFilesUpdateWithDirect('fileSelesai', existingCatpers.fileSelesaiUrl, req.files?.fileSelesai, deletedFiles.includes('fileSelesai'), deletedItems),
+            handleFilesUpdateWithDirect('filePutusan', existingCatpers.filePutusanUrl, req.files?.filePutusan, deletedFiles.includes('filePutusan'), deletedItems),
+            handleFilesUpdateWithDirect('fileRekomendasi', existingCatpers.fileRekomendasiUrl, req.files?.fileRekomendasi, deletedFiles.includes('fileRekomendasi'), deletedItems),
+            handleFilesUpdateWithDirect('fileSktt', existingCatpers.fileSkttUrl, req.files?.fileSktt, deletedFiles.includes('fileSktt'), deletedItems),
+            handleFilesUpdateWithDirect('fileSktb', existingCatpers.fileSktbUrl, req.files?.fileSktb, deletedFiles.includes('fileSktb'), deletedItems),
+            handleFilesUpdateWithDirect('fileSp3', existingCatpers.fileSp3Url, req.files?.fileSp3, deletedFiles.includes('fileSp3'), deletedItems),
+            handleFilesUpdateWithDirect('fileBanding', existingCatpers.fileBandingUrl, req.files?.fileBanding, deletedFiles.includes('fileBanding'), deletedItems)
         ]);
 
         const tglSuratObj = tanggalSurat ? new Date(tanggalSurat) : existingCatpers.tanggalSurat;
@@ -644,6 +661,11 @@ const resetPelanggaranSection = async (req, res) => {
 
         } else {
             return res.status(400).json({ message: 'Grup data (section) tidak valid.' });
+        }
+
+        // Jika operator yang mereset, kembalikan status ke Draft
+        if (req.user.role === 'OPERATOR_SATKER') {
+            updateData.isDraft = true;
         }
 
         await prisma.$transaction(async (tx) => {

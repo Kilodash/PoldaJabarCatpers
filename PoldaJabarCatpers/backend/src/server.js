@@ -1,6 +1,8 @@
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
@@ -25,6 +27,32 @@ const app = express();
 try {
     app.set('trust proxy', 1);
 
+    // Global security headers
+    app.use(helmet());
+
+    // Performance: compress all responses
+    app.use(compression());
+
+    // Global rate limiting (500 requests per 15 minutes)
+    const globalLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 500,
+        message: { message: 'Terlalu banyak permintaan dari IP ini. Silahkan coba lagi nanti.' },
+        standardHeaders: true,
+        legacyHeaders: false,
+    });
+    app.use('/api/', globalLimiter);
+
+    // Strict rate limiting for authentication
+    const authLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 20,
+        message: { message: 'Percobaan login terlalu sering. Silahkan tunggu 15 menit.' },
+        standardHeaders: true,
+        legacyHeaders: false,
+    });
+    app.use('/api/auth/login', authLimiter);
+
     const allowedOrigins = (process.env.ALLOWED_ORIGIN || '').split(',').map(o => o.trim()).filter(Boolean);
     app.use(cors({
         origin: (origin, callback) => {
@@ -45,8 +73,8 @@ try {
 
     // Root endpoint for verification
     app.get('/', (req, res) => {
-        res.json({ 
-            message: 'Polda Jabar API Diagnostics', 
+        res.json({
+            message: 'Polda Jabar API Diagnostics',
             status: 'READY',
             version: 'v1.1.9-DEBUG',
             node: process.version,
@@ -88,6 +116,7 @@ try {
     app.use('/api/pengaturan', require('./routes/pengaturan.routes'));
     app.use('/api/audit', require('./routes/audit.routes'));
     app.use('/api/pencarian', require('./routes/pencarian.routes'));
+    app.use('/api/storage', require('./routes/storage.routes'));
     console.log('Routes mounted.');
 
     // 404 Handler

@@ -91,7 +91,7 @@ const searchPersonelManual = async (req, res) => {
                     { nrpNip: { in: nrpNips }, deletedAt: null },
                     {
                         OR: nrpNips.map(nrp => ({
-                            nrpNip: { contains: `_${nrp}`, mode: 'insensitive' },
+                            nrpNip: { contains: `_${nrp}` },
                             deletedAt: { not: null }
                         }))
                     }
@@ -175,7 +175,7 @@ const searchPersonelDocument = async (req, res) => {
                     { nrpNip: { in: uniqueNrpNips }, deletedAt: null },
                     {
                         OR: uniqueNrpNips.map(nrp => ({
-                            nrpNip: { contains: `_${nrp}`, mode: 'insensitive' },
+                            nrpNip: { contains: `_${nrp}` },
                             deletedAt: { not: null }
                         }))
                     }

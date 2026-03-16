@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Settings, Users, User, Building, ShieldCheck, Plus, Edit2, Trash2, FileText, Download, Upload, Database, GripVertical, Search } from 'lucide-react';
+import {
+    Settings, Users, User, Building, ShieldCheck, Plus, Edit2, Trash2,
+    FileText, Download, Upload, Database, GripVertical, Search,
+    Mail, Lock, Unlock, CheckCircle, XCircle
+} from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -224,6 +228,28 @@ const Pengaturan = () => {
         setAuditPage(1);
     }, [auditSearch, activeTab]);
 
+    const handleAdminResetPassword = async (userId) => {
+        if (!window.confirm('Kirim email instruksi reset password ke user ini?')) return;
+        try {
+            await api.post(`/users/${userId}/reset-password`);
+            toast.success('Email reset password berhasil dikirim.');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Gagal mengirim email reset password');
+        }
+    };
+
+    const handleToggleUserStatus = async (userId, isBanned) => {
+        const action = isBanned ? 'menonaktifkan' : 'mengaktifkan kembali';
+        if (!window.confirm(`Yakin ingin ${action} akun user ini?`)) return;
+        try {
+            await api.post(`/users/${userId}/toggle-status`, { isBanned });
+            toast.success(`User berhasil ${isBanned ? 'dinonaktifkan' : 'diaktifkan'}.`);
+            fetchData();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Gagal mengubah status user');
+        }
+    };
+
     if (!user) {
         return <div className="p-8 text-center text-[var(--danger)] font-semibold mt-10">AKSES DITOLAK. Silahkan login terlebih dahulu.</div>;
     }
@@ -271,7 +297,7 @@ const Pengaturan = () => {
 
         switch (type) {
             case 'user':
-                setFormData(data ? { ...data, password: '' } : { id: '', email: '', password: '', role: 'OPERATOR_SATKER', satkerId: '' });
+                setFormData(data ? { ...data, password: '' } : { id: '', email: '', password: '', role: 'OPERATOR_SATKER', satkerId: '', displayName: '', phone: '' });
                 break;
             case 'satker':
                 setFormData(data || { id: '', nama: '', urutan: 0 });
@@ -573,24 +599,96 @@ const Pengaturan = () => {
                             <table className="data-table">
                                 <thead>
                                     <tr>
-                                        <th>Email</th>
+                                        <th>Email & Nama</th>
                                         <th>Role Akses</th>
-                                        <th>Satuan Kerja (Unit)</th>
-                                        <th>Ditambahkan</th>
+                                        <th>No. HP</th>
+                                        <th>Status Auth</th>
+                                        <th>Terakhir Login</th>
                                         <th>Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {usersList.map(u => (
-                                        <tr key={u.id}>
-                                            <td style={{ fontWeight: 500 }}>{u.email}</td>
-                                            <td><span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '20px', background: u.role === 'ADMIN_POLDA' ? 'var(--accent-color)' : 'var(--border-color)', color: u.role === 'ADMIN_POLDA' ? 'white' : 'var(--text-color)' }}>{u.role.replace('_', ' ')}</span></td>
-                                            <td>{u.satker?.nama || <span className="text-gray-400 italic">Polda Utama (Semua Akses)</span>}</td>
-                                            <td style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>{format(new Date(u.createdAt), 'dd/MM/yyyy')}</td>
+                                        <tr key={u.id} style={{ opacity: u.supabaseData?.isBanned ? 0.6 : 1 }}>
+                                            <td style={{ fontWeight: 500 }}>
+                                                <div className="flex flex-col">
+                                                    <span>{u.email}</span>
+                                                    {u.displayName && <span style={{ fontSize: '0.85rem', color: 'var(--primary-color)' }}>{u.displayName}</span>}
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                        {u.satker?.nama || 'Polda Utama'}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span style={{
+                                                    fontSize: '0.75rem',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '12px',
+                                                    background: u.role === 'ADMIN_POLDA' ? 'var(--accent-color)' : 'var(--border-color)',
+                                                    color: u.role === 'ADMIN_POLDA' ? 'white' : 'var(--text-color)',
+                                                    fontWeight: 600
+                                                }}>
+                                                    {u.role.replace('_', ' ')}
+                                                </span>
+                                            </td>
+                                            <td style={{ fontSize: '0.9rem' }}>
+                                                {u.phone || <span className="text-gray-400 italic">N/A</span>}
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
+                                                    {u.supabaseData?.confirmedAt ? (
+                                                        <span className="text-success flex items-center gap-1"><CheckCircle size={14} /> Terverifikasi</span>
+                                                    ) : (
+                                                        <span className="text-warning flex items-center gap-1"><XCircle size={14} /> Belum Konfirmasi</span>
+                                                    )}
+                                                    {u.supabaseData?.isBanned && (
+                                                        <span className="text-danger flex items-center gap-1 ml-2"><Lock size={14} /> Dinonaktifkan</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                                                {u.supabaseData?.lastSignIn
+                                                    ? format(new Date(u.supabaseData.lastSignIn), 'dd/MM/yyyy HH:mm')
+                                                    : <span className="italic text-gray-400">Belum pernah login</span>}
+                                            </td>
                                             <td>
                                                 <div className="action-btns">
-                                                    <button className="btn-icon" onClick={(e) => handleOpenModal('user', u, e)} title="Edit"><Edit2 size={18} /></button>
-                                                    {u.id !== user.id && <button className="btn-icon delete" onClick={() => handleDelete('user', u.id)} title="Hapus"><Trash2 size={18} /></button>}
+                                                    <button className="btn-icon" onClick={(e) => handleOpenModal('user', u, e)} title="Edit Metadata"><Edit2 size={16} /></button>
+
+                                                    {u.id !== user.id && (
+                                                        <>
+                                                            <button
+                                                                className="btn-icon"
+                                                                onClick={() => handleAdminResetPassword(u.id)}
+                                                                title="Kirim Instruksi Reset Password"
+                                                                style={{ color: 'var(--primary-color)' }}
+                                                            >
+                                                                <Mail size={16} />
+                                                            </button>
+
+                                                            {u.supabaseData?.isBanned ? (
+                                                                <button
+                                                                    className="btn-icon"
+                                                                    onClick={() => handleToggleUserStatus(u.id, false)}
+                                                                    title="Aktifkan Kembali Akun"
+                                                                    style={{ color: 'var(--success-color)' }}
+                                                                >
+                                                                    <Unlock size={16} />
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    className="btn-icon"
+                                                                    onClick={() => handleToggleUserStatus(u.id, true)}
+                                                                    title="Nonaktifkan Akun (Ban)"
+                                                                    style={{ color: 'var(--warning-color)' }}
+                                                                >
+                                                                    <Lock size={16} />
+                                                                </button>
+                                                            )}
+
+                                                            <button className="btn-icon delete" onClick={() => handleDelete('user', u.id)} title="Hapus User Penuh"><Trash2 size={16} /></button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -1019,6 +1117,14 @@ const Pengaturan = () => {
                             <div className="form-group">
                                 <label>Email Akun</label>
                                 <input type="email" name="email" className="form-input" value={formData.email || ''} onChange={handleFormChange} required />
+                            </div>
+                            <div className="form-group">
+                                <label>Nama Lengkap / Display Name</label>
+                                <input type="text" name="displayName" className="form-input" value={formData.displayName || ''} onChange={handleFormChange} placeholder="Masukkan nama lengkap user" />
+                            </div>
+                            <div className="form-group">
+                                <label>Nomor HP / WhatsApp</label>
+                                <input type="text" name="phone" className="form-input" value={formData.phone || ''} onChange={handleFormChange} placeholder="Contoh: 08123456789" />
                             </div>
                             <div className="form-group">
                                 <label>Password {isEdit && <span style={{ fontSize: '0.8em', color: 'var(--danger)' }}>(Kosongkan jika tidak mau diganti)</span>}</label>

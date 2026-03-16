@@ -1,14 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
-
-// Initialize the Supabase client
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-let supabase;
-
-if (supabaseUrl && supabaseAnonKey) {
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
-}
+const { supabase, supabaseAdmin } = require('./supabase');
 
 const BUCKET_NAME = 'catpers-lampiran';
 
@@ -66,13 +56,13 @@ const deleteFileFromSupabase = async (fileUrl) => {
         // Example URL: https://xyz.supabase.co/storage/v1/object/public/catpers-lampiran/pelanggaran/123-file.pdf
         const urlObj = new URL(fileUrl);
         const pathParts = urlObj.pathname.split(`/${BUCKET_NAME}/`);
-        
+
         if (pathParts.length > 1) {
             const filePath = pathParts[1];
             const { error } = await supabase.storage
                 .from(BUCKET_NAME)
                 .remove([filePath]);
-                
+
             if (error) console.error('Failed to delete file from Supabase:', error);
         }
     } catch (error) {
@@ -80,8 +70,50 @@ const deleteFileFromSupabase = async (fileUrl) => {
     }
 };
 
+/**
+ * Generate a pre-signed URL for uploading a file directly from the frontend
+ * @param {String} fileName - The target filename
+ * @param {String} folderPath - Target folder in bucket
+ * @returns {Promise<Object>} - Signed URL and token data
+ */
+const getSignedUploadUrl = async (fileName, folderPath = 'uploads') => {
+    if (!supabaseAdmin) {
+        throw new Error('Supabase admin client is not initialized.');
+    }
+
+    const uniqueFileName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    const filePath = `${folderPath}/${uniqueFileName}`;
+
+    try {
+        const { data, error } = await supabaseAdmin.storage
+            .from(BUCKET_NAME)
+            .createSignedUploadUrl(filePath);
+
+        if (error) {
+            console.error('Error creating signed upload URL:', error);
+            throw error;
+        }
+
+        // Get public URL (predictive)
+        const { data: { publicUrl } } = supabaseAdmin.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(filePath);
+
+        return {
+            signedUrl: data.signedUrl,
+            token: data.token,
+            path: filePath,
+            publicUrl
+        };
+    } catch (error) {
+        console.error('getSignedUploadUrl error:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     supabase,
     uploadFileToSupabase,
-    deleteFileFromSupabase
+    deleteFileFromSupabase,
+    getSignedUploadUrl
 };
