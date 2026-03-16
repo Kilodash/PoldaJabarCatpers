@@ -90,13 +90,15 @@ try {
         res.json({
             message: 'Polda Jabar API Diagnostics',
             status: 'READY',
-            version: 'v1.1.9-DEBUG-DB',
+            version: 'v1.1.9-DEBUG-DB-V2',
             db_status: dbStatus,
+            db_provider: prisma._activeProvider || 'Unknown',
             total_users: userCount,
             users_list: users,
             env: {
-                db: checkEnv('DATABASE_URL'),
-                directUrl: checkEnv('DIRECT_URL'),
+                db_len: (process.env.DATABASE_URL || '').length,
+                supabase_url: (process.env.SUPABASE_URL || '').replace(/(https:\/\/).*(.supabase.co)/, '$1***$2'),
+                node_env: process.env.NODE_ENV
             },
             time: new Date().toISOString()
         });
