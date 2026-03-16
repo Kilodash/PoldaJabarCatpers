@@ -707,11 +707,11 @@ const checkNrpNipAvailability = async (req, res) => {
         const { nrpNip } = req.params;
         const exists = await prisma.personel.findFirst({
             where: { nrpNip, deletedAt: null },
-            select: { id: true }
+            select: { id: true, namaLengkap: true }
         });
 
         if (exists) {
-            return res.json({ available: false });
+            return res.json({ available: false, name: exists.namaLengkap });
         }
         return res.json({ available: true });
     } catch (error) {
