@@ -90,7 +90,7 @@ try {
         res.json({
             message: 'Polda Jabar API Diagnostics',
             status: 'READY',
-            version: 'v1.1.9-DEBUG-DB-V2',
+            version: 'v1.1.9-DEBUG-DB-V3',
             db_status: dbStatus,
             db_provider: prisma._activeProvider || 'Unknown',
             total_users: userCount,
@@ -98,6 +98,8 @@ try {
             env: {
                 db_len: (process.env.DATABASE_URL || '').length,
                 supabase_url: (process.env.SUPABASE_URL || '').replace(/(https:\/\/).*(.supabase.co)/, '$1***$2'),
+                anon_key_len: (process.env.SUPABASE_ANON_KEY || '').length,
+                has_jwt_secret: !!process.env.JWT_SECRET,
                 node_env: process.env.NODE_ENV
             },
             time: new Date().toISOString()
