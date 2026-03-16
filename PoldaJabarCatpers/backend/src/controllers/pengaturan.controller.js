@@ -301,7 +301,7 @@ const scanPensiun = async (req, res) => {
         const now = new Date();
         const potentialRetirees = await prisma.personel.findMany({
             where: {
-                statusKeaktifan: { not: 'PENSIUN' },
+                statusKeaktifan: 'AKTIF',
                 tanggalPensiun: { lte: now },
                 deletedAt: null,
                 isDraft: false

@@ -136,17 +136,6 @@ const Pencarian = () => {
 
     return (
         <div className="pencarian-container">
-            <div className="page-header mb-4">
-                <h1 className="page-title">
-                    <Search size={32} />
-                    Pencarian Data Personel
-                    <div className="live-indicator">
-                        <span className="live-dot"></span>
-                        External Audit
-                    </div>
-                </h1>
-                <p className="page-subtitle">Gunakan fitur ekstraksi PDF atau input manual untuk pencarian masal data personel.</p>
-            </div>
 
             <div className="search-methods-wrapper no-print">
                 {/* Manual Search Card */}

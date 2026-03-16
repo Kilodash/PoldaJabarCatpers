@@ -115,7 +115,7 @@ const AboutModal = ({ isOpen, onClose }) => {
                                 <ShieldCheck size={14} /> Personel Urlitpers
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                                <div>• Kompol Angga Handiman, S.H., S.I.K., M.H.</div>
+                                <div>• Kompol Angga Handiman, S.I.K., M.M.</div>
                                 <div>• Iptu Kiki Hajar Samudra</div>
                                 <div>• Aiptu Asep Maksum</div>
                                 <div>• Aipda Ery Yunus, S.M.</div>

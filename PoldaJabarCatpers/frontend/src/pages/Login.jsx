@@ -20,8 +20,8 @@ const Login = () => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            await login(email, password);
-            prefetchDashboard(); // Silent pre-fetch immediately
+            const data = await login(email, password);
+            prefetchDashboard(data.user); // Silent pre-fetch immediately with user context
             toast.success('Login berhasil!');
             setTimeout(() => {
                 navigate('/dashboard');

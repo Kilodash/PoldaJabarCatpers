@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, FileText, CheckCircle, FileWarning } from 'lucide-react';
+import { useDashboard } from '../context/DashboardContext';
 import { Toaster, toast } from 'sonner';
 import { format } from 'date-fns';
 import api from '../utils/api';
@@ -9,6 +10,7 @@ import PersonelHistoryModal from '../components/PersonelHistoryModal';
 
 const Pelanggaran = () => {
     const [personelList, setPersonelList] = useState([]);
+    const { pelanggaranList, refreshPelanggaran } = useDashboard();
     const [selectedPersonel, setSelectedPersonel] = useState(null);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
@@ -25,10 +27,23 @@ const Pelanggaran = () => {
     const itemsPerPage = 10;
 
     const fetchPersonel = async () => {
+        // Jika pencarian kosong dan kita punya data di context, gunakan itu
+        if (!search && pelanggaranList && pelanggaranList.length > 0) {
+            setPersonelList(pelanggaranList);
+            setLoading(false);
+            return;
+        }
+
         try {
             setLoading(true);
             const res = await api.get(`/personel?search=${search}`);
             setPersonelList(res.data);
+            
+            // Jika pencarian kosong, update juga context agar tetap sinkron
+            if (!search) {
+                // Catatan: refreshPelanggaran() akan fetch ulang, tapi kita bisa update state lokal context jika mau
+                // Untuk kesederhanaan, kita biarkan context diupdate via refreshPelanggaran jika perlu
+            }
         } catch {
             toast.error('Gagal mengambil data dari server');
         } finally {
@@ -66,7 +81,7 @@ const Pelanggaran = () => {
     }, [search]);
 
     const paginatedList = sortedPersonelList.slice(
-        (currentPage - 1) * itemsPerPage,
+        0,
         currentPage * itemsPerPage
     );
 
@@ -90,21 +105,10 @@ const Pelanggaran = () => {
         <div className="animate-fade-in">
             <Toaster position="top-right" richColors />
 
-            <div className="page-header mb-4">
-                <h1 className="page-title">
-                    <FileWarning size={32} />
-                    Catatan Pelanggaran
-                    <div className="live-indicator">
-                        <span className="live-dot"></span>
-                        Internal Tracking
-                    </div>
-                </h1>
-                <p className="page-subtitle">Daftar riwayat dan status indikasi pelanggaran personel Polda Jabar.</p>
-            </div>
 
             {/* Search Bar & Actions */}
-            <div className="page-actions">
-                <div className="search-bar">
+            <div className="page-actions" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+                <div className="search-bar" style={{ margin: 0 }}>
                     <Search size={18} />
                     <input
                         type="text"
@@ -115,35 +119,6 @@ const Pelanggaran = () => {
                 </div>
             </div>
 
-            {/* Top Pagination Summary & Controls */}
-            {totalPages > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(8px)', padding: '0.85rem 1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-premium)' }}>
-                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <FileText size={16} />
-                        Menampilkan <strong>{(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedPersonelList.length)}</strong> dari <strong>{sortedPersonelList.length}</strong> personel terdaftar.
-                    </div>
-                    {totalPages > 1 && (
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="btn-secondary"
-                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', opacity: currentPage === 1 ? 0.5 : 1 }}
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="btn-secondary"
-                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', opacity: currentPage === totalPages ? 0.5 : 1 }}
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
 
             {loading ? <div className="loading-state">Memuat Data...</div> : (
                 <div className="table-container">
@@ -215,78 +190,27 @@ const Pelanggaran = () => {
                         </tbody>
                     </table>
 
-                    {/* Bottom Pagination Controls */}
-                    {totalPages > 1 && (
-                        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '1rem 0.5rem', borderTop: '1px solid var(--border-color)' }}>
-                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                                Hal <strong>{currentPage}</strong> dari {totalPages}
-                            </div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    style={{
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: '6px',
-                                        border: '1px solid var(--border-color)',
-                                        background: 'white',
-                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                                        opacity: currentPage === 1 ? 0.5 : 1,
-                                        fontWeight: 600
-                                    }}
-                                >
-                                    Sebelumnya
-                                </button>
-                                {[...Array(totalPages)].map((_, i) => {
-                                    const pageNum = i + 1;
-                                    if (
-                                        pageNum === 1 ||
-                                        pageNum === totalPages ||
-                                        (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
-                                    ) {
-                                        return (
-                                            <button
-                                                key={pageNum}
-                                                onClick={() => setCurrentPage(pageNum)}
-                                                style={{
-                                                    width: '36px',
-                                                    height: '36px',
-                                                    borderRadius: '6px',
-                                                    border: '1px solid',
-                                                    borderColor: currentPage === pageNum ? 'var(--primary-color)' : 'var(--border-color)',
-                                                    background: currentPage === pageNum ? 'var(--primary-color)' : 'white',
-                                                    color: currentPage === pageNum ? 'white' : 'var(--text-color)',
-                                                    cursor: 'pointer',
-                                                    fontWeight: 600
-                                                }}
-                                            >
-                                                {pageNum}
-                                            </button>
-                                        );
-                                    } else if (
-                                        (pageNum === 2 && currentPage > 4) ||
-                                        (pageNum === totalPages - 1 && currentPage < totalPages - 3)
-                                    ) {
-                                        return <span key={pageNum} style={{ padding: '0 4px' }}>...</span>;
-                                    }
-                                    return null;
-                                })}
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    style={{
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: '6px',
-                                        border: '1px solid var(--border-color)',
-                                        background: 'white',
-                                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                                        opacity: currentPage === totalPages ? 0.5 : 1,
-                                        fontWeight: 600
-                                    }}
-                                >
-                                    Selanjutnya
-                                </button>
-                            </div>
+                    {/* Bottom Load More for Lazy Load */}
+                    {currentPage < totalPages && (
+                        <div className="no-print" style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem', padding: '1rem 0.5rem' }}>
+                            <button
+                                onClick={() => setCurrentPage(prev => prev + 1)}
+                                className="btn-secondary"
+                                style={{
+                                    padding: '0.75rem 2rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'var(--surface-color)',
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                    boxShadow: 'var(--shadow-sm)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }}
+                            >
+                                <Plus size={18} /> Muat Lebih Banyak (Lazy Load)
+                            </button>
                         </div>
                     )}
                 </div>

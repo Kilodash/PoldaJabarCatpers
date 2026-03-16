@@ -402,7 +402,7 @@ const Pengaturan = () => {
 
     const handleBulkUpdatePensiun = async () => {
         if (retiringPersonnel.length === 0) return;
-        if (!window.confirm(`Yakin ingin memindahkan ${retiringPersonnel.length} anggota ini ke kategori PENSIUN?`)) return;
+        if (!window.confirm(`PERHATIAN: Anda akan menonaktifkan ${retiringPersonnel.length} anggota yang telah memasuki masa pensiun. \n\nSemua data ini akan dipindahkan ke kategori PENSIUN dan status keaktifan mereka akan diubah. \n\nLanjutkan proses nonaktifkan masal?`)) return;
 
         try {
             setBulkUpdateLoading(true);
@@ -426,17 +426,6 @@ const Pengaturan = () => {
         <div className="animate-fade-in">
             <Toaster position="top-right" richColors />
 
-            <div className="page-header mb-4">
-                <h1 className="page-title">
-                    <Settings size={32} />
-                    Sistem Pengaturan
-                    <div className="live-indicator">
-                        <span className="live-dot"></span>
-                        Admin Panel
-                    </div>
-                </h1>
-                <p className="page-subtitle">Konfigurasi hak akses pengguna, struktur organisasi Satker, dan variabel sistem CDS Polda Jabar.</p>
-            </div>
 
             {/* Tabs */}
             <div className="tabs-container" style={{
@@ -488,10 +477,11 @@ const Pengaturan = () => {
                     {activeTab === 'profil' && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
                             {/* Akun Info */}
-                            <div className="glass-panel p-8">
-                                <h3 className="flex items-center gap-2 text-xl font-bold mb-6 text-[var(--primary-color)]">
-                                    <User size={24} /> Informasi Akun
-                                </h3>
+                            <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--primary-color)' }}>
+                                    <User size={24} />
+                                    <h2 style={{ margin: 0 }}>Informasi Akun</h2>
+                                </div>
                                 <div className="space-y-4">
                                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
                                         <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Email / Username:</span>
@@ -517,10 +507,11 @@ const Pengaturan = () => {
                             </div>
 
                             {/* Change Password Form */}
-                            <div className="glass-panel p-8">
-                                <h3 className="flex items-center gap-2 text-xl font-bold mb-6 text-[var(--danger)]">
-                                    <ShieldCheck size={24} /> Keamanan & Password
-                                </h3>
+                            <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--danger)' }}>
+                                    <ShieldCheck size={24} />
+                                    <h2 style={{ margin: 0 }}>Keamanan & Password</h2>
+                                </div>
                                 <form onSubmit={handlePasswordChange} className="space-y-4">
                                     <div className="form-group">
                                         <label>Password Saat Ini</label>
@@ -706,7 +697,7 @@ const Pengaturan = () => {
 
                     {/* TAB: IMPORT & EXPORT */}
                     {activeTab === 'impor_ekspor' && (
-                        <div className="animate-fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
                             {/* Export & Template */}
                             <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--primary-color)' }}>
@@ -858,7 +849,7 @@ const Pengaturan = () => {
                                                 disabled={bulkUpdateLoading}
                                                 style={{ background: 'var(--success-color)', height: '42px', display: 'flex', alignItems: 'center', gap: '8px' }}
                                             >
-                                                {bulkUpdateLoading ? <Loading variant="inline" text="Memproses..." /> : 'Pindahkan Semua ke PENSIUN'}
+                                                {bulkUpdateLoading ? <Loading variant="inline" text="Memproses..." /> : 'Nonaktifkan Semua Anggota (Pensiun)'}
                                             </button>
                                             <button
                                                 onClick={() => { setRetiringPersonnel([]); setRetiringAlasan(''); }}

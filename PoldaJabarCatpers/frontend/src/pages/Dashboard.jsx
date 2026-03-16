@@ -337,22 +337,7 @@ const Dashboard = () => {
             <Toaster position="top-right" richColors />
             {/* Full-screen blocking overlay removed. We now use Skeleton Loaders. */}
             <div className="dashboard animate-fade-in">
-                <div className="page-header mb-8 no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
-                    <div style={{ flex: '1 1 auto', minWidth: '300px' }}>
-                        <h1 className="page-title">
-                            <LayoutDashboard size={32} />
-                            Dashboard
-                            <div className="live-indicator">
-                                <span className="live-dot"></span>
-                                Live Data
-                            </div>
-                        </h1>
-                        <p className="page-subtitle">
-                            Ringkasan data {user?.role === 'ADMIN_POLDA' ? 'seluruh Satker Polda Jabar' : `Satker ${user?.satker?.nama} `}. Diperbarui secara otomatis.
-                            {lastUpdated && <span style={{ marginLeft: '10px', fontSize: '0.85em', opacity: 0.8 }}> (Terakhir diperbarui: {format(lastUpdated, 'HH:mm:ss')})</span>}
-                        </p>
-                    </div>
-
+                <div className="page-header mb-8 no-print" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
                     {/* Pencarian Global (Personel) */}
                     <div className="global-search-container" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flex: '0 1 400px', maxWidth: '400px' }}>
                         <div className="search-bar" style={{ flex: 1, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', background: 'var(--surface-color)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-premium)' }}>

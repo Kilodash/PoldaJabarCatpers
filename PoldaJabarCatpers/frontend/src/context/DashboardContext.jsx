@@ -28,14 +28,16 @@ export const DashboardProvider = ({ children }) => {
         butuhApproval: 0
     });
     const [satkerStatsList, setSatkerStatsList] = useState([]);
+    const [pelanggaranList, setPelanggaranList] = useState([]); // Pre-fetched data
     const [loading, setLoading] = useState(false);
     const [statsLoading, setStatsLoading] = useState(false);
     const [lastUpdated, setLastUpdated] = useState(null);
 
     const refreshIntervalRef = useRef(null);
 
-    const fetchDashboardData = useCallback(async (isSilent = false) => {
-        if (!user) return;
+    const fetchDashboardData = useCallback(async (isSilent = false, currentUser = null) => {
+        const activeUser = currentUser || user;
+        if (!activeUser) return;
 
         if (!isSilent) setStatsLoading(true);
 
@@ -51,11 +53,25 @@ export const DashboardProvider = ({ children }) => {
             if (resSatkerStats.data) {
                 setSatkerStatsList(Array.isArray(resSatkerStats.data) ? resSatkerStats.data : []);
             }
+            
+            // Background fetch for violation data
+            fetchPelanggaranBackground();
+            
             setLastUpdated(new Date());
         } catch (error) {
             console.error("Gagal mengambil data dashboard", error);
         } finally {
             if (!isSilent) setStatsLoading(false);
+        }
+    }, [user]);
+
+    const fetchPelanggaranBackground = useCallback(async () => {
+        if (!user) return;
+        try {
+            const res = await api.get('/personel?search=');
+            setPelanggaranList(res.data);
+        } catch (error) {
+            console.error("Gagal pre-fetch data pelanggaran", error);
         }
     }, [user]);
 
@@ -97,9 +113,11 @@ export const DashboardProvider = ({ children }) => {
     const value = {
         stats,
         satkerStatsList,
+        pelanggaranList,
         loading: statsLoading,
         lastUpdated,
-        refresh: () => fetchDashboardData(true)
+        refresh: (u) => fetchDashboardData(true, u),
+        refreshPelanggaran: fetchPelanggaranBackground
     };
 
     return (
