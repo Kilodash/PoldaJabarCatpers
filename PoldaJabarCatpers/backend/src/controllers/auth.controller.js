@@ -33,7 +33,9 @@ const login = async (req, res) => {
         });
 
         if (!localUser) {
-            console.log(`[LOGIN_DIAGNOSTIC] local user not found for: ${normalizedEmail}`);
+            const allUsers = await prisma.user.findMany({ select: { email: true }, take: 5 });
+            console.log(`[LOGIN_DIAGNOSTIC] local user NOT FOUND for: "${normalizedEmail}"`);
+            console.log(`[LOGIN_DIAGNOSTIC] Users available in DB:`, allUsers.map(u => u.email).join(', ') || '(NONE)');
             return res.status(403).json({ message: 'User Supabase ditemukan, tetapi profil lokal tidak ada.' });
         }
 

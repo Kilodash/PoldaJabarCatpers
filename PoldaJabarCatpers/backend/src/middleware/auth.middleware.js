@@ -21,8 +21,7 @@ const authMiddleware = async (req, res, next) => {
             return res.status(401).json({ message: 'Sesi tidak valid.' });
         }
 
-        console.log(`[AUTH_DIAGNOSTIC] Token verified for:`, supabaseUser.email);
-        const normalizedEmail = supabaseUser.email.trim().toLowerCase();
+        console.log(`[AUTH_DIAGNOSTIC] Token verified for: "${supabaseUser.email}"`);
 
         // Seek user case-insensitively
         const localUser = await prisma.user.findFirst({
@@ -41,7 +40,11 @@ const authMiddleware = async (req, res, next) => {
         });
 
         if (!localUser) {
-            console.error(`[AUTH_DIAGNOSTIC] local profile MISSING for email: ${normalizedEmail}`);
+            // DIAGNOSTICS: Find out why lookup failed on Vercel/Prod
+            const allUsers = await prisma.user.findMany({ select: { email: true }, take: 5 });
+            console.error(`[AUTH_DIAGNOSTIC] Profile NOT FOUND for: "${normalizedEmail}"`);
+            console.error(`[AUTH_DIAGNOSTIC] Current Provider: ${prisma._activeProvider || 'Unknown'}`);
+            console.error(`[AUTH_DIAGNOSTIC] Users in DB:`, allUsers.map(u => u.email).join(', ') || '(NONE)');
             return res.status(403).json({ message: 'User Supabase ditemukan, tetapi profil lokal tidak ada.' });
         }
 
