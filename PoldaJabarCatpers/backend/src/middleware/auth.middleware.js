@@ -22,6 +22,7 @@ const authMiddleware = async (req, res, next) => {
         }
 
         console.log(`[AUTH_DIAGNOSTIC] Token verified for: "${supabaseUser.email}"`);
+        const normalizedEmail = (supabaseUser.email || '').trim().toLowerCase();
 
         // Seek user case-insensitively
         const localUser = await prisma.user.findFirst({
