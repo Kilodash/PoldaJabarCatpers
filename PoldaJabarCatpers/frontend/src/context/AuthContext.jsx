@@ -15,16 +15,18 @@ export const AuthProvider = ({ children }) => {
     // Fetch full user profile from backend (role, satker, etc.)
     const fetchUserProfile = async (token) => {
         try {
-            console.log(`[AUTH_DIAGNOSTIC] Fetching profile...`);
+            console.log(`[AUTH_DIAGNOSTIC] Fetching profile for token...`);
             const res = await api.get('/auth/me', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            console.log(`[AUTH_DIAGNOSTIC] Profile fetched successfully for ${res.data?.email}`);
+            console.log(`[AUTH_DIAGNOSTIC] Profile fetched successfully:`, res.data?.email);
             return res.data;
         } catch (error) {
-            console.error("Gagal mengambil profil user:", error.response?.status);
-            if (error.response?.status === 401) {
-                // Clear everything immediately if backend rejects the token
+            const status = error.response?.status;
+            const message = error.response?.data?.message || error.message;
+            console.error(`[AUTH_DIAGNOSTIC] FAILED to fetch profile. Status: ${status}, Msg: ${message}`);
+
+            if (status === 401) {
                 Cookies.remove('token');
                 Cookies.remove('user');
                 localStorage.removeItem('supabase.auth.token');

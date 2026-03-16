@@ -64,13 +64,20 @@ const login = async (req, res) => {
 
 const getMe = async (req, res) => {
     try {
+        console.log(`[AUTH_DIAGNOSTIC] getMe called for userId:`, req.user?.id);
+
         // req.user is already populated by authMiddleware
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
             include: { satker: true }
         });
 
-        if (!user) return res.status(404).json({ message: 'User tidak ditemukan' });
+        if (!user) {
+            console.error(`[AUTH_DIAGNOSTIC] getMe found NO USER in DB for ID:`, req.user?.id);
+            return res.status(404).json({ message: 'User tidak ditemukan di database profil.' });
+        }
+
+        console.log(`[AUTH_DIAGNOSTIC] getMe successful for:`, user.email);
 
         res.json({
             id: user.id,
