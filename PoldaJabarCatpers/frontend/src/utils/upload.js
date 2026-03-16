@@ -42,7 +42,9 @@ export const uploadFileDirectly = async (file, folderPath = 'pelanggaran', onPro
             throw error;
         }
         console.error('Direct upload failed:', error);
-        throw new Error(error.response?.data?.message || 'Gagal mengunggah file secara langsung.');
+        const status = error.response?.status;
+        const msg = error.response?.data?.message || error.message;
+        throw new Error(`Upload gagal (Status: ${status || 'Unknown'}). Detail: ${msg}`);
     }
 };
 
