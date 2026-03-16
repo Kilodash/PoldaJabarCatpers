@@ -56,39 +56,49 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         // Handle initial session check
         const initAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
 
-            if (session) {
-                const profile = await fetchUserProfile(session.access_token);
-                if (profile) {
-                    const userData = { ...profile, token: session.access_token };
-                    setUser(userData);
-                    Cookies.set('token', session.access_token, { expires: 1 });
-                    Cookies.set('user', JSON.stringify(userData), { expires: 1 });
+                if (session) {
+                    const profile = await fetchUserProfile(session.access_token);
+                    if (profile) {
+                        const userData = { ...profile, token: session.access_token };
+                        setUser(userData);
+                        Cookies.set('token', session.access_token, { expires: 1 });
+                        Cookies.set('user', JSON.stringify(userData), { expires: 1 });
+                    } else {
+                        await logout();
+                    }
                 } else {
-                    await logout();
+                    setUser(null);
+                    Cookies.remove('token');
+                    Cookies.remove('user');
                 }
-            } else {
+            } catch (error) {
+                console.error("Auth init error:", error);
                 setUser(null);
-                Cookies.remove('token');
-                Cookies.remove('user');
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
 
         initAuth();
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            if (event === 'SIGNED_IN' && session) {
-                const profile = await fetchUserProfile(session.access_token);
-                const userData = { ...profile, token: session.access_token };
-                setUser(userData);
-                Cookies.set('token', session.access_token, { expires: 1 });
-            } else if (event === 'SIGNED_OUT') {
-                setUser(null);
-                Cookies.remove('token');
-                Cookies.remove('user');
+            try {
+                if (event === 'SIGNED_IN' && session) {
+                    const profile = await fetchUserProfile(session.access_token);
+                    const userData = { ...profile, token: session.access_token };
+                    setUser(userData);
+                    Cookies.set('token', session.access_token, { expires: 1 });
+                } else if (event === 'SIGNED_OUT') {
+                    setUser(null);
+                    Cookies.remove('token');
+                    Cookies.remove('user');
+                }
+            } catch (error) {
+                console.error("Auth change error:", error);
             }
         });
 

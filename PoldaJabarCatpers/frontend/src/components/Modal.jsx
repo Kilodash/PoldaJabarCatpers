@@ -45,10 +45,20 @@ const Modal = ({ isOpen, onClose, title, children, position, maxWidth, disableCl
                 className="modal-container animate-fade-in"
                 style={containerStyle}
                 onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="modal-title"
             >
                 <div className="modal-header no-print">
-                    <h3>{title}</h3>
-                    <button className="modal-close" onClick={() => !disableClose && onClose()} disabled={disableClose}>&times;</button>
+                    <h3 id="modal-title">{title}</h3>
+                    <button
+                        className="modal-close"
+                        onClick={() => !disableClose && onClose()}
+                        disabled={disableClose}
+                        aria-label="Close"
+                    >
+                        &times;
+                    </button>
                 </div>
                 <div className="modal-content">
                     {children}
