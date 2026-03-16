@@ -22,10 +22,16 @@ const authMiddleware = async (req, res, next) => {
         }
 
         console.log(`[AUTH_DIAGNOSTIC] Token verified for:`, supabaseUser.email);
+        const normalizedEmail = supabaseUser.email.trim().toLowerCase();
 
-        // Link with local database to get role and satkerId
-        const localUser = await prisma.user.findUnique({
-            where: { email: supabaseUser.email },
+        // Seek user case-insensitively
+        const localUser = await prisma.user.findFirst({
+            where: {
+                email: {
+                    equals: normalizedEmail,
+                    mode: 'insensitive'
+                }
+            },
             select: {
                 id: true,
                 email: true,
@@ -35,6 +41,7 @@ const authMiddleware = async (req, res, next) => {
         });
 
         if (!localUser) {
+            console.error(`[AUTH_DIAGNOSTIC] local profile MISSING for email: ${normalizedEmail}`);
             return res.status(403).json({ message: 'User Supabase ditemukan, tetapi profil lokal tidak ada.' });
         }
 

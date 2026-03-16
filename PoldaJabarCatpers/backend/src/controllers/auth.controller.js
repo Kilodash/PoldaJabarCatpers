@@ -17,17 +17,23 @@ const login = async (req, res) => {
         }
 
         const { session, user: supabaseUser } = data;
+        const normalizedEmail = email.trim().toLowerCase();
 
-        // 2. Fetch local user profile
-        const localUser = await prisma.user.findUnique({
-            where: { email },
+        // 2. Fetch local user profile case-insensitively
+        const localUser = await prisma.user.findFirst({
+            where: {
+                email: {
+                    equals: normalizedEmail,
+                    mode: 'insensitive'
+                }
+            },
             include: {
                 satker: true
             }
         });
 
         if (!localUser) {
-            console.log(`[LOGIN_DIAGNOSTIC] local user not found for: ${email}`);
+            console.log(`[LOGIN_DIAGNOSTIC] local user not found for: ${normalizedEmail}`);
             return res.status(403).json({ message: 'User Supabase ditemukan, tetapi profil lokal tidak ada.' });
         }
 
