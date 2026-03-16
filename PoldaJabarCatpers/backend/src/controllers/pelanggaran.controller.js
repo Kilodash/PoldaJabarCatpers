@@ -229,11 +229,24 @@ const updatePelanggaran = async (req, res) => {
         // req.body.fileFieldNameUrl can contain pre-uploaded Supabase URLs
         const handleFilesUpdateWithDirect = async (fieldName, existingUrls, newFiles, isAllDeleted, deletedItems = [], folderName = 'pelanggaran') => {
             const bodyUrl = req.body[`${fieldName}Url`];
-            if (bodyUrl) {
-                // Jika frontend kirim URL matang dari Direct Upload, kita pakai itu + existing yang tidak dihapus
-                let urls = existingUrls ? existingUrls.split(',').filter(u => u && !deletedItems.includes(u)) : [];
-                return [...urls, ...bodyUrl.split(',')].join(',') || null;
+            const existingArr = existingUrls ? existingUrls.split(',').filter(u => u && !deletedItems.includes(u)) : [];
+
+            if (isAllDeleted) {
+                const oldUrls = existingUrls ? existingUrls.split(',').filter(u => u) : [];
+                for (const oldUrl of oldUrls) {
+                    await deleteFileFromSupabase(oldUrl).catch(console.error);
+                }
+                return bodyUrl || null; // Only take new ones if provided
             }
+
+            if (bodyUrl) {
+                // Combine existing (non-deleted) with new ones from body, and deduplicate
+                const newUrlsArr = bodyUrl.split(',').filter(u => u);
+                const combined = [...new Set([...existingArr, ...newUrlsArr])];
+                return combined.length > 0 ? combined.join(',') : null;
+            }
+
+            // Fallback to traditional file upload if no direct bodyUrl
             return await handleFilesUpdate(existingUrls, newFiles, isAllDeleted, deletedItems, folderName);
         };
 

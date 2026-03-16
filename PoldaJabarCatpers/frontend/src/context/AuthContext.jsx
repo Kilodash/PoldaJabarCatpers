@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import Cookies from 'js-cookie';
 import api from '../utils/api';
 import { supabase } from '../utils/supabase';
@@ -15,13 +15,20 @@ export const AuthProvider = ({ children }) => {
     // Fetch full user profile from backend (role, satker, etc.)
     const fetchUserProfile = async (token) => {
         try {
-            // Include token in header manually if the interceptor hasn't caught it yet
+            console.log(`[AUTH_DIAGNOSTIC] Fetching profile...`);
             const res = await api.get('/auth/me', {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            console.log(`[AUTH_DIAGNOSTIC] Profile fetched successfully for ${res.data?.email}`);
             return res.data;
         } catch (error) {
-            console.error("Gagal mengambil profil user:", error);
+            console.error("Gagal mengambil profil user:", error.response?.status);
+            if (error.response?.status === 401) {
+                // Clear everything immediately if backend rejects the token
+                Cookies.remove('token');
+                Cookies.remove('user');
+                localStorage.removeItem('supabase.auth.token');
+            }
             return null;
         }
     };
@@ -36,6 +43,11 @@ export const AuthProvider = ({ children }) => {
 
         const session = data.session;
         const profile = await fetchUserProfile(session.access_token);
+
+        if (!profile) {
+            await logout();
+            throw new Error('Profil user tidak ditemukan di database lokal.');
+        }
 
         const userData = { ...profile, token: session.access_token };
         setUser(userData);
@@ -53,8 +65,12 @@ export const AuthProvider = ({ children }) => {
         Cookies.remove('user');
     };
 
+    const isInitialMount = useRef(true);
+
     useEffect(() => {
-        // Handle initial session check
+        if (!isInitialMount.current) return;
+        isInitialMount.current = false;
+
         const initAuth = async () => {
             try {
                 const { data: { session } } = await supabase.auth.getSession();
@@ -84,31 +100,55 @@ export const AuthProvider = ({ children }) => {
 
         initAuth();
 
-        // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            try {
-                if (event === 'SIGNED_IN' && session) {
-                    const profile = await fetchUserProfile(session.access_token);
+            if (event === 'SIGNED_IN' && session) {
+                const profile = await fetchUserProfile(session.access_token);
+                if (profile) {
                     const userData = { ...profile, token: session.access_token };
                     setUser(userData);
                     Cookies.set('token', session.access_token, { expires: 1 });
-                } else if (event === 'SIGNED_OUT') {
-                    setUser(null);
-                    Cookies.remove('token');
-                    Cookies.remove('user');
+                } else {
+                    await logout();
                 }
-            } catch (error) {
-                console.error("Auth change error:", error);
+            } else if (event === 'SIGNED_OUT') {
+                setUser(null);
+                Cookies.remove('token');
+                Cookies.remove('user');
             }
         });
 
         return () => subscription.unsubscribe();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    const forceReset = () => {
+        Cookies.remove('token');
+        Cookies.remove('user');
+        localStorage.clear();
+        window.location.href = '/login';
+    };
 
     return (
         <AuthContext.Provider value={{ user, loading, login, logout }}>
-            {!loading && children}
+            {loading ? (
+                <div style={{
+                    height: '100vh',
+                    width: '100vw',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    background: '#f8fafc'
+                }}>
+                    <div className="animate-spin" style={{ width: '40px', height: '40px', border: '4px solid #e2e8f0', borderTopColor: '#3b82f6', borderRadius: '50%', marginBottom: '1rem' }}></div>
+                    <div style={{ fontWeight: 600, color: '#1e293b' }}>Memverifikasi Sesi...</div>
+                    <button
+                        onClick={forceReset}
+                        style={{ marginTop: '2rem', fontSize: '0.8rem', color: '#64748b', background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer' }}
+                    >
+                        Masalah saat memuat? Klik untuk reset
+                    </button>
+                </div>
+            ) : children}
         </AuthContext.Provider>
     );
 };

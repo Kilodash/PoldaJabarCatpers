@@ -11,7 +11,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Client for general use (respects RLS)
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false
+    }
+});
 
 // Client for administrative tasks (bypasses RLS)
 const supabaseAdmin = supabaseServiceRoleKey

@@ -120,6 +120,12 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
     const [statusChangeModal, setStatusChangeModal] = useState({ isOpen: false, pendingStatus: '' });
     const [showPtdhWarning, setShowPtdhWarning] = useState(false); // Modal untuk peringatan PTDH
     const [currentRecord, setCurrentRecord] = useState(initialData);
+    const isMounted = useRef(true);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => { isMounted.current = false; };
+    }, []);
 
     // Helper: Ambil nama file dari URL
     const getFilename = (url) => {
@@ -133,8 +139,11 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
         if (!urlsString) return null;
         if (deletedFiles.includes(fieldKey)) return <div style={{ fontSize: '0.8rem', color: 'var(--danger)', marginTop: '4px' }}>Seluruh file {titleLabel} lama akan dihapus setelah disimpan.</div>;
 
-        const urls = urlsString.split(',').filter(u => u).filter(u => !deletedItems.includes(u));
-        if (urls.length === 0) return null;
+        const urls = urlsString.split(',')
+            .map(u => u.trim())
+            .filter(u => u && !deletedItems.includes(u));
+
+        if (urls.length === 0 && !deletedFiles.includes(fieldKey)) return null;
 
         return (
             <div style={{ marginTop: '8px' }}>
@@ -145,22 +154,30 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                             <span style={{ color: 'var(--primary-color)', fontWeight: 600 }}>File {index + 1}: {getFilename(url)}</span>
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 <a href={url.startsWith('http') ? url : `${API_BASE}${url}`} target="_blank" rel="noreferrer" style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline' }}>[Lihat]</a>
-                                <button type="button" onClick={() => handleRemoveServerFile(url)} style={{ color: 'var(--danger)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600 }}>[Hapus]</button>
+                                <button type="button" onClick={(e) => handleRemoveServerFile(e, url)} style={{ color: 'var(--danger)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600 }}>[Hapus]</button>
                             </div>
                         </div>
                     ))}
-                    <button type="button" onClick={() => setDeletedFiles(prev => [...prev, fieldKey])} style={{ color: 'var(--danger)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600, alignSelf: 'flex-start', marginTop: '4px' }}>[Hapus Semua File {titleLabel}]</button>
+                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletedFiles(prev => [...prev, fieldKey]); }} style={{ color: 'var(--danger)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600, alignSelf: 'flex-start', marginTop: '4px' }}>[Hapus Semua File {titleLabel}]</button>
                 </div>
             </div>
         );
     };
 
-    const handleRemoveServerFile = (url) => {
+    const handleRemoveServerFile = (e, url) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         setDeletedItems(prev => [...prev, url]);
         toast.info("Lampiran ditandai untuk dihapus. Simpan untuk menerapkan perubahan.");
     };
 
-    const handleRemoveLocalFile = (setter, index) => {
+    const handleRemoveLocalFile = (e, setter, index) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         setter(prev => prev.filter((_, i) => i !== index));
     };
 
@@ -420,7 +437,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                 {files.map((f, i) => (
                     <div key={i} style={{ fontSize: '0.75rem', background: '#fef3c7', padding: '2px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span>{f.name}</span>
-                        <button type="button" onClick={() => handleRemoveLocalFile(setter, i)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontWeight: 900 }}>×</button>
+                        <button type="button" onClick={(e) => handleRemoveLocalFile(e, setter, i)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontWeight: 900 }}>×</button>
                     </div>
                 ))}
             </div>
@@ -430,8 +447,11 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
     const handleCancel = () => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
+            abortControllerRef.current = null;
             toast.info("Proses unggah dokumen dibatalkan.");
         }
+        setIsSubmitting(false);
+        setUploadProgress(0);
         onClose();
     };
 
@@ -521,6 +541,10 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
 
             // Append Text Data
             Object.keys(payload).forEach(key => {
+                // Jangan kirim field URL yang merupakan string dari database (agar tidak double/fail delete)
+                // Field URL yang baru akan di-handle oleh uploadTasks di bawah
+                if (key.endsWith('Url')) return;
+
                 // Jangan lewatkan string kosong agar backend bisa melakukan clearing
                 if (payload[key] !== null) {
                     submitData.append(key, payload[key]);
@@ -597,7 +621,7 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
                 payload.hukuman.includes('PTDH');
 
             if (hasPtdh) {
-                setShowPtdhWarning(true);
+                if (isMounted.current) setShowPtdhWarning(true);
             } else {
                 try {
                     if (onSuccess) onSuccess();
@@ -615,9 +639,11 @@ const PelanggaranFormModal = ({ isOpen, onClose, onSuccess, isEdit = false, init
             }
             toast.error(error.response?.data?.message || 'Gagal menyimpan riwayat ke sistem.');
         } finally {
-            setIsSubmitting(false);
-            setUploadProgress(0);
-            abortControllerRef.current = null;
+            if (isMounted.current) {
+                setIsSubmitting(false);
+                setUploadProgress(0);
+                abortControllerRef.current = null;
+            }
         }
 
     };

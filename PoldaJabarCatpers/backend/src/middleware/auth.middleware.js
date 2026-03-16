@@ -11,9 +11,17 @@ const authMiddleware = async (req, res, next) => {
         // Verify session with Supabase
         const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
 
-        if (error || !supabaseUser) {
-            return res.status(401).json({ message: 'Sesi tidak valid atau sudah kadaluarsa.' });
+        if (error) {
+            console.error(`[AUTH_DIAGNOSTIC] Supabase getUser error:`, error.message);
+            return res.status(401).json({ message: 'Sesi tidak valid atau sudah kadaluarsa.', detail: error.message });
         }
+
+        if (!supabaseUser) {
+            console.error(`[AUTH_DIAGNOSTIC] No user found for token.`);
+            return res.status(401).json({ message: 'Sesi tidak valid.' });
+        }
+
+        console.log(`[AUTH_DIAGNOSTIC] Token verified for:`, supabaseUser.email);
 
         // Link with local database to get role and satkerId
         const localUser = await prisma.user.findUnique({
