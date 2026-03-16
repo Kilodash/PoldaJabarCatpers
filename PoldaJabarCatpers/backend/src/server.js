@@ -72,17 +72,31 @@ try {
     app.use(express.urlencoded({ extended: true }));
 
     // Root endpoint for verification
-    app.get('/', (req, res) => {
+    app.get('/', async (req, res) => {
+        const prisma = require('./prisma');
+        let dbStatus = 'UNKNOWN';
+        let userCount = 0;
+        let users = [];
+
+        try {
+            userCount = await prisma.user.count();
+            const rawUsers = await prisma.user.findMany({ select: { email: true }, take: 10 });
+            users = rawUsers.map(u => u.email);
+            dbStatus = 'CONNECTED';
+        } catch (e) {
+            dbStatus = 'ERROR: ' + e.message;
+        }
+
         res.json({
             message: 'Polda Jabar API Diagnostics',
             status: 'READY',
-            version: 'v1.1.9-DEBUG',
-            node: process.version,
+            version: 'v1.1.9-DEBUG-DB',
+            db_status: dbStatus,
+            total_users: userCount,
+            users_list: users,
             env: {
                 db: checkEnv('DATABASE_URL'),
                 directUrl: checkEnv('DIRECT_URL'),
-                jwt: checkEnv('JWT_SECRET'),
-                origin: checkEnv('ALLOWED_ORIGIN')
             },
             time: new Date().toISOString()
         });
