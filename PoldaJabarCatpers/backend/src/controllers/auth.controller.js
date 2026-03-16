@@ -84,7 +84,34 @@ const getMe = async (req, res) => {
     }
 }
 
+const diagDb = async (req, res) => {
+    try {
+        const userCount = await prisma.user.count();
+        const users = await prisma.user.findMany({
+            select: { email: true, role: true },
+            take: 10
+        });
+
+        res.json({
+            status: 'online',
+            db_provider: prisma._activeProvider || 'postgresql',
+            total_users: userCount,
+            user_samples: users.map(u => u.email),
+            env_check: {
+                has_db_url: !!process.env.DATABASE_URL,
+                node_env: process.env.NODE_ENV
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            message: error.message
+        });
+    }
+};
+
 module.exports = {
     login,
-    getMe
+    getMe,
+    diagDb
 };
