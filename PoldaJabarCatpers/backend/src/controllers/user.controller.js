@@ -129,22 +129,46 @@ const updateUser = async (req, res) => {
 
             if (emailChanged || passwordProvided || metaChanged) {
                 const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-                const sbUser = users.find(u => u.email === userBefore.email);
+                
+                if (listError) {
+                    console.error('Gagal mengambil daftar user Supabase:', listError.message);
+                } else {
+                    let sbUser = users.find(u => u.email === userBefore.email);
 
-                if (sbUser) {
-                    const updatePayload = {
-                        user_metadata: { displayName, phone }
-                    };
-                    if (emailChanged) updatePayload.email = email;
-                    if (passwordProvided) updatePayload.password = password;
+                    // UPSERT LOGIC: If user exists in local DB but NOT in Supabase Auth, CREATE them
+                    if (!sbUser) {
+                        console.log(`[SYNC] User ${userBefore.email} missing in Supabase. Creating...`);
+                        const { data: newSbUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+                            email: email, // Use new email if it's changing
+                            password: passwordProvided ? password : 'TemporaryPassword123!', // Need a password for new user
+                            email_confirm: true,
+                            user_metadata: { displayName, phone }
+                        });
 
-                    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(sbUser.id, updatePayload);
-                    if (updateError) {
-                        console.error('Gagal update user di Supabase:', updateError.message);
-                        // Optional: return error if essential sync fails
+                        if (createError) {
+                            console.error('Gagal sinkronisasi (Create) ke Supabase:', createError.message);
+                        } else {
+                            console.log(`[SYNC] User ${email} successfully created in Supabase.`);
+                        }
+                    } else {
+                        // Regular Update
+                        const updatePayload = {
+                            user_metadata: { displayName, phone }
+                        };
+                        if (emailChanged) updatePayload.email = email;
+                        if (passwordProvided) updatePayload.password = password;
+
+                        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(sbUser.id, updatePayload);
+                        if (updateError) {
+                            console.error('Gagal sinkronisasi (Update) ke Supabase:', updateError.message);
+                        } else {
+                            console.log(`[SYNC] User ${email} successfully updated in Supabase.`);
+                        }
                     }
                 }
             }
+        } else {
+            console.warn('[SYNC_WARNING] Supabase Admin not configured. Skipping Auth sync.');
         }
 
         if (password && password.trim() !== '') {
@@ -183,11 +207,23 @@ const deleteUser = async (req, res) => {
         // Delete from Supabase Auth
         if (supabaseAdmin) {
             const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-            const sbUser = users.find(u => u.email === userToDelete.email);
-            if (sbUser) {
-                const { error: delError } = await supabaseAdmin.auth.admin.deleteUser(sbUser.id);
-                if (delError) console.error('Gagal hapus user di Supabase:', delError.message);
+            if (listError) {
+                console.error('Gagal mengambil daftar user Supabase saat hapus:', listError.message);
+            } else {
+                const sbUser = users.find(u => u.email === userToDelete.email);
+                if (sbUser) {
+                    const { error: delError } = await supabaseAdmin.auth.admin.deleteUser(sbUser.id);
+                    if (delError) {
+                        console.error('Gagal hapus user di Supabase:', delError.message);
+                    } else {
+                        console.log(`[SYNC] User ${userToDelete.email} deleted from Supabase.`);
+                    }
+                } else {
+                    console.log(`[SYNC] User ${userToDelete.email} not found in Supabase. Skipping Auth deletion.`);
+                }
             }
+        } else {
+            console.warn('[SYNC_WARNING] Supabase Admin not configured. Skipping Auth deletion.');
         }
 
         await prisma.user.delete({ where: { id: parseInt(id) } });
@@ -300,18 +336,30 @@ const toggleUserStatus = async (req, res) => {
         if (!supabaseAdmin) return res.status(500).json({ message: 'Layanan Supabase Admin tidak terkonfigurasi.' });
 
         // Find user UUID in Supabase
-        const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-        const sbUser = users.find(u => u.email === user.email);
+        if (supabaseAdmin) {
+            const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+            if (listError) {
+                console.error('Gagal mengambil daftar user Supabase saat toggle status:', listError.message);
+            } else {
+                const sbUser = users.find(u => u.email === user.email);
 
-        if (!sbUser) return res.status(404).json({ message: 'User tidak ditemukan di Supabase Auth.' });
+                if (!sbUser) {
+                    console.warn(`[SYNC] User ${user.email} not found in Supabase Auth. Cannot toggle status.`);
+                } else {
+                    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(sbUser.id, {
+                        ban_duration: isBanned ? '876000h' : 'none' // Ban for 100 years or unban
+                    });
 
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(sbUser.id, {
-            ban_duration: isBanned ? '876000h' : 'none' // Ban for 100 years or unban
-        });
-
-        if (updateError) {
-            console.error('Supabase Ban/Unban Error:', updateError);
-            return res.status(400).json({ message: 'Gagal mengubah status user di Supabase Auth.', detail: updateError.message });
+                    if (updateError) {
+                        console.error('Supabase Ban/Unban Error:', updateError);
+                        // Optional: we might want to return error here as this is a specific action
+                    } else {
+                        console.log(`[SYNC] User ${user.email} status toggled in Supabase (Banned: ${isBanned}).`);
+                    }
+                }
+            }
+        } else {
+            console.warn('[SYNC_WARNING] Supabase Admin not configured. Skipping Auth status toggle.');
         }
 
         await prisma.auditLog.create({
