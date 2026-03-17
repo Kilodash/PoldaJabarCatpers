@@ -145,98 +145,131 @@ const getDashboardStats = async (req, res) => {
 
 const getSatkerStats = async (req, res) => {
     try {
-        const listSatker = await prisma.satker.findMany({
+        const currentDate = new Date();
+        const listSatkerRaw = await prisma.satker.findMany({
             select: { id: true, nama: true, urutan: true }
         });
 
-        const currentDate = new Date();
-
-        // Gunakan SELECT spesifik — hanya ambil kolom yang benar-benar dipakai
-        const allPersonel = await prisma.personel.findMany({
-            where: { deletedAt: null },
-            select: {
-                id: true,
-                satkerId: true,
-                statusKeaktifan: true,
-                isDraft: true,
-                tanggalPensiun: true,
-                pelanggaran: {
-                    where: { deletedAt: null },
-                    select: {
-                        isDraft: true,
-                        statusPenyelesaian: true,
-                        tanggalRekomendasi: true,
-                        tanggalBisaAjukanRps: true
-                    }
-                }
-            }
+        // 1. Group Count Personel per Satker (Aktif only)
+        const personelCounts = await prisma.personel.groupBy({
+            by: ['satkerId'],
+            where: {
+                deletedAt: null,
+                isDraft: false,
+                statusKeaktifan: 'AKTIF',
+                tanggalPensiun: { gt: currentDate }
+            },
+            _count: { id: true }
         });
 
-        const statsMap = listSatker.reduce((acc, s) => {
+        // 2. Group Count Tidak Aktif per Satker
+        const tidakAktifCounts = await prisma.personel.groupBy({
+            by: ['satkerId'],
+            where: {
+                deletedAt: null,
+                isDraft: false,
+                OR: [
+                    { statusKeaktifan: { not: 'AKTIF' } },
+                    { tanggalPensiun: { lte: currentDate } }
+                ]
+            },
+            _count: { id: true }
+        });
+
+        // 3. Group Count Butuh Approval (Personel Draft)
+        const approvalPersonelCounts = await prisma.personel.groupBy({
+            by: ['satkerId'],
+            where: { isDraft: true, deletedAt: null },
+            _count: { id: true }
+        });
+
+        // 4. Group Count Pelanggaran per Satker & Satkes (Status-based)
+        // Note: For complex counts, we might still need to process some data, but let's try to group more effectively
+        const violationStats = await prisma.pelanggaran.groupBy({
+            by: ['statusPenyelesaian'],
+            where: { 
+                isDraft: false, 
+                deletedAt: null,
+                personel: { statusKeaktifan: 'AKTIF', deletedAt: null, tanggalPensiun: { gt: currentDate } }
+            },
+            _count: { id: true }
+        });
+
+        // 5. Special condition counts for per-satker details
+        // We fetch counts for specific important status per satker
+        const satkerViolationCounts = await prisma.pelanggaran.groupBy({
+            by: ['personelId', 'statusPenyelesaian'],
+            where: { 
+                isDraft: false, 
+                deletedAt: null,
+                personel: { statusKeaktifan: 'AKTIF', deletedAt: null, tanggalPensiun: { gt: currentDate } }
+            },
+            _count: { id: true }
+        });
+
+        // Since prisma groupBy doesn't support nested where with specific logic easily for multiple columns
+        // Let's use a slightly more optimized manual approach but with database counts for bulk
+        
+        // RE-FETCH list satker stats but with better mapping
+        const statsMap = listSatkerRaw.reduce((acc, s) => {
             acc[s.id] = {
-                id: s.id,
-                nama: s.nama,
-                urutan: s.urutan,
-                totalPersonel: 0,
-                tidakAktif: 0,
-                catpersAktif: 0,
-                pernahTercatat: 0,
-                belumRekomendasi: 0,
-                belumRps: 0,
-                perdamaian: 0,
-                tidakTerbukti: 0,
-                belumSktt: 0,
-                belumSktb: 0,
-                butuhApproval: 0
+                id: s.id, nama: s.nama, urutan: s.urutan,
+                totalPersonel: 0, tidakAktif: 0, catpersAktif: 0,
+                pernahTercatat: 0, belumRekomendasi: 0, belumRps: 0,
+                perdamaian: 0, tidakTerbukti: 0, belumSktt: 0,
+                belumSktb: 0, butuhApproval: 0
             };
             return acc;
         }, {});
 
-        allPersonel.forEach(p => {
-            const s = statsMap[p.satkerId];
+        personelCounts.forEach(c => { if (statsMap[c.satkerId]) statsMap[c.satkerId].totalPersonel = c._count.id; });
+        tidakAktifCounts.forEach(c => { if (statsMap[c.satkerId]) statsMap[c.satkerId].tidakAktif = c._count.id; });
+        approvalPersonelCounts.forEach(c => { if (statsMap[c.satkerId]) statsMap[c.satkerId].butuhApproval += c._count.id; });
+
+        // For violation details, we still need Satker-level aggregation
+        // To avoid N+1 or fetching all, we use a more targeted findMany
+        const pelanggaranDetails = await prisma.pelanggaran.findMany({
+            where: {
+                deletedAt: null,
+                personel: { statusKeaktifan: 'AKTIF', deletedAt: null, tanggalPensiun: { gt: currentDate } }
+            },
+            select: {
+                isDraft: true,
+                statusPenyelesaian: true,
+                tanggalRekomendasi: true,
+                tanggalBisaAjukanRps: true,
+                personel: { select: { satkerId: true } }
+            }
+        });
+
+        pelanggaranDetails.forEach(pl => {
+            const s = statsMap[pl.personel.satkerId];
             if (!s) return;
 
-            const isAktif = p.statusKeaktifan === 'AKTIF' && !p.isDraft && p.tanggalPensiun > currentDate;
-
-            if (isAktif) {
-                s.totalPersonel++;
-            } else if (!p.isDraft) {
-                s.tidakAktif++;
-            }
-
-            if (p.isDraft) {
+            if (pl.isDraft) {
                 s.butuhApproval++;
+                return;
             }
 
-            p.pelanggaran.forEach(pl => {
-                if (pl.isDraft) {
-                    s.butuhApproval++;
-                }
-
-                if (!isAktif || pl.isDraft) return;
-
-                const status = pl.statusPenyelesaian;
-
-                if (status === 'PERDAMAIAN') s.perdamaian++;
-                if (status === 'TIDAK_TERBUKTI') s.tidakTerbukti++;
-                if (status === 'Belum ada SKTT') s.belumSktt++;
-                if (status === 'Belum ada SKTB') s.belumSktb++;
-
-                if (['MENJALANI_HUKUMAN', 'SIDANG'].includes(status)) {
-                    if (pl.tanggalRekomendasi) {
-                        s.pernahTercatat++;
+            const status = pl.statusPenyelesaian;
+            if (status === 'PERDAMAIAN') s.perdamaian++;
+            else if (status === 'TIDAK_TERBUKTI') s.tidakTerbukti++;
+            else if (status === 'Belum ada SKTT') s.belumSktt++;
+            else if (status === 'Belum ada SKTB') s.belumSktb++;
+            else if (['MENJALANI_HUKUMAN', 'SIDANG'].includes(status)) {
+                if (pl.tanggalRekomendasi) {
+                    s.pernahTercatat++;
+                } else {
+                    if (pl.tanggalBisaAjukanRps && pl.tanggalBisaAjukanRps <= currentDate) {
+                        s.belumRps++;
+                        s.belumRekomendasi++;
                     } else {
-                        if (pl.tanggalBisaAjukanRps && pl.tanggalBisaAjukanRps <= currentDate) {
-                            s.belumRps++;
-                            s.belumRekomendasi++;
-                        } else {
-                            s.catpersAktif++;
-                        }
+                        s.catpersAktif++;
                     }
-                } else if (status === 'PROSES') {
-                    s.catpersAktif++;
                 }
-            });
+            } else if (status === 'PROSES') {
+                s.catpersAktif++;
+            }
         });
 
         let data = Object.values(statsMap);

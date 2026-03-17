@@ -14,12 +14,28 @@ import MainLayout from './components/MainLayout';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>Memuat Sesi...</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  
+  if (loading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: '#f8f9fa' }}>
+        <div style={{ padding: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ margin: 0, color: '#2563eb' }}>Memuat Sesi...</h3>
+          <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.5rem' }}>Mohon tunggu sebentar.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  
   return <MainLayout>{children}</MainLayout>;
 };
 
 function App() {
+  const { user, loading } = useAuth();
+  
   return (
     <DashboardProvider>
       <Routes>

@@ -37,7 +37,7 @@ export const DashboardProvider = ({ children }) => {
 
     const fetchDashboardData = useCallback(async (isSilent = false, currentUser = null) => {
         const activeUser = currentUser || user;
-        if (!activeUser) return;
+        if (!activeUser) return null;
 
         if (!isSilent) setStatsLoading(true);
 
@@ -54,12 +54,11 @@ export const DashboardProvider = ({ children }) => {
                 setSatkerStatsList(Array.isArray(resSatkerStats.data) ? resSatkerStats.data : []);
             }
             
-            // Background fetch for violation data
-            fetchPelanggaranBackground();
-            
             setLastUpdated(new Date());
+            return { stats: resStats.data?.stats, satkerStats: resSatkerStats.data };
         } catch (error) {
             console.error("Gagal mengambil data dashboard", error);
+            throw error;
         } finally {
             if (!isSilent) setStatsLoading(false);
         }

@@ -1,60 +1,55 @@
-const { supabase } = require('../utils/supabase');
+const jwt = require('jsonwebtoken');
+
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: JWT_SECRET environment variable is not configured!');
+}
+
+const supabase = require('../supabase');
 const prisma = require('../prisma');
 
 const authMiddleware = async (req, res, next) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return res.status(401).json({ message: 'Akses ditolak. Token tidak ditemukan.' });
         }
 
-        // Verify session with Supabase
-        const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
-
-        if (error) {
-            console.error(`[AUTH_DIAGNOSTIC] Supabase getUser error:`, error.message);
-            return res.status(401).json({ message: 'Sesi tidak valid atau sudah kadaluarsa.', detail: error.message });
+        const token = authHeader.split(' ')[1];
+        
+        // 1. Verify token with Supabase
+        const { data: { user: sbUser }, error } = await supabase.auth.getUser(token);
+        
+        if (error || !sbUser) {
+            return res.status(401).json({ message: 'Token tidak valid atau sudah kadaluarsa.' });
         }
 
-        if (!supabaseUser) {
-            console.error(`[AUTH_DIAGNOSTIC] No user found for token.`);
-            return res.status(401).json({ message: 'Sesi tidak valid.' });
-        }
-
-        console.log(`[AUTH_DIAGNOSTIC] Token verified for: "${supabaseUser.email}"`);
-        const normalizedEmail = (supabaseUser.email || '').trim().toLowerCase();
-
-        // Seek user case-insensitively
-        const localUser = await prisma.user.findFirst({
-            where: {
-                email: {
-                    equals: normalizedEmail,
-                    mode: 'insensitive'
-                }
-            },
-            select: {
-                id: true,
-                email: true,
-                role: true,
-                satkerId: true
-            }
+        // 2. Fetch Prisma user profile for Role & Satker
+        const profile = await prisma.user.findUnique({
+            where: { email: sbUser.email },
+            include: { satker: true }
         });
 
-        if (!localUser) {
-            // DIAGNOSTICS: Find out why lookup failed on Vercel/Prod
-            const allUsers = await prisma.user.findMany({ select: { email: true }, take: 5 });
-            console.error(`[AUTH_DIAGNOSTIC] Profile NOT FOUND for: "${normalizedEmail}"`);
-            console.error(`[AUTH_DIAGNOSTIC] Current Provider: ${prisma._activeProvider || 'Unknown'}`);
-            console.error(`[AUTH_DIAGNOSTIC] Users in DB:`, allUsers.map(u => u.email).join(', ') || '(NONE)');
-            return res.status(403).json({ message: 'User Supabase ditemukan, tetapi profil lokal tidak ada.' });
+        if (!profile) {
+            console.warn(`[AUTH_DEBUG] User found in Supabase but MISSING in Prisma: ${sbUser.email}`);
+            return res.status(403).json({ message: 'Profil pengguna tidak ditemukan di sistem internal.' });
         }
 
-        // Attach user info to request object
-        req.user = localUser;
+        console.log(`[AUTH_DEBUG] Prisma profile attached for: ${profile.email}`);
+
+        // 3. Attach consolidated user info to request
+        req.user = {
+            id: profile.id,
+            sbId: sbUser.id,
+            email: profile.email,
+            role: profile.role,
+            satkerId: profile.satkerId,
+            satker: profile.satker
+        };
+        
         next();
     } catch (error) {
-        console.error('Auth Middleware Error:', error);
-        return res.status(500).json({ message: 'Terjadi kesalahan sistem pada otentikasi.' });
+        console.error('Auth Middleware Critical Error:', error);
+        return res.status(500).json({ message: 'Terjadi kesalahan pada server saat verifikasi token.' });
     }
 };
 

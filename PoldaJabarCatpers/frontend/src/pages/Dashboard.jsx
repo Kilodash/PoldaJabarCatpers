@@ -111,6 +111,12 @@ const Dashboard = () => {
         if (selectedPersonelDetail) setHasOpenedHistory(true);
     }, [selectedPersonelDetail]);
 
+    // Fetch table data on mount - stats are already pre-fetched during login
+    const { refreshPelanggaran } = useDashboard();
+    useEffect(() => {
+        refreshPelanggaran();
+    }, [refreshPelanggaran]);
+
 
     const requestSort = useCallback((key) => {
         setSortConfig(prev => ({

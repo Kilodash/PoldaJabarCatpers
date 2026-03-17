@@ -20,7 +20,15 @@ const uploadFileToSupabase = async (file, folderPath = 'uploads') => {
     const filePath = `${folderPath}/${uniqueFileName}`;
 
     try {
-        const { data, error } = await supabase.storage
+        // Preference: Use Admin client to bypass RLS if available. 
+        // Fallback to standard client (Anon/User) if not.
+        const client = supabaseAdmin || supabase;
+        
+        if (!client) {
+            throw new Error('No Supabase client available for upload.');
+        }
+
+        const { data, error } = await client.storage
             .from(BUCKET_NAME)
             .upload(filePath, file.buffer, {
                 contentType: file.mimetype,
@@ -28,7 +36,8 @@ const uploadFileToSupabase = async (file, folderPath = 'uploads') => {
             });
 
         if (error) {
-            console.error('Supabase upload error details:', error);
+            console.error(`[SUPABASE_UPLOAD_ERROR] Bucket: ${BUCKET_NAME}, Path: ${filePath}`);
+            console.error('Error details:', error);
             throw error;
         }
 

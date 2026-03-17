@@ -19,19 +19,12 @@ api.interceptors.request.use((config) => {
 // Response interceptor to handle 401 Unauthorized
 api.interceptors.response.use((response) => {
     return response;
-}, async (error) => {
+}, (error) => {
     if (error.response && error.response.status === 401) {
-        const isLoginPage = window.location.pathname === '/login';
-
-        // Clear local storage/cookies IMMEDIATELY
+        console.warn('Unauthorized access - removing session');
         Cookies.remove('token');
         Cookies.remove('user');
-        localStorage.removeItem('supabase.auth.token');
-
-        if (!isLoginPage) {
-            // Only redirect if not already on login page to avoid loops
-            window.location.href = '/login';
-        }
+        // window.location.href = '/login'; // Disabled to prevent redirect loops
     }
     return Promise.reject(error);
 });

@@ -1,9 +1,7 @@
-const path = require('path');
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+
 require('dotenv').config();
 
 // Diagnostic helper
@@ -27,32 +25,6 @@ const app = express();
 try {
     app.set('trust proxy', 1);
 
-    // Global security headers
-    app.use(helmet());
-
-    // Performance: compress all responses
-    app.use(compression());
-
-    // Global rate limiting (500 requests per 15 minutes)
-    const globalLimiter = rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 500,
-        message: { message: 'Terlalu banyak permintaan dari IP ini. Silahkan coba lagi nanti.' },
-        standardHeaders: true,
-        legacyHeaders: false,
-    });
-    app.use('/api/', globalLimiter);
-
-    // Strict rate limiting for authentication
-    const authLimiter = rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 20,
-        message: { message: 'Percobaan login terlalu sering. Silahkan tunggu 15 menit.' },
-        standardHeaders: true,
-        legacyHeaders: false,
-    });
-    app.use('/api/auth/login', authLimiter);
-
     const allowedOrigins = (process.env.ALLOWED_ORIGIN || '').split(',').map(o => o.trim()).filter(Boolean);
     app.use(cors({
         origin: (origin, callback) => {
@@ -72,38 +44,8 @@ try {
     app.use(express.urlencoded({ extended: true }));
 
     // Root endpoint for verification
-    app.get('/', async (req, res) => {
-        const prisma = require('./prisma');
-        let dbStatus = 'UNKNOWN';
-        let userCount = 0;
-        let users = [];
-
-        try {
-            userCount = await prisma.user.count();
-            const rawUsers = await prisma.user.findMany({ select: { email: true }, take: 10 });
-            users = rawUsers.map(u => u.email);
-            dbStatus = 'CONNECTED';
-        } catch (e) {
-            dbStatus = 'ERROR: ' + e.message;
-        }
-
-        res.json({
-            message: 'Polda Jabar API Diagnostics',
-            status: 'READY',
-            version: 'v1.1.9-DEBUG-DB-V3',
-            db_status: dbStatus,
-            db_provider: prisma._activeProvider || 'Unknown',
-            total_users: userCount,
-            users_list: users,
-            env: {
-                db_len: (process.env.DATABASE_URL || '').length,
-                supabase_url: (process.env.SUPABASE_URL || '').replace(/(https:\/\/).*(.supabase.co)/, '$1***$2'),
-                anon_key_len: (process.env.SUPABASE_ANON_KEY || '').length,
-                has_jwt_secret: !!process.env.JWT_SECRET,
-                node_env: process.env.NODE_ENV
-            },
-            time: new Date().toISOString()
-        });
+    app.get('/', (req, res) => {
+        res.json({ message: 'Polda Jabar API' });
     });
 
     // Debug endpoint — test DB connection directly
@@ -134,7 +76,6 @@ try {
     app.use('/api/pengaturan', require('./routes/pengaturan.routes'));
     app.use('/api/audit', require('./routes/audit.routes'));
     app.use('/api/pencarian', require('./routes/pencarian.routes'));
-    app.use('/api/storage', require('./routes/storage.routes'));
     console.log('Routes mounted.');
 
     // 404 Handler

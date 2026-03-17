@@ -11,22 +11,16 @@ import axios from 'axios';
  */
 export const uploadFileDirectly = async (file, folderPath = 'pelanggaran', onProgress = () => { }, signal = null) => {
     try {
-        // 1. Get Pre-signed URL from backend
-        const { data: signData } = await api.post('/storage/upload-url', {
-            fileName: file.name,
-            folderPath
-        }, { signal });
+        // We now use the backend /storage/upload endpoint instead of direct signed URL
+        // because signed URLs require service role keys which are often missing in dev.
 
-        const { signedUrl, publicUrl } = signData;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folderPath', folderPath);
 
-        // 2. Upload directly to Supabase
-        // Note: createSignedUploadUrl expects a standard PUT request
-        // https://supabase.com/docs/guides/storage/uploads/direct-uploads#signed-upload-urls
-
-        await axios.put(signedUrl, file, {
+        const response = await api.post('/storage/upload', formData, {
             headers: {
-                'Content-Type': file.type,
-                // 'x-upsert': 'false' // Default is false
+                'Content-Type': 'multipart/form-data',
             },
             onUploadProgress: (progressEvent) => {
                 const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -35,13 +29,13 @@ export const uploadFileDirectly = async (file, folderPath = 'pelanggaran', onPro
             signal
         });
 
-        return publicUrl;
+        return response.data.publicUrl;
     } catch (error) {
         if (axios.isCancel(error)) {
-            console.log('Upload direct aborted');
+            console.log('Upload aborted');
             throw error;
         }
-        console.error('Direct upload failed:', error);
+        console.error('Upload failed:', error);
         const status = error.response?.status;
         const msg = error.response?.data?.message || error.message;
         throw new Error(`Upload gagal (Status: ${status || 'Unknown'}). Detail: ${msg}`);

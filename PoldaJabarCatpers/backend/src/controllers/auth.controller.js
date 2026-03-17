@@ -1,61 +1,68 @@
-const { supabase } = require('../utils/supabase');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const prisma = require('../prisma');
 
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // 1. Authenticate with Supabase
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
-
-        if (error) {
-            console.log(`[LOGIN_DIAGNOSTIC] Auth error for ${email}: ${error.message}`);
-            return res.status(401).json({ message: 'Email atau password salah.' });
-        }
-
-        const { session, user: supabaseUser } = data;
-        const normalizedEmail = email.trim().toLowerCase();
-
-        // 2. Fetch local user profile case-insensitively
-        const localUser = await prisma.user.findFirst({
-            where: {
-                email: {
-                    equals: normalizedEmail,
-                    mode: 'insensitive'
-                }
-            },
+        const user = await prisma.user.findUnique({
+            where: { email },
             include: {
                 satker: true
             }
         });
 
-        if (!localUser) {
-            const allUsers = await prisma.user.findMany({ select: { email: true }, take: 5 });
-            console.log(`[LOGIN_DIAGNOSTIC] local user NOT FOUND for: "${normalizedEmail}"`);
-            console.log(`[LOGIN_DIAGNOSTIC] Users available in DB:`, allUsers.map(u => u.email).join(', ') || '(NONE)');
-            return res.status(403).json({ message: 'User Supabase ditemukan, tetapi profil lokal tidak ada.' });
+        if (!user) {
+            console.log(`[LOGIN_DIAGNOSTIC] User not found: ${email}`);
+            return res.status(401).json({ message: 'Email atau password salah.' });
         }
 
-        console.log(`[LOGIN_DIAGNOSTIC] Login success for: ${email}`);
+        console.log(`[LOGIN_DIAGNOSTIC] User found, comparing passwords...`);
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            console.log(`[LOGIN_DIAGNOSTIC] Password mismatch for: ${email}`);
+            return res.status(401).json({ message: 'Email atau password salah.' });
+        }
 
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+            console.error('[LOGIN_DIAGNOSTIC] FATAL: JWT_SECRET is not configured!');
+            return res.status(500).json({ message: 'Terjadi kesalahan konfigurasi pada server (JWT_SECRET).' });
+        }
+
+        console.log(`[LOGIN_DIAGNOSTIC] Password match, signing token...`);
+        const token = jwt.sign(
+            {
+                id: user.id,
+                role: user.role,
+                satkerId: user.satkerId
+            },
+            secret,
+            { expiresIn: '1d' }
+        );
+
+        console.log(`[LOGIN_DIAGNOSTIC] Login success for: ${email}`);
         res.json({
             message: 'Login berhasil',
-            token: session.access_token,
+            token,
             user: {
-                id: localUser.id,
-                email: localUser.email,
-                role: localUser.role,
-                satker: localUser.satker
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                satker: user.satker
             }
         });
 
     } catch (error) {
         console.error('--- [LOGIN_DIAGNOSTIC] CRITICAL ERROR ---');
         console.error('Message:', error.message);
-        res.status(500).json({
+        console.error('Name:', error.name);
+        if (error.code) console.error('Code:', error.code);
+        if (error.stack) console.error('Stack:', error.stack);
+        console.error('-----------------------------------------');
+        
+        res.status(500).json({ 
             message: 'Terjadi kesalahan pada server saat login.',
             detail: error.message
         });
@@ -64,61 +71,15 @@ const login = async (req, res) => {
 
 const getMe = async (req, res) => {
     try {
-        console.log(`[AUTH_DIAGNOSTIC] getMe called for userId:`, req.user?.id);
-
-        // req.user is already populated by authMiddleware
-        const user = await prisma.user.findUnique({
-            where: { id: req.user.id },
-            include: { satker: true }
-        });
-
-        if (!user) {
-            console.error(`[AUTH_DIAGNOSTIC] getMe found NO USER in DB for ID:`, req.user?.id);
-            return res.status(404).json({ message: 'User tidak ditemukan di database profil.' });
-        }
-
-        console.log(`[AUTH_DIAGNOSTIC] getMe successful for:`, user.email);
-
-        res.json({
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            satker: user.satker
-        });
+        // middleware already attached profile to req.user
+        res.json(req.user);
     } catch (error) {
         console.error('GetMe Error:', error);
         res.status(500).json({ message: 'Terjadi kesalahan server' });
     }
 }
 
-const diagDb = async (req, res) => {
-    try {
-        const userCount = await prisma.user.count();
-        const users = await prisma.user.findMany({
-            select: { email: true, role: true },
-            take: 10
-        });
-
-        res.json({
-            status: 'online',
-            db_provider: prisma._activeProvider || 'postgresql',
-            total_users: userCount,
-            user_samples: users.map(u => u.email),
-            env_check: {
-                has_db_url: !!process.env.DATABASE_URL,
-                node_env: process.env.NODE_ENV
-            }
-        });
-    } catch (error) {
-        res.status(500).json({
-            status: 'error',
-            message: error.message
-        });
-    }
-};
-
 module.exports = {
     login,
-    getMe,
-    diagDb
+    getMe
 };

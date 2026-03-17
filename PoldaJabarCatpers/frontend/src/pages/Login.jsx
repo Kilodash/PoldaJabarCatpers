@@ -21,15 +21,12 @@ const Login = () => {
         setIsLoading(true);
         try {
             const data = await login(email, password);
-            prefetchDashboard(data.user); // Silent pre-fetch immediately with user context
+            prefetchDashboard(data.user); // Trigger in background, don't wait
             toast.success('Login berhasil!');
-            setTimeout(() => {
-                navigate('/dashboard');
-            }, 1000);
+            navigate('/dashboard');
         } catch (error) {
-            console.error('Login error:', error);
-            const errorMessage = error.message || (error.response?.data?.message) || 'Gagal login. Periksa kembali kredensial Anda.';
-            toast.error(errorMessage);
+            console.error('[LOGIN_ERROR_DEBUG]', error);
+            toast.error(error.message || 'Gagal login. Periksa kembali kredensial Anda.');
         } finally {
             setIsLoading(false);
         }
