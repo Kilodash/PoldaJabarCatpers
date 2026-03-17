@@ -93,6 +93,19 @@ try {
         if (err.stack) console.error('Stack:', err.stack);
         console.error('----------------------');
 
+        // Handle Multer Errors (e.g. File too large)
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+                message: 'Ukuran file terlalu besar! Maksimal diperbolehkan 5MB.'
+            });
+        }
+        
+        if (err.name === 'MulterError') {
+            return res.status(400).json({
+                message: `Kesalahan Unggah: ${err.message}`
+            });
+        }
+
         res.status(err.status || 500).json({
             message: 'Terjadi kesalahan pada server.',
             error: process.env.NODE_ENV === 'development' ? err.message : undefined

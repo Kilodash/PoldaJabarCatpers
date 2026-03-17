@@ -11,8 +11,12 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
     ? createClient(supabaseUrl, supabaseAnonKey)
     : {
         auth: {
-            getSession: async () => ({ data: { session: null }, error: new Error('Supabase not configured') }),
-            onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
+            getSession: async () => ({ data: { session: null }, error: null }),
+            onAuthStateChange: (cb) => {
+                // Instantly call with null session to prevent hanging
+                cb('SIGNED_OUT', null);
+                return { data: { subscription: { unsubscribe: () => { } } } };
+            },
             signOut: async () => { },
             signInWithPassword: async () => ({ error: new Error('Supabase not configured') })
         }

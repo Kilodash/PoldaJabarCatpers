@@ -43,32 +43,58 @@ export const AuthProvider = ({ children }) => {
     };
 
     useEffect(() => {
+        let isInstanceMounted = true;
+
+        const checkInitialSession = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (isInstanceMounted && session) {
+                    await syncUserWithBackend(session);
+                }
+            } catch (err) {
+                console.error("[AUTH_INIT_FAIL]", err);
+            } finally {
+                if (isInstanceMounted) setLoading(false);
+            }
+        };
+
+        const syncUserWithBackend = async (session) => {
+            if (!session) return;
+            try {
+                const res = await api.get('/auth/me', {
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+
+                const userData = { ...res.data, token: session.access_token };
+                setUser(userData);
+                Cookies.set('token', session.access_token, { expires: 1 });
+                Cookies.set('user', JSON.stringify(userData), { expires: 1 });
+            } catch (error) {
+                console.error("[AUTH_SYNC_FAIL]", error.response?.status, error.message);
+                if (error.response?.status === 401) {
+                    await supabase.auth.signOut();
+                    setUser(null);
+                } else if (error.response?.status === 403) {
+                    setUser(null);
+                }
+            }
+        };
+
+        checkInitialSession();
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log(`[AUTH_EVENT] ${event}`, session?.user?.email);
-            
+
+            if (event === 'SIGNED_OUT') {
+                setUser(null);
+                Cookies.remove('token');
+                Cookies.remove('user');
+                setLoading(false);
+                return;
+            }
+
             if (session) {
-                try {
-                    const res = await api.get('/auth/me', {
-                        headers: { Authorization: `Bearer ${session.access_token}` }
-                    });
-                    
-                    const userData = { ...res.data, token: session.access_token };
-                    setUser(userData);
-                    Cookies.set('token', session.access_token, { expires: 1 });
-                    Cookies.set('user', JSON.stringify(userData), { expires: 1 });
-                } catch (error) {
-                    console.error("[AUTH_SYNC_FAIL]", error.response?.status, error.message);
-                    if (error.response?.status === 401) {
-                        // Truly invalid token, sign out
-                        await supabase.auth.signOut();
-                        setUser(null);
-                    } else if (error.response?.status === 403) {
-                        // User exists in Supabase but NOT in Prisma
-                        // We still set user to SOMETHING but maybe with a 'NO_PROFILE' flag
-                        // Or just null to trigger login redirect
-                        setUser(null);
-                    }
-                }
+                await syncUserWithBackend(session);
             } else {
                 setUser(null);
                 Cookies.remove('token');
@@ -78,6 +104,7 @@ export const AuthProvider = ({ children }) => {
         });
 
         return () => {
+            isInstanceMounted = false;
             subscription.unsubscribe();
         };
     }, []);

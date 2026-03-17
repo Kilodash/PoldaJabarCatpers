@@ -202,6 +202,7 @@ const updateUser = async (req, res) => {
         });
 
         let warning = null;
+        console.log('[USER_CONTROLLER_DEBUG] supabaseAdmin truthy:', !!supabaseAdmin);
         if (!supabaseAdmin) {
             warning = 'Profil lokal diperbarui, namun SINKRONISASI KE SUPABASE DILEWATI karena Master Key (Service Role) belum dikonfigurasi.';
             console.warn(`[SYNC_WARNING] ${warning}`);
