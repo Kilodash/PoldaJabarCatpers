@@ -76,6 +76,7 @@ try {
     app.use('/api/pengaturan', require('./routes/pengaturan.routes'));
     app.use('/api/audit', require('./routes/audit.routes'));
     app.use('/api/pencarian', require('./routes/pencarian.routes'));
+    console.log('Mounting /api/storage route...');
     app.use('/api/storage', require('./routes/storage.routes'));
     console.log('Routes mounted.');
 
