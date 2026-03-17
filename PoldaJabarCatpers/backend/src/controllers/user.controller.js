@@ -39,6 +39,8 @@ const getAllUsers = async (req, res) => {
                     return u;
                 });
             }
+        } else {
+            console.warn('[SYNC_WARNING] Supabase Admin not configured. User status display will be limited.');
         }
 
         res.json(enrichedUsers);
@@ -98,7 +100,16 @@ const createUser = async (req, res) => {
             }
         });
 
-        res.status(201).json({ message: 'User berhasil dibuat di Supabase dan lokal.' });
+        let warning = null;
+        if (!supabaseAdmin) {
+            warning = 'User dibuat secara lokal, namun SINKRONISASI KE SUPABASE DILEWATI karena Master Key belum dikonfigurasi.';
+            console.warn(`[SYNC_WARNING] ${warning}`);
+        }
+
+        res.status(201).json({ 
+            message: 'User berhasil dibuat secara lokal.',
+            warning: warning
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Terjadi kesalahan server saat membuat User.' });
@@ -190,7 +201,16 @@ const updateUser = async (req, res) => {
             }
         });
 
-        res.json({ message: 'User berhasil diupdate.' });
+        let warning = null;
+        if (!supabaseAdmin) {
+            warning = 'Profil lokal diperbarui, namun SINKRONISASI KE SUPABASE DILEWATI karena Master Key (Service Role) belum dikonfigurasi.';
+            console.warn(`[SYNC_WARNING] ${warning}`);
+        }
+
+        res.json({ 
+            message: 'User berhasil diupdate.',
+            warning: warning 
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Terjadi kesalahan server saat update User.' });

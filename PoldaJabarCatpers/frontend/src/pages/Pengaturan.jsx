@@ -321,11 +321,13 @@ const Pengaturan = () => {
             if (modalType === 'user') {
                 const payload = { ...formData, satkerId: formData.satkerId ? parseInt(formData.satkerId) : null };
                 if (isEdit) {
-                    await api.put(`/users/${formData.id}`, payload);
-                    toast.success('User berhasil diupdate');
+                    const res = await api.put(`/users/${formData.id}`, payload);
+                    toast.success(res.data.message || 'User berhasil diupdate');
+                    if (res.data.warning) toast.warning(res.data.warning, { duration: 6000 });
                 } else {
-                    await api.post('/users', payload);
-                    toast.success('User berhasil ditambahkan');
+                    const res = await api.post('/users', payload);
+                    toast.success(res.data.message || 'User berhasil ditambahkan');
+                    if (res.data.warning) toast.warning(res.data.warning, { duration: 6000 });
                 }
             } else if (modalType === 'satker') {
                 const payload = {
