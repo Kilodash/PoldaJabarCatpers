@@ -6,8 +6,23 @@ const api = axios.create({
 });
 
 // Request interceptor to add token
-api.interceptors.request.use((config) => {
-    const token = Cookies.get('token');
+api.interceptors.request.use(async (config) => {
+    let token = Cookies.get('token');
+
+    // Fallback: Try to get token from Supabase session if cookie is missing
+    if (!token) {
+        try {
+            // Dynamically import to avoid circular dependencies if any
+            const { supabase } = await import('./supabase');
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                token = session.access_token;
+            }
+        } catch (err) {
+            console.error('Error fetching session in interceptor:', err);
+        }
+    }
+
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
