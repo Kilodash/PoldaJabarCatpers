@@ -10,7 +10,6 @@ router.use(authMiddleware);
 router.post('/upload-url', storageController.getUploadUrl);
 
 // New Endpoint: Direct upload relay
-console.log('Registering POST /upload in storage.routes.js');
 router.post('/upload', upload.single('file'), storageController.uploadFile);
 
 module.exports = router;
