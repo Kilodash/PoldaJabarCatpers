@@ -8,8 +8,12 @@ const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    // SWR Pattern: Initialize from cookies if available for instant UI render
+    const [user, setUser] = useState(() => {
+        const savedUser = Cookies.get('user');
+        return savedUser ? JSON.parse(savedUser) : null;
+    });
+    const [loading, setLoading] = useState(!Cookies.get('token'));
 
     const login = async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -50,6 +54,11 @@ export const AuthProvider = ({ children }) => {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (isInstanceMounted && session) {
                     await syncUserWithBackend(session);
+                } else if (isInstanceMounted) {
+                    // No session found, clear state
+                    setUser(null);
+                    Cookies.remove('token');
+                    Cookies.remove('user');
                 }
             } catch (err) {
                 console.error("[AUTH_INIT_FAIL]", err);

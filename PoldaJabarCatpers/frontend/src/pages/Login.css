@@ -3,23 +3,33 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(circle at center, var(--primary-light), var(--primary-color));
+    background: #0b2447;
     position: relative;
     overflow: hidden;
 }
 
 .login-backdrop {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background-image: url('/bg-polda.png');
     background-size: cover;
     background-position: center;
-    background-repeat: no-repeat;
-    opacity: 0.35;
+    opacity: 0.2;
     z-index: 1;
+}
+
+.login-background-overlay {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 30%, rgba(87, 108, 188, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(25, 55, 109, 0.15) 0%, transparent 50%);
+    animation: backgroundShift 15s ease-in-out infinite alternate;
+    z-index: 2;
+}
+
+@keyframes backgroundShift {
+    from { transform: scale(1) translate(0, 0); }
+    to { transform: scale(1.1) translate(2% , 2%); }
 }
 
 .login-card {
@@ -27,13 +37,25 @@
     z-index: 10;
     width: 100%;
     max-width: 420px;
-    padding: 2.5rem;
+    padding: 3rem 2.5rem;
     border-radius: var(--radius-xl);
     text-align: center;
     margin: 0 1rem;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    background: rgba(255, 255, 255, 0.92);
-    border-top: 4px solid var(--secondary-color);
+    box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.4), 
+                0 0 40px rgba(87, 108, 188, 0.1);
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.login-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: linear-gradient(to right, var(--primary-light), var(--secondary-color));
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 .login-header {
@@ -113,27 +135,28 @@
 }
 
 .btn-login {
-    margin-top: 1rem;
-    background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+    margin-top: 1.5rem;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
     color: white;
-    padding: 0.875rem;
+    padding: 1rem;
     border-radius: var(--radius-md);
     font-size: 1rem;
-    font-weight: 600;
-    transition: transform 0.2s, box-shadow 0.2s;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     display: flex;
     justify-content: center;
     align-items: center;
+    box-shadow: 0 4px 15px rgba(11, 36, 71, 0.3);
 }
 
 .btn-login:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md), var(--shadow-glow);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(87, 108, 188, 0.4), var(--shadow-glow);
 }
 
-.btn-login:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
+.btn-login:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
 }
 
 .password-toggle {

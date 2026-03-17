@@ -36,6 +36,17 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   const { user, loading } = useAuth();
   
+  if (loading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: '#f8f9fa' }}>
+        <div style={{ padding: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ margin: 0, color: '#2563eb' }}>Memuat Aplikasi...</h3>
+          <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.5rem' }}>Mohon tunggu sebentar.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <DashboardProvider>
       <Routes>
@@ -71,8 +82,8 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
       </Routes>
     </DashboardProvider>
   );

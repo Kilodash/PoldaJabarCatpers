@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDashboard } from '../context/DashboardContext';
@@ -12,9 +12,16 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
-    const { login } = useAuth();
+    const { login, user } = useAuth();
     const { refresh: prefetchDashboard } = useDashboard();
     const navigate = useNavigate();
+
+    // Redirect if already logged in
+    useEffect(() => {
+        if (user) {
+            navigate('/dashboard', { replace: true });
+        }
+    }, [user, navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -37,8 +44,9 @@ const Login = () => {
             <Toaster position="top-right" richColors />
 
             <div className="login-backdrop"></div>
+            <div className="login-background-overlay"></div>
 
-            <div className="login-card glass-panel animate-fade-in">
+            <div className="login-card animate-fade-in">
                 <div className="login-header">
                     <div className="logo-container" style={{ marginBottom: '1rem' }}>
                         <img src="https://bidpropam.sumsel.polri.go.id/ecpp/public/images/logo/logo-paminal.png" alt="Logo Paminal" style={{ height: '120px' }} />
