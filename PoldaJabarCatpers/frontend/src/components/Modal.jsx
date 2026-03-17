@@ -5,11 +5,31 @@ const Modal = ({ isOpen, onClose, title, children, position, maxWidth, disableCl
     React.useEffect(() => {
         if (isOpen) {
             document.body.classList.add('modal-open');
-        } else {
-            document.body.classList.remove('modal-open');
+            
+            // Push a dummy state to history so back button closes modal
+            const modalState = { modalId: title || 'modal' };
+            window.history.pushState(modalState, '');
+
+            const handlePopState = () => {
+                if (isOpen && !disableClose) {
+                    onClose();
+                }
+            };
+
+            window.addEventListener('popstate', handlePopState);
+
+            return () => {
+                document.body.classList.remove('modal-open');
+                window.removeEventListener('popstate', handlePopState);
+                
+                // If the modal was closed manually (not via back button), 
+                // we should clean up the history state we pushed.
+                if (window.history.state && window.history.state.modalId === (title || 'modal')) {
+                    window.history.back();
+                }
+            };
         }
-        return () => document.body.classList.remove('modal-open');
-    }, [isOpen]);
+    }, [isOpen, onClose, title, disableClose]);
 
     if (!isOpen) return null;
 

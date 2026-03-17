@@ -85,22 +85,26 @@ export const AuthProvider = ({ children }) => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log(`[AUTH_EVENT] ${event}`, session?.user?.email);
 
-            if (event === 'SIGNED_OUT') {
-                setUser(null);
-                Cookies.remove('token');
-                Cookies.remove('user');
-                setLoading(false);
-                return;
-            }
+            try {
+                if (event === 'SIGNED_OUT') {
+                    setUser(null);
+                    Cookies.remove('token');
+                    Cookies.remove('user');
+                    return;
+                }
 
-            if (session) {
-                await syncUserWithBackend(session);
-            } else {
-                setUser(null);
-                Cookies.remove('token');
-                Cookies.remove('user');
+                if (session) {
+                    await syncUserWithBackend(session);
+                } else {
+                    setUser(null);
+                    Cookies.remove('token');
+                    Cookies.remove('user');
+                }
+            } catch (err) {
+                console.error("[AUTH_EVENT_ERROR]", err);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         });
 
         return () => {

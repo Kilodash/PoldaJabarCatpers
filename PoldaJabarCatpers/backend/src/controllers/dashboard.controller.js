@@ -1,22 +1,37 @@
 const prisma = require('../prisma');
 
+let dashboardStatsCache = {
+    data: null,
+    lastFetched: 0
+};
+const DASHBOARD_CACHE_TTL = 3 * 60 * 1000; // 3 minutes
+
 const getDashboardStats = async (req, res) => {
     try {
-        let satkerFilter = {};
+        const forceRefresh = req.query.refresh === 'true';
+        const satkerIdQuery = req.query.satkerId ? parseInt(req.query.satkerId) : null;
+        
+        // Caching is only for global stats (non-satker specific) to simplify
+        const isGlobal = (req.user.role === 'ADMIN_POLDA' && !satkerIdQuery);
+        
+        const now = Date.now();
+        if (!forceRefresh && isGlobal && dashboardStatsCache.data && (now - dashboardStatsCache.lastFetched < DASHBOARD_CACHE_TTL)) {
+            return res.json(dashboardStatsCache.data);
+        }
 
+        let satkerFilter = {};
         if (req.user.role === 'OPERATOR_SATKER') {
             satkerFilter = { satkerId: req.user.satkerId };
-        } else if (req.query.satkerId) {
-            satkerFilter = { satkerId: parseInt(req.query.satkerId) };
+        } else if (satkerIdQuery) {
+            satkerFilter = { satkerId: satkerIdQuery };
         }
 
         const currentDate = new Date();
-
-        const pelanggaranFilter = req.user.role === 'OPERATOR_SATKER' || req.query.satkerId ? {
+        const pelanggaranFilter = req.user.role === 'OPERATOR_SATKER' || satkerIdQuery ? {
             deletedAt: null,
             isDraft: false,
             personel: {
-                satkerId: req.user.role === 'OPERATOR_SATKER' ? req.user.satkerId : parseInt(req.query.satkerId),
+                satkerId: req.user.role === 'OPERATOR_SATKER' ? req.user.satkerId : satkerIdQuery,
                 deletedAt: null,
                 statusKeaktifan: 'AKTIF'
             }
@@ -26,25 +41,12 @@ const getDashboardStats = async (req, res) => {
             personel: { deletedAt: null, statusKeaktifan: 'AKTIF' }
         };
 
-        // Jalankan semua 10 query secara PARALEL dengan Promise.all
         const [
-            totalPersonel,
-            tidakAktif,
-            perdamaian,
-            pernahTercatat,
-            tidakTerbukti,
-            belumSktt,
-            belumSktb,
-            belumRps,
-            catpersAktif,
-            butuhApprovalPersonel,
+            totalPersonel, tidakAktif, perdamaian, pernahTercatat, tidakTerbukti,
+            belumSktt, belumSktb, belumRps, catpersAktif, butuhApprovalPersonel,
             butuhApprovalPelanggaran
         ] = await Promise.all([
-            // 1. Jumlah Personel Aktif
-            prisma.personel.count({
-                where: { ...satkerFilter, deletedAt: null, isDraft: false, statusKeaktifan: 'AKTIF' }
-            }),
-            // 2. Personel Tidak Aktif
+            prisma.personel.count({ where: { ...satkerFilter, deletedAt: null, isDraft: false, statusKeaktifan: 'AKTIF' } }),
             prisma.personel.count({
                 where: {
                     ...satkerFilter,
@@ -56,11 +58,7 @@ const getDashboardStats = async (req, res) => {
                     isDraft: false
                 }
             }),
-            // 3. Perdamaian
-            prisma.pelanggaran.count({
-                where: { ...pelanggaranFilter, statusPenyelesaian: 'PERDAMAIAN' }
-            }),
-            // 4. Pernah Tercatat
+            prisma.pelanggaran.count({ where: { ...pelanggaranFilter, statusPenyelesaian: 'PERDAMAIAN' } }),
             prisma.pelanggaran.count({
                 where: {
                     ...pelanggaranFilter,
@@ -68,19 +66,9 @@ const getDashboardStats = async (req, res) => {
                     tanggalRekomendasi: { not: null }
                 }
             }),
-            // 5. Tidak Terbukti
-            prisma.pelanggaran.count({
-                where: { ...pelanggaranFilter, statusPenyelesaian: 'TIDAK_TERBUKTI' }
-            }),
-            // 6. Belum SKTT
-            prisma.pelanggaran.count({
-                where: { ...pelanggaranFilter, statusPenyelesaian: 'Belum ada SKTT' }
-            }),
-            // 7. Belum SKTB
-            prisma.pelanggaran.count({
-                where: { ...pelanggaranFilter, statusPenyelesaian: 'Belum ada SKTB' }
-            }),
-            // 8. Belum RPS
+            prisma.pelanggaran.count({ where: { ...pelanggaranFilter, statusPenyelesaian: 'TIDAK_TERBUKTI' } }),
+            prisma.pelanggaran.count({ where: { ...pelanggaranFilter, statusPenyelesaian: 'Belum ada SKTT' } }),
+            prisma.pelanggaran.count({ where: { ...pelanggaranFilter, statusPenyelesaian: 'Belum ada SKTB' } }),
             prisma.pelanggaran.count({
                 where: {
                     ...pelanggaranFilter,
@@ -89,7 +77,6 @@ const getDashboardStats = async (req, res) => {
                     tanggalBisaAjukanRps: { lte: currentDate }
                 }
             }),
-            // 9. Catpers Aktif
             prisma.pelanggaran.count({
                 where: {
                     ...pelanggaranFilter,
@@ -106,11 +93,7 @@ const getDashboardStats = async (req, res) => {
                     ]
                 }
             }),
-            // 10. Butuh Approval Personel
-            prisma.personel.count({
-                where: { ...satkerFilter, isDraft: true, deletedAt: null }
-            }),
-            // 11. Butuh Approval Pelanggaran
+            prisma.personel.count({ where: { ...satkerFilter, isDraft: true, deletedAt: null } }),
             prisma.pelanggaran.count({
                 where: {
                     deletedAt: null,
@@ -120,31 +103,47 @@ const getDashboardStats = async (req, res) => {
             })
         ]);
 
-        res.json({
+        const result = {
             stats: {
-                totalPersonel,
-                tidakAktif,
-                catpersAktif,
-                pernahTercatat,
-                belumRps,
-                belumRekomendasi: belumRps,
-                perdamaian,
-                tidakTerbukti,
-                belumSktt,
-                belumSktb,
+                totalPersonel, tidakAktif, catpersAktif, pernahTercatat,
+                belumRps, belumRekomendasi: belumRps, perdamaian,
+                tidakTerbukti, belumSktt, belumSktb,
                 butuhApproval: butuhApprovalPersonel + butuhApprovalPelanggaran,
                 isSubmitting: false
             }
-        });
+        };
 
+        if (isGlobal) {
+            dashboardStatsCache = { data: result, lastFetched: now };
+        }
+
+        res.json(result);
     } catch (error) {
         console.error('Dashboard Stats Error:', error);
         res.status(500).json({ message: 'Terjadi kesalahan server.' });
     }
 };
 
+let satkerStatsCache = {
+    data: null,
+    lastFetched: 0
+};
+const SATKER_CACHE_TTL = 3 * 60 * 1000; // 3 minutes
+
 const getSatkerStats = async (req, res) => {
     try {
+        const forceRefresh = req.query.refresh === 'true';
+        const satkerIdQuery = req.query.satkerId ? parseInt(req.query.satkerId) : null;
+
+        // Caching is only for global stats (non-satker specific) to simplify
+        const isGlobal = (req.user.role === 'ADMIN_POLDA' && !satkerIdQuery);
+
+        const now = Date.now();
+        if (!forceRefresh && isGlobal && satkerStatsCache.data && (now - satkerStatsCache.lastFetched < SATKER_CACHE_TTL)) {
+            res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=120');
+            return res.json(satkerStatsCache.data);
+        }
+
         const currentDate = new Date();
         const listSatkerRaw = await prisma.satker.findMany({
             select: { id: true, nama: true, urutan: true }
@@ -183,33 +182,6 @@ const getSatkerStats = async (req, res) => {
             _count: { id: true }
         });
 
-        // 4. Group Count Pelanggaran per Satker & Satkes (Status-based)
-        // Note: For complex counts, we might still need to process some data, but let's try to group more effectively
-        const violationStats = await prisma.pelanggaran.groupBy({
-            by: ['statusPenyelesaian'],
-            where: { 
-                isDraft: false, 
-                deletedAt: null,
-                personel: { statusKeaktifan: 'AKTIF', deletedAt: null, tanggalPensiun: { gt: currentDate } }
-            },
-            _count: { id: true }
-        });
-
-        // 5. Special condition counts for per-satker details
-        // We fetch counts for specific important status per satker
-        const satkerViolationCounts = await prisma.pelanggaran.groupBy({
-            by: ['personelId', 'statusPenyelesaian'],
-            where: { 
-                isDraft: false, 
-                deletedAt: null,
-                personel: { statusKeaktifan: 'AKTIF', deletedAt: null, tanggalPensiun: { gt: currentDate } }
-            },
-            _count: { id: true }
-        });
-
-        // Since prisma groupBy doesn't support nested where with specific logic easily for multiple columns
-        // Let's use a slightly more optimized manual approach but with database counts for bulk
-        
         // RE-FETCH list satker stats but with better mapping
         const statsMap = listSatkerRaw.reduce((acc, s) => {
             acc[s.id] = {
@@ -227,7 +199,6 @@ const getSatkerStats = async (req, res) => {
         approvalPersonelCounts.forEach(c => { if (statsMap[c.satkerId]) statsMap[c.satkerId].butuhApproval += c._count.id; });
 
         // For violation details, we still need Satker-level aggregation
-        // To avoid N+1 or fetching all, we use a more targeted findMany
         const pelanggaranDetails = await prisma.pelanggaran.findMany({
             where: {
                 deletedAt: null,
@@ -276,12 +247,12 @@ const getSatkerStats = async (req, res) => {
 
         if (req.user.role === 'OPERATOR_SATKER') {
             data = data.filter(d => d.id === req.user.satkerId);
-        } else if (req.query.satkerId) {
-            data = data.filter(d => d.id === parseInt(req.query.satkerId));
+        } else if (satkerIdQuery) {
+            data = data.filter(d => d.id === satkerIdQuery);
         }
 
         const priority = (nama) => {
-            const n = nama.toLowerCase();
+            const n = (nama || '').toLowerCase();
             if (nama === 'Polda Jabar') return 0;
             if (n.startsWith('spripim')) return 1;
             if (n.startsWith('itwasda')) return 2;
@@ -331,7 +302,10 @@ const getSatkerStats = async (req, res) => {
             return a.nama.localeCompare(b.nama, 'id');
         });
 
-        // Cache-Control: data satker stats bisa di-cache 60 detik
+        if (isGlobal) {
+            satkerStatsCache = { data: data, lastFetched: now };
+        }
+
         res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=120');
         res.json(data);
     } catch (error) {

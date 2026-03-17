@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 
 require('dotenv').config();
@@ -40,6 +41,7 @@ try {
         credentials: true
     }));
 
+    app.use(compression());
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 
@@ -117,7 +119,7 @@ try {
 }
 
 if (process.env.NODE_ENV !== 'production') {
-    const PORT = process.env.PORT || 5001;
+    const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => console.log(`Local server on ${PORT}`));
 }
 

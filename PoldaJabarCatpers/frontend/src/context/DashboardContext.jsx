@@ -29,11 +29,26 @@ export const DashboardProvider = ({ children }) => {
     });
     const [satkerStatsList, setSatkerStatsList] = useState([]);
     const [pelanggaranList, setPelanggaranList] = useState([]); // Pre-fetched data
+    const [usersList, setUsersList] = useState([]); // Pre-fetched user accounts
     const [loading, setLoading] = useState(false);
     const [statsLoading, setStatsLoading] = useState(false);
+    const [usersLoading, setUsersLoading] = useState(false);
     const [lastUpdated, setLastUpdated] = useState(null);
 
     const refreshIntervalRef = useRef(null);
+
+    const fetchUsersBackground = useCallback(async () => {
+        if (!user || user.role !== 'ADMIN_POLDA') return;
+        try {
+            setUsersLoading(true);
+            const res = await api.get('/users?skipAuthStatus=true');
+            setUsersList(Array.isArray(res.data) ? res.data : []);
+        } catch (error) {
+            console.error("Gagal pre-fetch daftar user", error);
+        } finally {
+            setUsersLoading(false);
+        }
+    }, [user]);
 
     const fetchDashboardData = useCallback(async (isSilent = false, currentUser = null) => {
         const activeUser = currentUser || user;
@@ -54,6 +69,11 @@ export const DashboardProvider = ({ children }) => {
                 setSatkerStatsList(Array.isArray(resSatkerStats.data) ? resSatkerStats.data : []);
             }
             
+            // Trigger user pre-fetch if admin
+            if (activeUser.role === 'ADMIN_POLDA') {
+                fetchUsersBackground();
+            }
+
             setLastUpdated(new Date());
             return { stats: resStats.data?.stats, satkerStats: resSatkerStats.data };
         } catch (error) {
@@ -62,7 +82,7 @@ export const DashboardProvider = ({ children }) => {
         } finally {
             if (!isSilent) setStatsLoading(false);
         }
-    }, [user]);
+    }, [user, fetchUsersBackground]);
 
     const fetchPelanggaranBackground = useCallback(async () => {
         if (!user) return;
@@ -99,6 +119,7 @@ export const DashboardProvider = ({ children }) => {
                 tidakTerbukti: 0, belumSktt: 0, belumSktb: 0, butuhApproval: 0
             });
             setSatkerStatsList([]);
+            setUsersList([]);
             setLastUpdated(null);
         }
 
@@ -113,10 +134,13 @@ export const DashboardProvider = ({ children }) => {
         stats,
         satkerStatsList,
         pelanggaranList,
+        usersList,
         loading: statsLoading,
+        usersLoading,
         lastUpdated,
         refresh: (u) => fetchDashboardData(true, u),
-        refreshPelanggaran: fetchPelanggaranBackground
+        refreshPelanggaran: fetchPelanggaranBackground,
+        refreshUsers: fetchUsersBackground
     };
 
     return (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useDashboard } from '../context/DashboardContext';
 import {
     Settings, Users, User, Building, ShieldCheck, Plus, Edit2, Trash2,
     FileText, Download, Upload, Database, GripVertical, Search,
@@ -67,10 +68,10 @@ import Loading from '../components/Loading';
 
 const Pengaturan = () => {
     const { user } = useAuth();
+    const { usersList, usersLoading, refreshUsers } = useDashboard();
     const [activeTab, setActiveTab] = useState(user?.role === 'ADMIN_POLDA' ? 'users' : 'profil'); // profil | users | satker | app | impor_ekspor
 
     // States for data
-    const [usersList, setUsersList] = useState([]);
     const [satkerList, setSatkerList] = useState([]);
     const [pengaturanList, setPengaturanList] = useState([]);
     const [auditList, setAuditList] = useState([]);
@@ -115,29 +116,24 @@ const Pengaturan = () => {
         try {
             setLoading(true);
             const res = await Promise.allSettled([
-                api.get('/users'),
                 api.get('/satker'),
                 api.get('/pengaturan')
             ]);
 
-            // Check results individually
-            if (res[0].status === 'fulfilled') setUsersList(res[0].value.data);
+            if (res[0].status === 'fulfilled') setSatkerList(res[0].value.data);
             else {
-                const errMsg = res[0].reason?.response?.data?.message || 'Gagal memuat daftar User.';
-                toast.error(`Error Users: ${errMsg}`);
-            }
-
-            if (res[1].status === 'fulfilled') setSatkerList(res[1].value.data);
-            else {
-                const errMsg = res[1].reason?.response?.data?.message || 'Gagal memuat daftar Satker.';
+                const errMsg = res[0].reason?.response?.data?.message || 'Gagal memuat daftar Satker.';
                 toast.error(`Error Satker: ${errMsg}`);
             }
 
-            if (res[2].status === 'fulfilled') setPengaturanList(res[2].value.data);
+            if (res[1].status === 'fulfilled') setPengaturanList(res[1].value.data);
             else {
-                const errMsg = res[2].reason?.response?.data?.message || 'Gagal memuat Variabel Sistem.';
+                const errMsg = res[1].reason?.response?.data?.message || 'Gagal memuat Variabel Sistem.';
                 toast.error(`Error Variabel: ${errMsg}`);
             }
+
+            // Sync global user list in background
+            refreshUsers();
 
         } catch (error) {
             console.error('Pengaturan Fetch Critical Error:', error);
@@ -244,7 +240,7 @@ const Pengaturan = () => {
         try {
             await api.post(`/users/${userId}/toggle-status`, { isBanned });
             toast.success(`User berhasil ${isBanned ? 'dinonaktifkan' : 'diaktifkan'}.`);
-            fetchData();
+            refreshUsers();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Gagal mengubah status user');
         }
@@ -347,7 +343,8 @@ const Pengaturan = () => {
             }
 
             setIsModalOpen(false);
-            fetchData();
+            if (modalType === 'user') refreshUsers();
+            else fetchData();
         } catch (error) {
             toast.error(error.response?.data?.message || `Gagal menyimpan data ${modalType}`);
         }
@@ -360,7 +357,8 @@ const Pengaturan = () => {
                 else if (type === 'satker') await api.delete(`/satker/${id}`);
 
                 toast.success(`${type} berhasil dihapus`);
-                fetchData();
+                if (type === 'user') refreshUsers();
+                else fetchData();
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Gagal menghapus data');
             }
@@ -610,91 +608,108 @@ const Pengaturan = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {usersList.map(u => (
-                                        <tr key={u.id} style={{ opacity: u.supabaseData?.isBanned ? 0.6 : 1 }}>
-                                            <td style={{ fontWeight: 500 }}>
-                                                <div className="flex flex-col">
-                                                    <span>{u.email}</span>
-                                                    {u.displayName && <span style={{ fontSize: '0.85rem', color: 'var(--primary-color)' }}>{u.displayName}</span>}
-                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                                        {u.satker?.nama || 'Polda Utama'}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span style={{
-                                                    fontSize: '0.75rem',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '12px',
-                                                    background: u.role === 'ADMIN_POLDA' ? 'var(--accent-color)' : 'var(--border-color)',
-                                                    color: u.role === 'ADMIN_POLDA' ? 'white' : 'var(--text-color)',
-                                                    fontWeight: 600
-                                                }}>
-                                                    {u.role.replace('_', ' ')}
-                                                </span>
-                                            </td>
-                                            <td style={{ fontSize: '0.9rem' }}>
-                                                {u.phone || <span className="text-gray-400 italic">N/A</span>}
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
-                                                    {u.supabaseData?.confirmedAt ? (
-                                                        <span className="text-success flex items-center gap-1"><CheckCircle size={14} /> Terverifikasi</span>
-                                                    ) : (
-                                                        <span className="text-warning flex items-center gap-1"><XCircle size={14} /> Belum Konfirmasi</span>
-                                                    )}
-                                                    {u.supabaseData?.isBanned && (
-                                                        <span className="text-danger flex items-center gap-1 ml-2"><Lock size={14} /> Dinonaktifkan</span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                                                {u.supabaseData?.lastSignIn
-                                                    ? format(new Date(u.supabaseData.lastSignIn), 'dd/MM/yyyy HH:mm')
-                                                    : <span className="italic text-gray-400">Belum pernah login</span>}
-                                            </td>
-                                            <td>
-                                                <div className="action-btns">
-                                                    <button className="btn-icon" onClick={(e) => handleOpenModal('user', u, e)} title="Edit Metadata"><Edit2 size={16} /></button>
-
-                                                    {u.id !== user.id && (
-                                                        <>
-                                                            <button
-                                                                className="btn-icon"
-                                                                onClick={() => handleAdminResetPassword(u.id)}
-                                                                title="Kirim Instruksi Reset Password"
-                                                                style={{ color: 'var(--primary-color)' }}
-                                                            >
-                                                                <Mail size={16} />
-                                                            </button>
-
-                                                            {u.supabaseData?.isBanned ? (
-                                                                <button
-                                                                    className="btn-icon"
-                                                                    onClick={() => handleToggleUserStatus(u.id, false)}
-                                                                    title="Aktifkan Kembali Akun"
-                                                                    style={{ color: 'var(--success-color)' }}
-                                                                >
-                                                                    <Unlock size={16} />
-                                                                </button>
-                                                            ) : (
-                                                                <button
-                                                                    className="btn-icon"
-                                                                    onClick={() => handleToggleUserStatus(u.id, true)}
-                                                                    title="Nonaktifkan Akun (Ban)"
-                                                                    style={{ color: 'var(--warning-color)' }}
-                                                                >
-                                                                    <Lock size={16} />
-                                                                </button>
-                                                            )}
-
-                                                            <button className="btn-icon delete" onClick={() => handleDelete('user', u.id)} title="Hapus User Penuh"><Trash2 size={16} /></button>
-                                                        </>
-                                                    )}
+                                    {(usersLoading && usersList.length === 0) ? (
+                                        <tr>
+                                            <td colSpan="6" className="text-center py-12">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary-color)]"></div>
+                                                    <span className="text-sm font-medium text-gray-500">Sinkronisasi daftar user...</span>
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))}
+                                    ) : (
+                                        usersList.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="6" className="text-center py-8 text-gray-500 italic">Tidak ada user ditemukan.</td>
+                                            </tr>
+                                        ) : (
+                                            usersList.map(u => (
+                                                <tr key={u.id} style={{ opacity: u.supabaseData?.isBanned ? 0.6 : 1 }}>
+                                                    <td style={{ fontWeight: 500 }}>
+                                                        <div className="flex flex-col">
+                                                            <span>{u.email}</span>
+                                                            {u.displayName && <span style={{ fontSize: '0.85rem', color: 'var(--primary-color)' }}>{u.displayName}</span>}
+                                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                                {u.satker?.nama || 'Polda Utama'}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <span style={{
+                                                            fontSize: '0.75rem',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '12px',
+                                                            background: u.role === 'ADMIN_POLDA' ? 'var(--accent-color)' : 'var(--border-color)',
+                                                            color: u.role === 'ADMIN_POLDA' ? 'white' : 'var(--text-color)',
+                                                            fontWeight: 600
+                                                        }}>
+                                                            {u.role.replace('_', ' ')}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ fontSize: '0.9rem' }}>
+                                                        {u.phone || <span className="text-gray-400 italic">N/A</span>}
+                                                    </td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
+                                                            {u.supabaseData?.confirmedAt ? (
+                                                                <span className="text-success flex items-center gap-1"><CheckCircle size={14} /> Terverifikasi</span>
+                                                            ) : (
+                                                                <span className="text-warning flex items-center gap-1"><XCircle size={14} /> Belum Konfirmasi</span>
+                                                            )}
+                                                            {u.supabaseData?.isBanned && (
+                                                                <span className="text-danger flex items-center gap-1 ml-2"><Lock size={14} /> Dinonaktifkan</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                                                        {u.supabaseData?.lastSignIn
+                                                            ? format(new Date(u.supabaseData.lastSignIn), 'dd/MM/yyyy HH:mm')
+                                                            : <span className="italic text-gray-400">Belum pernah login</span>}
+                                                    </td>
+                                                    <td>
+                                                        <div className="action-btns">
+                                                            <button className="btn-icon" onClick={(e) => handleOpenModal('user', u, e)} title="Edit Metadata"><Edit2 size={16} /></button>
+
+                                                            {u.id !== user.id && (
+                                                                <>
+                                                                    <button
+                                                                        className="btn-icon"
+                                                                        onClick={() => handleAdminResetPassword(u.id)}
+                                                                        title="Kirim Instruksi Reset Password"
+                                                                        style={{ color: 'var(--primary-color)' }}
+                                                                    >
+                                                                        <Mail size={16} />
+                                                                    </button>
+
+                                                                    {u.supabaseData?.isBanned ? (
+                                                                        <button
+                                                                            className="btn-icon"
+                                                                            onClick={() => handleToggleUserStatus(u.id, false)}
+                                                                            title="Aktifkan Kembali Akun"
+                                                                            style={{ color: 'var(--success-color)' }}
+                                                                        >
+                                                                            <Unlock size={16} />
+                                                                        </button>
+                                                                    ) : (
+                                                                        <button
+                                                                            className="btn-icon"
+                                                                            onClick={() => handleToggleUserStatus(u.id, true)}
+                                                                            title="Nonaktifkan Akun (Ban)"
+                                                                            style={{ color: 'var(--warning-color)' }}
+                                                                        >
+                                                                            <Lock size={16} />
+                                                                        </button>
+                                                                    )}
+
+                                                                    <button className="btn-icon delete" onClick={() => handleDelete('user', u.id)} title="Hapus User Penuh"><Trash2 size={16} /></button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )
+                                    )}
                                 </tbody>
                             </table>
                         </div>

@@ -2,8 +2,16 @@ const prisma = require('../prisma');
 const bcrypt = require('bcryptjs');
 const { supabaseAdmin } = require('../utils/supabase');
 
+let sbUsersCache = {
+    data: null,
+    lastFetched: 0
+};
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 const getAllUsers = async (req, res) => {
     try {
+        const skipAuthStatus = req.query.skipAuthStatus === 'true';
+
         const localUsers = await prisma.user.findMany({
             include: { satker: true },
             orderBy: { createdAt: 'desc' }
@@ -14,17 +22,28 @@ const getAllUsers = async (req, res) => {
             return { ...rest, supabaseData: null };
         });
 
-        // Enrich with Supabase data if available
-        if (supabaseAdmin) {
-            const { data: { users: sbUsers }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        // Enrich with Supabase data if available and not skipped
+        if (supabaseAdmin && !skipAuthStatus) {
+            let sbUsers = null;
+            const now = Date.now();
 
-            if (!listError && sbUsers) {
+            // Try cache first
+            if (sbUsersCache.data && (now - sbUsersCache.lastFetched < CACHE_TTL)) {
+                sbUsers = sbUsersCache.data;
+            } else {
+                const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+                if (!listError && users) {
+                    sbUsers = users;
+                    sbUsersCache = { data: users, lastFetched: now };
+                }
+            }
+
+            if (sbUsers) {
                 enrichedUsers = enrichedUsers.map(u => {
                     const sbMatch = sbUsers.find(sb => sb.email === u.email);
                     if (sbMatch) {
                         return {
                             ...u,
-                            // Use Supabase metadata if local fields are empty
                             displayName: u.displayName || sbMatch.user_metadata?.displayName || sbMatch.user_metadata?.full_name,
                             phone: u.phone || sbMatch.user_metadata?.phone,
                             supabaseData: {
@@ -39,7 +58,7 @@ const getAllUsers = async (req, res) => {
                     return u;
                 });
             }
-        } else {
+        } else if (!supabaseAdmin && !skipAuthStatus) {
             console.warn('[SYNC_WARNING] Supabase Admin not configured. User status display will be limited.');
         }
 
