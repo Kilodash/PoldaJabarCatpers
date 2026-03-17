@@ -66,7 +66,7 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
                 } else if (!personel || personel.id !== personelId) {
                     setPersonel(null);
                 }
-                
+
                 fetchDetail();
                 setCurrentPage(1);
             }
@@ -89,7 +89,7 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
         text += `Pangkat         : ${personel.pangkat}\n`;
         text += `Jabatan         : ${personel.jabatan}\n`;
         text += `Satker          : ${personel.satker?.nama || '-'}\n\n`;
-        
+
         text += `DAFTAR CATATAN / PELANGGARAN:\n`;
         const listCatpers = personel.pelanggaran || [];
         if (listCatpers.length === 0) {
@@ -97,7 +97,7 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
         } else {
             listCatpers.forEach((pel, idx) => {
                 const formatDate = (date) => formatDateSafe(date);
-                
+
                 text += `${idx + 1}. Wujud Perbuatan : ${pel.wujudPerbuatan}\n`;
                 text += `   Informasi Dasar :\n`;
                 text += `   - Jenis Dasar   : ${pel.jenisDasar || '-'}\n`;
@@ -105,13 +105,13 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
                 text += `   - Tgl. Surat    : ${formatDate(pel.tanggalSurat)}\n`;
                 text += `   - Tgl. Entry    : ${formatDate(pel.createdAt)}\n`;
                 if (pel.keteranganDasar) text += `   - Keterangan    : ${pel.keteranganDasar}\n`;
-                
+
                 text += `   Status Akhir    : `;
-                let statusLabel = pel.statusPenyelesaian === 'TIDAK_TERBUKTI' 
-                ? (pel.nomorSktb || pel.tanggalSktb ? 'TIDAK TERBUKTI SIDANG' : 'TIDAK TERBUKTI RIKSA')
-                : (pel.statusPenyelesaian === 'Belum ada SKTT' ? 'TIDAK TERBUKTI RIKSA (BELUM ADA SKTT)' :
-                   pel.statusPenyelesaian === 'Belum ada SKTB' ? 'TIDAK TERBUKTI SIDANG (BELUM ADA SKTB)' :
-                   (pel.statusPenyelesaian || 'PROSES').replace(/_/g, ' '));
+                let statusLabel = pel.statusPenyelesaian === 'TIDAK_TERBUKTI'
+                    ? (pel.nomorSktb || pel.tanggalSktb ? 'TIDAK TERBUKTI SIDANG' : 'TIDAK TERBUKTI RIKSA')
+                    : (pel.statusPenyelesaian === 'Belum ada SKTT' ? 'TIDAK TERBUKTI RIKSA (BELUM ADA SKTT)' :
+                        pel.statusPenyelesaian === 'Belum ada SKTB' ? 'TIDAK TERBUKTI SIDANG (BELUM ADA SKTB)' :
+                            (pel.statusPenyelesaian || 'PROSES').replace(/_/g, ' '));
                 text += `${statusLabel}\n`;
 
                 // Detail Sidang / Putusan
@@ -132,22 +132,22 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
                 if (pel.nomorSuratSelesai || pel.nomorSp3 || pel.nomorSktt || pel.nomorSktb) {
                     text += `   Dokumen Selesai :\n`;
                     if (pel.nomorSuratSelesai) text += `   - No. Srt Selsi : ${pel.nomorSuratSelesai} (${formatDate(pel.tanggalSuratSelesai)})\n`;
-                    if (pel.nomorSp3)          text += `   - No. SP3       : ${pel.nomorSp3} (${formatDate(pel.tanggalSp3)})\n`;
-                    if (pel.nomorSktt)         text += `   - No. SKTT      : ${pel.nomorSktt} (${formatDate(pel.tanggalSktt)})\n`;
-                    if (pel.nomorSktb)         text += `   - No. SKTB      : ${pel.nomorSktb} (${formatDate(pel.tanggalSktb)})\n`;
+                    if (pel.nomorSp3) text += `   - No. SP3       : ${pel.nomorSp3} (${formatDate(pel.tanggalSp3)})\n`;
+                    if (pel.nomorSktt) text += `   - No. SKTT      : ${pel.nomorSktt} (${formatDate(pel.tanggalSktt)})\n`;
+                    if (pel.nomorSktb) text += `   - No. SKTB      : ${pel.nomorSktb} (${formatDate(pel.tanggalSktb)})\n`;
                     if (pel.keteranganSelesai) text += `   - Ket. Selesai  : ${pel.keteranganSelesai}\n`;
                 }
 
                 // Rekomendasi
                 if (pel.tanggalRekomendasi || pel.tanggalBisaAjukanRps) {
                     text += `   Rekomendasi     :\n`;
-                    if (pel.nomorRekomendasi)   text += `   - No. Rekom     : ${pel.nomorRekomendasi}\n`;
+                    if (pel.nomorRekomendasi) text += `   - No. Rekom     : ${pel.nomorRekomendasi}\n`;
                     if (pel.tanggalRekomendasi) text += `   - Tgl. Rekom     : ${formatDate(pel.tanggalRekomendasi)}\n`;
                     if (pel.tanggalBisaAjukanRps && !pel.tanggalRekomendasi) {
                         text += `   - Syarat Rekom  : Bisa diajukan setelah ${formatDate(pel.tanggalBisaAjukanRps)}\n`;
                     }
                 }
-                
+
                 text += `\n`;
             });
         }
@@ -162,7 +162,54 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
         }).catch(() => toast.error("Gagal menyalin data."));
     };
 
-    const handlePrint = () => window.print();
+    const handlePrint = () => {
+        const text = generateHistoryText();
+        if (!text || !personel) return;
+
+        const printWindow = window.open('', '_blank', 'width=800,height=900');
+        if (!printWindow) {
+            toast.error('Popup diblokir browser. Izinkan popup untuk fitur cetak.');
+            return;
+        }
+
+        const now = new Date().toLocaleString('id-ID') + ' WIB';
+        const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        printWindow.document.write(`<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Riwayat Catatan - ${personel.namaLengkap}</title>
+<style>
+  @page { size: A4 portrait; margin: 2cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 10.5pt; line-height: 1.5; color: #000; background: white; }
+  .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 16px; }
+  .header h2 { text-transform: uppercase; font-size: 12pt; letter-spacing: 1px; margin-bottom: 4px; }
+  .header p { font-size: 9pt; color: #444; }
+  pre { white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: inherit; line-height: inherit; }
+  .footer { margin-top: 24px; text-align: right; font-size: 8.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h2>Riwayat Catatan Personel</h2>
+  <p>Sistem Catatan Personel (CDS) Polda Jabar</p>
+  <p>Dicetak pada: ${now}</p>
+</div>
+<pre>${escapedText}</pre>
+<div class="footer">CDS Polda Jabar &mdash; ${now}</div>
+</body>
+</html>`);
+
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+        }, 400);
+    };
+
 
     const handleApprove = async (id) => {
         try {
@@ -241,7 +288,7 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
                         </div>
                     </div>
                 )}
-                
+
                 {!personel ? (
                     <div className="flex flex-col items-center justify-center py-12 gap-4">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
@@ -257,7 +304,7 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
                         <style type="text/css" media="print">
                             {`
                             @page {
-                                size: portrait !important;
+                                size: A4 landscape !important;
                                 margin: 15mm !important;
                             }
                             `}
@@ -327,7 +374,7 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
                                                             pel.statusPenyelesaian === 'MENJALANI_HUKUMAN' ? 'MENJALANI_HUKUMAN' :
                                                                 pel.statusPenyelesaian === 'Belum ada SKTT' ? 'TIDAK TERBUKTI RIKSA (BELUM ADA SKTT)' :
                                                                     pel.statusPenyelesaian === 'Belum ada SKTB' ? 'TIDAK TERBUKTI SIDANG (BELUM ADA SKTB)' :
-                                                                        pel.statusPenyelesaian === 'TIDAK_TERBUKTI' ? 
+                                                                        pel.statusPenyelesaian === 'TIDAK_TERBUKTI' ?
                                                                             (pel.nomorSktb || pel.tanggalSktb || pel.fileSktbUrl ? 'TIDAK TERBUKTI SIDANG' : 'TIDAK TERBUKTI RIKSA') :
                                                                             (pel.statusPenyelesaian || 'PROSES').replace(/_/g, ' ')}
                                                     </span>
@@ -397,12 +444,14 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
                             )}
                         </div>
 
-                        <div className="only-print" style={{ marginTop: '0', padding: '1rem', paddingBottom: '2rem', fontFamily: 'monospace', fontSize: '11pt', lineHeight: '1.4', color: '#000' }}>
+                        <div className="only-print" style={{ marginTop: '0', padding: '1rem', paddingBottom: '2rem', fontFamily: 'monospace', fontSize: '10pt', lineHeight: '1.4', color: '#000' }}>
+                            <div style={{ textAlign: 'center', borderBottom: '2px solid #333', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
+                                <h2 style={{ textTransform: 'uppercase', margin: '0 0 0.25rem 0', fontSize: '13pt', letterSpacing: '1px' }}>Riwayat Catatan Personel</h2>
+                                <p style={{ margin: 0, fontSize: '10pt' }}>Sistem Catatan Personel (CDS) Polda Jabar</p>
+                                <p style={{ margin: '0.2rem 0 0 0', fontSize: '9pt', color: '#555' }}>Dicetak pada: {formatDateSafe(new Date(), 'dd/MM/yyyy HH:mm')} WIB</p>
+                            </div>
                             <div style={{ whiteSpace: 'pre-wrap' }}>
                                 {generateHistoryText()}
-                            </div>
-                            <div style={{ marginTop: '2rem', textAlign: 'right', fontSize: '9pt' }}>
-                                <p>Dicetak pada: {formatDateSafe(new Date(), 'dd/MM/yyyy HH:mm')}</p>
                             </div>
                         </div>
                     </div>

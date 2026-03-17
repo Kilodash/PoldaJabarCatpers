@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { toast } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { Search, FileText, Upload, AlertTriangle, Eye, Plus, Edit2, Trash2, CheckCircle, Copy, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import api from '../utils/api';
 import PersonelHistoryModal from '../components/PersonelHistoryModal';
-import { useDebounce } from '../hooks/useDebounce';
 import './Pencarian.css';
 
 const Pencarian = () => {
@@ -61,10 +60,9 @@ const Pencarian = () => {
         currentPage * itemsPerPage
     );
 
-    const debouncedManualInput = useDebounce(manualInput, 500);
-
-    const handleManualSearch = useCallback(async (val) => {
-        const input = val || manualInput;
+    const handleManualSearch = useCallback(async (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        const input = manualInput;
         if (!input.trim() || input.trim().length < 3) return;
 
         setLoadingManual(true);
@@ -80,11 +78,7 @@ const Pencarian = () => {
         }
     }, [manualInput]);
 
-    useEffect(() => {
-        if (debouncedManualInput.trim() && debouncedManualInput.trim().length >= 3) {
-            handleManualSearch(debouncedManualInput);
-        }
-    }, [debouncedManualInput, handleManualSearch]);
+    // Removed debounced auto-search effect. Search now only occurs via manual form submit.
 
     const handleFileSearch = async (e) => {
         e.preventDefault();
@@ -299,8 +293,8 @@ const Pencarian = () => {
                                                     </td>
                                                     <td className="no-print">
                                                         {item.found && item.personel && (
-                                                            <button 
-                                                                className="btn-icon" 
+                                                            <button
+                                                                className="btn-icon"
                                                                 onClick={() => handleSelectPersonel(item.personel.id)}
                                                                 title="Lihat Histori"
                                                             >

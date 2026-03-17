@@ -62,14 +62,14 @@ const downloadTemplate = async (req, res) => {
             ['Petunjuk: Kolom dengan tanda (*) wajib diisi. Kolom tanggal gunakan format DD/MM/YYYY. Jangan mengubah urutan kolom.'],
             [],
             [
-                'JENIS PEGAWAI (POLRI/PNS)*', 'NRP/NIP*', 'NAMA LENGKAP*', 'PANGKAT*', 'JABATAN*', 'SATKER/UNIT*', 'TANGGAL LAHIR*', 
-                'WUJUD PERBUATAN', 'JENIS DASAR PENCATATAN', 'NOMOR SURAT DASAR', 'TANGGAL SURAT DASAR', 'PANGKAT SAAT MELANGGAR', 
-                'JABATAN SAAT MELANGGAR', 'SATKER SAAT MELANGGAR', 'KETERANGAN DASAR', 
-                'STATUS PENYELESAIAN (PROSES/PERDAMAIAN/TIDAK_TERBUKTI_RIKSA/TIDAK_TERBUKTI_SIDANG/SIDANG)', 
-                'NOMOR SURAT SELESAI', 'TANGGAL SURAT SELESAI', 'KETERANGAN SELESAI', 
-                'NOMOR SP3', 'TANGGAL SP3', 'NOMOR SKTT', 'TANGGAL SKTT', 'NOMOR SKTB', 'TANGGAL SKTB', 
-                'JENIS SIDANG (DISIPLIN/KEPP)', 'BANDING (true/false)', 'NOMOR SKEP BANDING', 'TANGGAL SKEP BANDING', 
-                'HUKUMAN', 'NOMOR SKEP HUKUMAN', 'TANGGAL SKEP HUKUMAN', 'TANGGAL BISA AJUKAN RPS', 
+                'JENIS PEGAWAI (POLRI/PNS)*', 'NRP/NIP*', 'NAMA LENGKAP*', 'PANGKAT*', 'JABATAN*', 'SATKER/UNIT*', 'TANGGAL LAHIR*',
+                'WUJUD PERBUATAN', 'JENIS DASAR PENCATATAN', 'NOMOR SURAT DASAR', 'TANGGAL SURAT DASAR', 'PANGKAT SAAT MELANGGAR',
+                'JABATAN SAAT MELANGGAR', 'SATKER SAAT MELANGGAR', 'KETERANGAN DASAR',
+                'STATUS PENYELESAIAN (PROSES/PERDAMAIAN/TIDAK_TERBUKTI_RIKSA/TIDAK_TERBUKTI_SIDANG/SIDANG)',
+                'NOMOR SURAT SELESAI', 'TANGGAL SURAT SELESAI', 'KETERANGAN SELESAI',
+                'NOMOR SP3', 'TANGGAL SP3', 'NOMOR SKTT', 'TANGGAL SKTT', 'NOMOR SKTB', 'TANGGAL SKTB',
+                'JENIS SIDANG (DISIPLIN/KEPP)', 'BANDING (true/false)', 'NOMOR SKEP BANDING', 'TANGGAL SKEP BANDING',
+                'HUKUMAN', 'NOMOR SKEP HUKUMAN', 'TANGGAL SKEP HUKUMAN', 'TANGGAL BISA AJUKAN RPS',
                 'NOMOR REKOMENDASI', 'TANGGAL REKOMENDASI'
             ]
         ];
@@ -188,12 +188,12 @@ const importData = async (req, res) => {
 
             try {
                 const [
-                    jenisPegawai, nrpNip, namaLengkap, pangkat, jabatan, satkerNama, tglLahirRaw, 
+                    jenisPegawai, nrpNip, namaLengkap, pangkat, jabatan, satkerNama, tglLahirRaw,
                     wujud, jenisDasar, nomorSuratD, tglSuratDRaw, pangkatSaatL, jabatanSaatL, satkerSaatL, ketDasar,
-                    statusSelesai, noSuratSelesai, tglSuratSelesaiRaw, ketSelesai, 
-                    noSp3, tglSp3Raw, noSktt, tglSkttRaw, noSktb, tglSktbRaw, 
-                    jenisSidang, banding, noSkepBanding, tglSkepBandingRaw, 
-                    hukuman, noSkepHukuman, tglSkepHukumanRaw, tglBisaRpsRaw, 
+                    statusSelesai, noSuratSelesai, tglSuratSelesaiRaw, ketSelesai,
+                    noSp3, tglSp3Raw, noSktt, tglSkttRaw, noSktb, tglSktbRaw,
+                    jenisSidang, banding, noSkepBanding, tglSkepBandingRaw,
+                    hukuman, noSkepHukuman, tglSkepHukumanRaw, tglBisaRpsRaw,
                     noRekom, tglRekomRaw
                 ] = row;
 
@@ -241,13 +241,13 @@ const importData = async (req, res) => {
                                 jabatanSaatMelanggar: jabatanSaatL ? String(jabatanSaatL) : String(jabatan),
                                 satkerSaatMelanggar: satkerSaatL ? String(satkerSaatL) : sNama,
                                 keteranganDasar: ketDasar ? String(ketDasar) : null,
-                                
+
                                 statusPenyelesaian: statusSelesai ? String(statusSelesai) : 'PROSES',
-                                
+
                                 nomorSuratSelesai: noSuratSelesai ? String(noSuratSelesai) : null,
                                 tanggalSuratSelesai: parseD(tglSuratSelesaiRaw),
                                 keteranganSelesai: ketSelesai ? String(ketSelesai) : null,
-                                
+
                                 nomorSp3: noSp3 ? String(noSp3) : null,
                                 tanggalSp3: parseD(tglSp3Raw),
                                 nomorSktt: noSktt ? String(noSktt) : null,
@@ -298,13 +298,34 @@ const importData = async (req, res) => {
 
 const scanPensiun = async (req, res) => {
     try {
+        const pnsSetting = await prisma.pengaturan.findUnique({ where: { key: 'USIA_PENSIUN_PNS' } });
+        const polriSetting = await prisma.pengaturan.findUnique({ where: { key: 'USIA_PENSIUN_POLRI' } });
+        const usiaPensiunPNS = pnsSetting ? parseInt(pnsSetting.value) : 58;
+        const usiaPensiunPolri = polriSetting ? parseInt(polriSetting.value) : 58;
+
         const now = new Date();
+
+        const pnsThresholdDate = new Date();
+        pnsThresholdDate.setFullYear(now.getFullYear() - usiaPensiunPNS);
+
+        const polriThresholdDate = new Date();
+        polriThresholdDate.setFullYear(now.getFullYear() - usiaPensiunPolri);
+
         const potentialRetirees = await prisma.personel.findMany({
             where: {
                 statusKeaktifan: 'AKTIF',
-                tanggalPensiun: { lte: now },
                 deletedAt: null,
-                isDraft: false
+                isDraft: false,
+                OR: [
+                    { // PNS past their pension age
+                        jenisPegawai: { equals: 'PNS' },
+                        tanggalLahir: { lte: pnsThresholdDate }
+                    },
+                    { // POLRI past their pension age
+                        jenisPegawai: { equals: 'POLRI' },
+                        tanggalLahir: { lte: polriThresholdDate }
+                    }
+                ]
             },
             include: {
                 satker: true

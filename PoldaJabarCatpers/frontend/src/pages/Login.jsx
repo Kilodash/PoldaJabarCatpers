@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDashboard } from '../context/DashboardContext';
 import { ShieldCheck, User, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import './Login.css';
 
 const Login = () => {
@@ -41,7 +41,7 @@ const Login = () => {
 
     return (
         <div className="login-container">
-            <Toaster position="top-right" richColors />
+
 
             <div className="login-backdrop"></div>
             <div className="login-background-overlay"></div>

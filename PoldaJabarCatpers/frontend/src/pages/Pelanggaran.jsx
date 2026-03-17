@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, FileText, CheckCircle, FileWarning } from 'lucide-react';
 import { useDashboard } from '../context/DashboardContext';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import api from '../utils/api';
 import Modal from '../components/Modal';
@@ -12,6 +12,7 @@ const Pelanggaran = () => {
     const [personelList, setPersonelList] = useState([]);
     const { pelanggaranList, refreshPelanggaran } = useDashboard();
     const [selectedPersonel, setSelectedPersonel] = useState(null);
+    const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
 
@@ -38,7 +39,7 @@ const Pelanggaran = () => {
             setLoading(true);
             const res = await api.get(`/personel?search=${search}`);
             setPersonelList(res.data);
-            
+
             // Jika pencarian kosong, update juga context agar tetap sinkron
             if (!search) {
                 // Catatan: refreshPelanggaran() akan fetch ulang, tapi kita bisa update state lokal context jika mau
@@ -74,11 +75,16 @@ const Pelanggaran = () => {
         return 0;
     });
 
+    // Removed auto-fetch useEffect that tracked 'search'
+    // Search is now triggered manually via handleSearch
     useEffect(() => {
         fetchPersonel();
-        setCurrentPage(1); // Reset to first page on search
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [search]);
+        setCurrentPage(1);
+    }, [search]); // Kept dependency on 'search' but it only changes on manual submit
+
+    const handleSearchClick = () => {
+        setSearch(searchInput);
+    };
 
     const paginatedList = sortedPersonelList.slice(
         0,
@@ -103,19 +109,25 @@ const Pelanggaran = () => {
 
     return (
         <div className="animate-fade-in">
-            <Toaster position="top-right" richColors />
+
 
 
             {/* Search Bar & Actions */}
             <div className="page-actions" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
-                <div className="search-bar" style={{ margin: 0 }}>
+                <div className="search-bar" style={{ margin: 0, display: 'flex', alignItems: 'center' }}>
                     <Search size={18} />
                     <input
                         type="text"
                         placeholder="Cari Personel..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSearchClick();
+                        }}
                     />
+                    <button className="btn-primary" onClick={handleSearchClick} style={{ marginLeft: '8px', padding: '0.4rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
+                        Cari
+                    </button>
                 </div>
             </div>
 
@@ -172,8 +184,8 @@ const Pelanggaran = () => {
                                         <td className="no-print">
                                             <button
                                                 className="btn-primary"
-                                                style={{ 
-                                                    padding: '0.4rem 0.8rem', 
+                                                style={{
+                                                    padding: '0.4rem 0.8rem',
                                                     fontSize: '0.85rem',
                                                     opacity: p.statusKeaktifan !== 'AKTIF' ? 0.5 : 1,
                                                     cursor: p.statusKeaktifan !== 'AKTIF' ? 'not-allowed' : 'pointer'

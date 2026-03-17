@@ -5,16 +5,16 @@ const getAllAuditLogs = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const search = req.query.search || '';
-        
+
         const skip = (page - 1) * limit;
 
         const whereClause = search ? {
             OR: [
-                { aksi: { contains: search, mode: 'insensitive' } },
-                { deskripsi: { contains: search, mode: 'insensitive' } },
-                { alasan: { contains: search, mode: 'insensitive' } },
-                { user: { email: { contains: search, mode: 'insensitive' } } },
-                { user: { satker: { nama: { contains: search, mode: 'insensitive' } } } }
+                { aksi: { contains: search } },
+                { deskripsi: { contains: search } },
+                { alasan: { contains: search } },
+                { user: { email: { contains: search } } },
+                { user: { satker: { nama: { contains: search } } } }
             ]
         } : {};
 

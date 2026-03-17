@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import api from '../utils/api';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import './Dashboard.css';
 import Modal from '../components/Modal';
 import { useDebounce } from '../hooks/useDebounce';
@@ -51,6 +51,32 @@ const DeleteConfirmModal = (props) => (
             <button type="button" className="btn-secondary" onClick={props.onClose}>Batal</button>
             <button type="button" onClick={props.onConfirm} className="btn-primary" style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={!props.alasan?.trim() || !props.statusKeaktifan}>
                 <Trash2 size={16} /> Ya, Proses
+            </button>
+        </div>
+    </Modal>
+);
+
+const RestoreConfirmModal = (props) => (
+    <Modal {...props} title="Konfirmasi Pengaktifan Kembali">
+        <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
+            Tindakan ini akan mengembalikan personel dari status Tidak Aktif menjadi Aktif kembali. Sistem akan memulihkan NRP/NIP asli personel tersebut. Jika NRP/NIP sudah digunakan oleh personel lain, proses ini akan dibatalkan otomatis.
+        </div>
+
+        <div className="form-group w-full relative">
+            <label style={{ color: 'var(--primary-color)', fontWeight: 'bold' }}>Alasan Tindakan (Wajib Audit Log) *</label>
+            <textarea
+                className="form-input"
+                rows="3"
+                value={props.alasan}
+                onChange={(e) => props.onChange({ alasan: e.target.value })}
+                placeholder="Contoh: Kesalahan sistem, Mutasi dibatalkan, dsb..."
+                autoFocus
+            ></textarea>
+        </div>
+        <div className="form-actions mt-4">
+            <button type="button" className="btn-secondary" onClick={props.onClose}>Batal</button>
+            <button type="button" onClick={props.onConfirm} className="btn-primary" disabled={!props.alasan?.trim()}>
+                <RefreshCw size={16} /> Ya, Aktifkan
             </button>
         </div>
     </Modal>
@@ -194,6 +220,19 @@ const Dashboard = () => {
         }
     }, []);
 
+    const [modalSearchInput, setModalSearchInput] = useState('');
+
+    const handleModalSearch = useCallback((e) => {
+        if (!e || e.key === 'Enter' || e.type === 'click') {
+            setListModalState(prev => {
+                const newState = { ...prev, search: modalSearchInput, currentPage: 1 };
+                fetchModalList(newState);
+                return newState;
+            });
+        }
+    }, [modalSearchInput, fetchModalList]);
+
+    // Initial load fetch for modal
     const handleOpenListModal = useCallback((title, category = '', satkerId = null, initialSearch = '') => {
         const initialState = {
             search: initialSearch,
@@ -204,19 +243,11 @@ const Dashboard = () => {
             category,
             satkerId
         };
+        setModalSearchInput(initialSearch);
         setListModalState(initialState);
         fetchModalList(initialState);
         openModal('LIST', { title });
     }, [openModal, fetchModalList]);
-
-    useEffect(() => {
-        const delayDebounceFn = setTimeout(() => {
-            if (modalStack.some(m => m.type === 'LIST')) {
-                fetchModalList(listModalState);
-            }
-        }, 500);
-        return () => clearTimeout(delayDebounceFn);
-    }, [listModalState.search, listModalState.category, listModalState.satkerId]);
 
     const handleActionSuccess = useCallback(() => {
         refreshDashboard();
@@ -235,7 +266,7 @@ const Dashboard = () => {
 
     return (
         <>
-            <Toaster position="top-right" richColors />
+
             <div className="dashboard animate-fade-in">
                 <div className="page-header mb-8 no-print" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
                     <div className="global-search-container" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flex: '0 1 400px', maxWidth: '400px' }}>
@@ -347,7 +378,7 @@ const Dashboard = () => {
             {/* Centralized Modal Stack Renderer */}
             {modalStack.map((modal, index) => {
                 const zIndex = 1100 + (index * 10);
-                
+
                 if (modal.type === 'LIST') {
                     const itemsPerPage = 8;
                     const totalPages = Math.ceil(listModalState.items.length / itemsPerPage);
@@ -362,19 +393,37 @@ const Dashboard = () => {
 
                     return (
                         <Modal key={modal.id} isOpen={true} onClose={closeModal} title={`Detail Data: ${listModalState.title}`} maxWidth="80%" zIndex={zIndex}>
-                            <div className="page-actions mb-4 no-print" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                <div className="search-bar">
-                                    <Search size={18} />
-                                    <input
-                                        type="text"
-                                        placeholder="Cari Nama atau NIP/NRP..."
-                                        value={listModalState.search}
-                                        onChange={(e) => setListModalState(prev => ({ ...prev, search: e.target.value, currentPage: 1 }))}
-                                    />
+                            <div className="page-actions mb-4 no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <div className="search-bar" style={{ margin: 0, display: 'flex', alignItems: 'center' }}>
+                                        <Search size={18} />
+                                        <input
+                                            type="text"
+                                            placeholder="Cari Nama atau NIP/NRP..."
+                                            value={modalSearchInput}
+                                            onChange={(e) => setModalSearchInput(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleModalSearch(e);
+                                            }}
+                                        />
+                                    </div>
+                                    <button className="btn-primary" onClick={handleModalSearch} style={{ padding: '0.4rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+                                        Cari
+                                    </button>
+                                    <button className="btn-secondary" onClick={() => window.print()} style={{ padding: '0.4rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+                                        <Printer size={16} /> Cetak
+                                    </button>
                                 </div>
-                                <button className="btn-secondary" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <Printer size={18} /> Cetak
-                                </button>
+                            </div>
+
+                            <style type="text/css" media="print">{`
+                                @page { size: A4 landscape !important; margin: 1.5cm !important; }
+                            `}</style>
+
+                            <div className="only-print" style={{ marginBottom: '1.5rem', textAlign: 'center', borderBottom: '2px solid #333', paddingBottom: '0.75rem' }}>
+                                <h2 style={{ textTransform: 'uppercase', margin: '0 0 0.5rem 0' }}>Laporan Detail Data: {listModalState.title}</h2>
+                                <p style={{ margin: 0, fontSize: '0.9rem' }}>Sistem Catatan Personel (CDS) Polda Jabar</p>
+                                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem' }}>Dicetak pada: {new Date().toLocaleString('id-ID')}</p>
                             </div>
 
                             <div className="modal-table-container" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh' }}>
@@ -404,17 +453,33 @@ const Dashboard = () => {
                                                     <td>{p.pangkat}</td>
                                                     <td>{p.satker?.nama || '-'}</td>
                                                     <td style={{ textAlign: 'center' }}>
-                                                        <span className={`badge badge-${p.statusKeaktifan === 'AKTIF' ? 'success' : 'danger'}`} style={{ fontSize: '0.75rem' }}>
-                                                            {p.statusPersonel}
-                                                        </span>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+                                                            <span className={`badge badge-${p.statusKeaktifan === 'AKTIF' ? 'success' : 'danger'}`} style={{ fontSize: '0.75rem' }}>
+                                                                {p.statusPersonel}
+                                                            </span>
+                                                            {p.statusKeaktifan !== 'AKTIF' && (
+                                                                <span className="badge badge-secondary" style={{ fontSize: '0.70rem', background: '#e2e8f0', color: '#475569', padding: '0.2rem 0.5rem' }}>
+                                                                    {p.statusKeaktifan.replace(/_/g, ' ')}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td>
                                                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                                                            <button className="btn-icon" onClick={() => openModal('HISTORY', { personel: p })} title="Lihat Histori"><Eye size={18} /></button>
+                                                            {p.statusKeaktifan === 'AKTIF' && (
+                                                                <button className="btn-icon" onClick={() => openModal('HISTORY', { personel: p })} title="Lihat Histori"><Eye size={18} /></button>
+                                                            )}
                                                             {user?.role === 'ADMIN_POLDA' && (
                                                                 <>
-                                                                    <button className="btn-icon" onClick={() => openModal('FORM', { personel: p, isEdit: true })} title="Edit"><Edit2 size={18} /></button>
-                                                                    <button className="btn-icon delete" onClick={() => openModal('DELETE', { id: p.id })} title="Hapus"><Trash2 size={18} /></button>
+                                                                    {p.statusKeaktifan === 'AKTIF' && (
+                                                                        <>
+                                                                            <button className="btn-icon" onClick={() => openModal('FORM', { personel: p, isEdit: true })} title="Edit"><Edit2 size={18} /></button>
+                                                                            <button className="btn-icon delete" onClick={() => openModal('DELETE', { id: p.id })} title="Hapus"><Trash2 size={18} /></button>
+                                                                        </>
+                                                                    )}
+                                                                    {p.statusKeaktifan !== 'AKTIF' && (
+                                                                        <button className="btn-icon" style={{ color: 'var(--success)' }} onClick={() => openModal('RESTORE', { id: p.id })} title="Aktifkan Kembali Personel"><RefreshCw size={18} /></button>
+                                                                    )}
                                                                 </>
                                                             )}
                                                         </div>
@@ -469,7 +534,7 @@ const Dashboard = () => {
 
                 if (modal.type === 'DELETE') {
                     return (
-                        <DeleteConfirmModal 
+                        <DeleteConfirmModal
                             key={modal.id}
                             isOpen={true}
                             onClose={closeModal}
@@ -478,7 +543,7 @@ const Dashboard = () => {
                             statusKeaktifan={modal.props.statusKeaktifan || ''}
                             onChange={(updates) => {
                                 modal.props = { ...modal.props, ...updates };
-                                setListModalState(prev => ({ ...prev })); 
+                                setListModalState(prev => ({ ...prev }));
                             }}
                             onConfirm={async () => {
                                 if (!modal.props.alasan?.trim() || !modal.props.statusKeaktifan) {
@@ -492,8 +557,40 @@ const Dashboard = () => {
                                     toast.success('Berhasil dinonaktifkan.');
                                     closeModal();
                                     handleActionSuccess();
-                                } catch (e) { 
-                                    toast.error(e.response?.data?.message || 'Gagal menghapus personel'); 
+                                } catch (e) {
+                                    toast.error(e.response?.data?.message || 'Gagal menghapus personel');
+                                }
+                            }}
+                        />
+                    );
+                }
+
+                if (modal.type === 'RESTORE') {
+                    return (
+                        <RestoreConfirmModal
+                            key={modal.id}
+                            isOpen={true}
+                            onClose={closeModal}
+                            zIndex={zIndex}
+                            alasan={modal.props.alasan || ''}
+                            onChange={(updates) => {
+                                modal.props = { ...modal.props, ...updates };
+                                setListModalState(prev => ({ ...prev }));
+                            }}
+                            onConfirm={async () => {
+                                if (!modal.props.alasan?.trim()) {
+                                    toast.error("Alasan wajib diisi");
+                                    return;
+                                }
+                                try {
+                                    await api.put(`/personel/restore/${modal.props.id}`, {
+                                        alasan: modal.props.alasan
+                                    });
+                                    toast.success('Personel berhasil dipulihkan menjadi status Aktif.');
+                                    closeModal();
+                                    handleActionSuccess();
+                                } catch (e) {
+                                    toast.error(e.response?.data?.message || 'Terjadi kesalahan saat memulihkan personel.');
                                 }
                             }}
                         />

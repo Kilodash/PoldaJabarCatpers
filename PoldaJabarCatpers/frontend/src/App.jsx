@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { DashboardProvider } from './context/DashboardContext';
+import { Toaster } from 'sonner';
 import Login from './pages/Login';
 
 import Dashboard from './pages/Dashboard';
@@ -14,7 +15,7 @@ import MainLayout from './components/MainLayout';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: '#f8f9fa' }}>
@@ -29,13 +30,13 @@ const ProtectedRoute = ({ children }) => {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <MainLayout>{children}</MainLayout>;
 };
 
 function App() {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: '#f8f9fa' }}>
@@ -49,6 +50,7 @@ function App() {
 
   return (
     <DashboardProvider>
+      <Toaster position="top-right" richColors toastOptions={{ style: { zIndex: 99999 } }} />
       <Routes>
         <Route path="/login" element={<Login />} />
 

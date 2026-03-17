@@ -16,7 +16,9 @@
 
 :root {
   /* Premium HSL Color Tokens */
-  --p-h: 217; --p-s: 73%; --p-l: 16%;
+  --p-h: 217;
+  --p-s: 73%;
+  --p-l: 16%;
   --primary: hsl(var(--p-h), var(--p-s), var(--p-l));
   --brand: hsl(226, 43%, 54%);
   --radius-premium: 20px;
@@ -60,7 +62,7 @@
   --primary-light: hsl(var(--p-h), var(--p-s), 25%);
   --secondary-color: #64748b;
   --accent-color: var(--brand);
-  
+
   /* Status utility aliases */
   --info-color: hsl(var(--h-info));
   --success-color: hsl(var(--h-success));
@@ -651,12 +653,20 @@ select.form-input {
 }
 
 /* Specific icon color overrides for visibility */
-.btn-icon[style*="var(--info)"], 
-.btn-icon[style*="info"] { color: var(--info) !important; }
+.btn-icon[style*="var(--info)"],
+.btn-icon[style*="info"] {
+  color: var(--info) !important;
+}
+
 .btn-icon[style*="var(--success)"],
-.btn-icon[style*="success"] { color: var(--success) !important; }
+.btn-icon[style*="success"] {
+  color: var(--success) !important;
+}
+
 .btn-icon[style*="var(--danger)"],
-.btn-icon[style*="danger"] { color: var(--danger) !important; }
+.btn-icon[style*="danger"] {
+  color: var(--danger) !important;
+}
 
 /* FLOATING ACTION BUTTON (FAB) */
 .floating-add-btn {
@@ -706,7 +716,8 @@ select.form-input {
   /* 2. Reset Modal Containers */
   .modal-overlay,
   .modal-container,
-  .modal-content {
+  .modal-content,
+  .modal-table-container {
     display: block !important;
     position: static !important;
     padding: 0 !important;
@@ -721,6 +732,23 @@ select.form-input {
     border: none !important;
     background: transparent !important;
     overflow: visible !important;
+  }
+
+  .modal-table-container table,
+  .modal-table-container th,
+  .modal-table-container td {
+    border: 1px solid #999 !important;
+    font-size: 9pt !important;
+  }
+
+  .modal-table-container {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .modal-content,
+  .modal-content * {
+    visibility: visible !important;
   }
 
   /* 3. Hide EVERYTHING except modal path */
@@ -738,13 +766,21 @@ select.form-input {
     visibility: visible !important;
   }
 
-  .only-print {
+  div.only-print {
     display: block !important;
     width: 100% !important;
     padding: 0.5cm !important;
     /* Some padding to prevent clipping */
     background: white !important;
     font-size: 11pt !important;
+  }
+
+  span.only-print {
+    display: inline !important;
+  }
+
+  tbody.only-print {
+    display: table-row-group !important;
   }
 
   /* Specifically hide floating elements/toasts */

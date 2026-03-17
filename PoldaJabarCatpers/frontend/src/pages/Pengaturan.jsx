@@ -60,7 +60,7 @@ const SortableSatkerRow = ({ s, format, handleOpenModal, handleDelete }) => {
     );
 };
 
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import api from '../utils/api';
 import Modal from '../components/Modal';
@@ -68,8 +68,8 @@ import Loading from '../components/Loading';
 
 const Pengaturan = () => {
     const { user } = useAuth();
-    const { usersList, usersLoading, refreshUsers } = useDashboard();
-    const [activeTab, setActiveTab] = useState(user?.role === 'ADMIN_POLDA' ? 'users' : 'profil'); // profil | users | satker | app | impor_ekspor
+    const { usersList, usersLoading, refreshUsers, refreshDashboard } = useDashboard();
+    const [activeTab, setActiveTab] = useState('profil'); // profil | users | satker | app | impor_ekspor | audit
 
     // States for data
     const [satkerList, setSatkerList] = useState([]);
@@ -215,10 +215,10 @@ const Pengaturan = () => {
     };
 
     useEffect(() => {
-        if (user?.role === 'ADMIN_POLDA' && activeTab === 'audit') {
+        if (user?.role === 'ADMIN_POLDA') {
             fetchAudit();
         }
-    }, [auditPage, auditSearch, activeTab, user]);
+    }, [auditPage, auditSearch, user]); // Removed activeTab dependency so it fetches in background
 
     useEffect(() => {
         setAuditPage(1);
@@ -344,7 +344,15 @@ const Pengaturan = () => {
 
             setIsModalOpen(false);
             if (modalType === 'user') refreshUsers();
-            else fetchData();
+            else {
+                fetchData();
+                if (modalType === 'app') {
+                    // Berikan jeda sebentar agar user bisa melihat toast sukses sebelum reload
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            }
         } catch (error) {
             toast.error(error.response?.data?.message || `Gagal menyimpan data ${modalType}`);
         }
@@ -438,6 +446,7 @@ const Pengaturan = () => {
             setRetiringPersonnel([]);
             setRetiringAlasan('');
             fetchData();
+            refreshDashboard();
         } catch (error) {
             toast.error('Gagal memperbarui status pensiun masal.');
         } finally {
@@ -450,7 +459,6 @@ const Pengaturan = () => {
 
     return (
         <div className="animate-fade-in">
-            <Toaster position="top-right" richColors />
 
 
             {/* Tabs */}
@@ -497,632 +505,630 @@ const Pengaturan = () => {
                 ))}
             </div>
 
-            {loading ? <div className="loading-state">Memuat Konfigurasi...</div> : (
-                <div className="tab-content">
-                    {/* TAB: PROFIL */}
-                    {activeTab === 'profil' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
-                            {/* Akun Info */}
-                            <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--primary-color)' }}>
-                                    <User size={24} />
-                                    <h2 style={{ margin: 0 }}>Informasi Akun</h2>
-                                </div>
-                                <div className="space-y-4">
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
-                                        <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Email / Username:</span>
-                                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{user.email}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
-                                        <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Hak Akses:</span>
-                                        <span style={{
-                                            fontWeight: 800,
-                                            color: 'var(--primary-color)',
-                                            textTransform: 'uppercase'
-                                        }}>
-                                            {user.role?.replace('_', ' ')}
-                                        </span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
-                                        <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Unit Kerja / Satker:</span>
-                                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                                            {user.satker?.nama || "Polda Jawa Barat"}
-                                        </span>
-                                    </div>
-                                </div>
+            <div className="tab-content">
+                {/* TAB: PROFIL */}
+                {activeTab === 'profil' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+                        {/* Akun Info */}
+                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--primary-color)' }}>
+                                <User size={24} />
+                                <h2 style={{ margin: 0 }}>Informasi Akun</h2>
                             </div>
-
-                            {/* Change Password Form */}
-                            <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--danger)' }}>
-                                    <ShieldCheck size={24} />
-                                    <h2 style={{ margin: 0 }}>Keamanan & Password</h2>
+                            <div className="space-y-4">
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Email / Username:</span>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{user.email}</span>
                                 </div>
-                                <form onSubmit={handlePasswordChange} className="space-y-4">
-                                    <div className="form-group">
-                                        <label>Password Saat Ini</label>
-                                        <input
-                                            type="password"
-                                            className="form-input"
-                                            required
-                                            value={passwordData.currentPassword}
-                                            onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Password Baru</label>
-                                        <input
-                                            type="password"
-                                            className="form-input"
-                                            required
-                                            minLength={6}
-                                            value={passwordData.newPassword}
-                                            onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Konfirmasi Password Baru</label>
-                                        <input
-                                            type="password"
-                                            className="form-input"
-                                            required
-                                            value={passwordData.confirmPassword}
-                                            onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="flex justify-start">
-                                        <button
-                                            type="submit"
-                                            className="btn-primary"
-                                            disabled={passwordLoading}
-                                            style={{
-                                                background: 'var(--danger)',
-                                                padding: '0.75rem 2rem',
-                                                width: 'fit-content'
-                                            }}
-                                        >
-                                            {passwordLoading ? 'Memproses...' : 'Perbarui Password Akun'}
-                                        </button>
-                                    </div>
-                                </form>
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Hak Akses:</span>
+                                    <span style={{
+                                        fontWeight: 800,
+                                        color: 'var(--primary-color)',
+                                        textTransform: 'uppercase'
+                                    }}>
+                                        {user.role?.replace('_', ' ')}
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-muted)', minWidth: '150px' }}>Unit Kerja / Satker:</span>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                                        {user.satker?.nama || "Polda Jawa Barat"}
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                    )}
 
-                    {/* TAB: USERS */}
-                    {activeTab === 'users' && (
-                        <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <h2>Daftar Akun Pengguna</h2>
-                                <button className="btn-primary" onClick={(e) => handleOpenModal('user', null, e)}><Plus size={18} /> Tambah User</button>
+                        {/* Change Password Form */}
+                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--danger)' }}>
+                                <ShieldCheck size={24} />
+                                <h2 style={{ margin: 0 }}>Keamanan & Password</h2>
                             </div>
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Email & Nama</th>
-                                        <th>Role Akses</th>
-                                        <th>No. HP</th>
-                                        <th>Status Auth</th>
-                                        <th>Terakhir Login</th>
-                                        <th>Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {(usersLoading && usersList.length === 0) ? (
-                                        <tr>
-                                            <td colSpan="6" className="text-center py-12">
-                                                <div className="flex flex-col items-center gap-3">
-                                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary-color)]"></div>
-                                                    <span className="text-sm font-medium text-gray-500">Sinkronisasi daftar user...</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        usersList.length === 0 ? (
-                                            <tr>
-                                                <td colSpan="6" className="text-center py-8 text-gray-500 italic">Tidak ada user ditemukan.</td>
-                                            </tr>
-                                        ) : (
-                                            usersList.map(u => (
-                                                <tr key={u.id} style={{ opacity: u.supabaseData?.isBanned ? 0.6 : 1 }}>
-                                                    <td style={{ fontWeight: 500 }}>
-                                                        <div className="flex flex-col">
-                                                            <span>{u.email}</span>
-                                                            {u.displayName && <span style={{ fontSize: '0.85rem', color: 'var(--primary-color)' }}>{u.displayName}</span>}
-                                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                                                {u.satker?.nama || 'Polda Utama'}
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <span style={{
-                                                            fontSize: '0.75rem',
-                                                            padding: '2px 8px',
-                                                            borderRadius: '12px',
-                                                            background: u.role === 'ADMIN_POLDA' ? 'var(--accent-color)' : 'var(--border-color)',
-                                                            color: u.role === 'ADMIN_POLDA' ? 'white' : 'var(--text-color)',
-                                                            fontWeight: 600
-                                                        }}>
-                                                            {u.role.replace('_', ' ')}
-                                                        </span>
-                                                    </td>
-                                                    <td style={{ fontSize: '0.9rem' }}>
-                                                        {u.phone || <span className="text-gray-400 italic">N/A</span>}
-                                                    </td>
-                                                    <td>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
-                                                            {u.supabaseData?.confirmedAt ? (
-                                                                <span className="text-success flex items-center gap-1"><CheckCircle size={14} /> Terverifikasi</span>
-                                                            ) : (
-                                                                <span className="text-warning flex items-center gap-1"><XCircle size={14} /> Belum Konfirmasi</span>
-                                                            )}
-                                                            {u.supabaseData?.isBanned && (
-                                                                <span className="text-danger flex items-center gap-1 ml-2"><Lock size={14} /> Dinonaktifkan</span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                                                        {u.supabaseData?.lastSignIn
-                                                            ? format(new Date(u.supabaseData.lastSignIn), 'dd/MM/yyyy HH:mm')
-                                                            : <span className="italic text-gray-400">Belum pernah login</span>}
-                                                    </td>
-                                                    <td>
-                                                        <div className="action-btns">
-                                                            <button className="btn-icon" onClick={(e) => handleOpenModal('user', u, e)} title="Edit Metadata"><Edit2 size={16} /></button>
-
-                                                            {u.id !== user.id && (
-                                                                <>
-                                                                    <button
-                                                                        className="btn-icon"
-                                                                        onClick={() => handleAdminResetPassword(u.id)}
-                                                                        title="Kirim Instruksi Reset Password"
-                                                                        style={{ color: 'var(--primary-color)' }}
-                                                                    >
-                                                                        <Mail size={16} />
-                                                                    </button>
-
-                                                                    {u.supabaseData?.isBanned ? (
-                                                                        <button
-                                                                            className="btn-icon"
-                                                                            onClick={() => handleToggleUserStatus(u.id, false)}
-                                                                            title="Aktifkan Kembali Akun"
-                                                                            style={{ color: 'var(--success-color)' }}
-                                                                        >
-                                                                            <Unlock size={16} />
-                                                                        </button>
-                                                                    ) : (
-                                                                        <button
-                                                                            className="btn-icon"
-                                                                            onClick={() => handleToggleUserStatus(u.id, true)}
-                                                                            title="Nonaktifkan Akun (Ban)"
-                                                                            style={{ color: 'var(--warning-color)' }}
-                                                                        >
-                                                                            <Lock size={16} />
-                                                                        </button>
-                                                                    )}
-
-                                                                    <button className="btn-icon delete" onClick={() => handleDelete('user', u.id)} title="Hapus User Penuh"><Trash2 size={16} /></button>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
-                    {/* TAB: SATKER */}
-                    {activeTab === 'satker' && (
-                        <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <h2>Struktur Satuan Kerja</h2>
-                                <button className="btn-primary" onClick={(e) => handleOpenModal('satker', null, e)}><Plus size={18} /> Tambah Satker</button>
-                            </div>
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th style={{ width: '80px' }}>URUTAN</th>
-                                        <th>Nama Satker / Kesatuan</th>
-                                        <th>Dibuat Pada</th>
-                                        <th>Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <DndContext
-                                        sensors={sensors}
-                                        collisionDetection={closestCenter}
-                                        onDragEnd={handleDragEnd}
-                                    >
-                                        <SortableContext
-                                            items={satkerList.map(s => s.id)}
-                                            strategy={verticalListSortingStrategy}
-                                        >
-                                            {satkerList.map(s => (
-                                                <SortableSatkerRow
-                                                    key={s.id}
-                                                    s={s}
-                                                    format={format}
-                                                    handleOpenModal={handleOpenModal}
-                                                    handleDelete={handleDelete}
-                                                />
-                                            ))}
-                                        </SortableContext>
-                                    </DndContext>
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
-                    {/* TAB: APP SETTINGS */}
-                    {activeTab === 'app' && (
-                        <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <h2>Parameter Sistem (Umur Pensiun, dll)</h2>
-                                <p className="text-sm text-gray-500">Nilai diatur secara global untuk validasi input form Personel.</p>
-                            </div>
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Nama Variabel (Sistem)</th>
-                                        <th style={{ textAlign: 'center' }}>Nilai / Value</th>
-                                        <th>Deskripsi Penggunaan</th>
-                                        <th style={{ textAlign: 'center' }}>Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {pengaturanList.map(sett => (
-                                        <tr key={sett.key}>
-                                            <td style={{ fontWeight: 600 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-color)' }}>
-                                                    <ShieldCheck size={18} />
-                                                    {sett.key.replace(/_/g, ' ')}
-                                                </div>
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                <span style={{
-                                                    fontSize: '1.25rem',
-                                                    fontWeight: 800,
-                                                    display: 'inline-block',
-                                                    padding: '2px 12px',
-                                                    background: 'var(--bg-light)',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid var(--border-color)'
-                                                }}>
-                                                    {sett.value}
-                                                </span>
-                                            </td>
-                                            <td style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                                                {sett.deskripsi || 'Tidak ada deskripsi'}
-                                            </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                <button className="btn-icon" onClick={(e) => handleOpenModal('app', sett, e)} title="Ubah Konfigurasi">
-                                                    <Edit2 size={18} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
-                    {/* TAB: IMPORT & EXPORT */}
-                    {activeTab === 'impor_ekspor' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
-                            {/* Export & Template */}
-                            <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--primary-color)' }}>
-                                    <Download size={24} />
-                                    <h2 style={{ margin: 0 }}>Ekspor & Template</h2>
+                            <form onSubmit={handlePasswordChange} className="space-y-4">
+                                <div className="form-group">
+                                    <label>Password Saat Ini</label>
+                                    <input
+                                        type="password"
+                                        className="form-input"
+                                        required
+                                        value={passwordData.currentPassword}
+                                        onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                                    />
                                 </div>
-                                <p className="text-muted mb-6">Unduh seluruh data personel atau dapatkan template Excel untuk proses impor data masal.</p>
-
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    <button onClick={handleExport} className="btn-primary" style={{ justifyContent: 'center', padding: '1rem' }}>
-                                        <FileText size={20} /> Ekspor Seluruh Data ke Excel
-                                    </button>
-
-                                    <div style={{ borderTop: '1px solid var(--border-color)', margin: '0.5rem 0', paddingTop: '1.5rem' }}>
-                                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Ekspor Berdasarkan Satuan Kerja (Satker):</label>
-                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <select
-                                                className="form-input"
-                                                value={selectedExportSatker}
-                                                onChange={(e) => setSelectedExportSatker(e.target.value)}
-                                                style={{ flex: 1 }}
-                                            >
-                                                <option value="">-- Pilih Satker --</option>
-                                                {satkerList.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.nama}</option>
-                                                ))}
-                                            </select>
-                                            <button
-                                                onClick={(e) => handleExport(e, selectedExportSatker)}
-                                                className="btn-primary"
-                                                disabled={!selectedExportSatker}
-                                                style={{ padding: '0 1.5rem', opacity: !selectedExportSatker ? 0.6 : 1 }}
-                                            >
-                                                Ekspor Satker
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <button onClick={handleDownloadTemplate} className="btn-secondary" style={{ justifyContent: 'center', padding: '1rem', border: '2px dashed var(--border-color)' }}>
-                                        <Download size={20} /> Unduh Template Import (.xlsx)
-                                    </button>
+                                <div className="form-group">
+                                    <label>Password Baru</label>
+                                    <input
+                                        type="password"
+                                        className="form-input"
+                                        required
+                                        minLength={6}
+                                        value={passwordData.newPassword}
+                                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                                    />
                                 </div>
-
-                                <div style={{ marginTop: '2rem', padding: '1rem', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7', fontSize: '0.85rem', color: '#92400e' }}>
-                                    <strong>Perhatian:</strong> Pastikan data yang diisi dalam template sesuai dengan struktur kolom yang telah ditentukan agar sistem dapat memproses data dengan benar.
+                                <div className="form-group">
+                                    <label>Konfirmasi Password Baru</label>
+                                    <input
+                                        type="password"
+                                        className="form-input"
+                                        required
+                                        value={passwordData.confirmPassword}
+                                        onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                                    />
                                 </div>
-                            </div>
-
-                            {/* Import */}
-                            <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--accent-color)' }}>
-                                    <Upload size={24} />
-                                    <h2 style={{ margin: 0 }}>Impor Data Masal</h2>
-                                </div>
-                                <p className="text-muted mb-6">Unggah file Excel yang telah diisi sesuai template untuk menambahkan data personel dan pelanggaran secara otomatis.</p>
-
-                                <form onSubmit={handleImport} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                    <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '2rem', textAlign: 'center', position: 'relative', background: selectedFile ? '#f0fdf4' : 'var(--bg-color)', transition: 'all 0.3s' }}>
-                                        <input
-                                            type="file"
-                                            accept=".xlsx, .xls"
-                                            onChange={(e) => setSelectedFile(e.target.files[0])}
-                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
-                                        />
-                                        {selectedFile ? (
-                                            <div style={{ color: 'var(--accent-color)', fontWeight: 600 }}>
-                                                <FileText size={32} style={{ margin: '0 auto 0.5rem' }} />
-                                                <div>{selectedFile.name}</div>
-                                                <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>{(selectedFile.size / 1024).toFixed(2)} KB</div>
-                                            </div>
-                                        ) : (
-                                            <div style={{ color: 'var(--text-muted)' }}>
-                                                <Upload size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-                                                <div>Klik atau seret file Excel ke sini</div>
-                                                <div style={{ fontSize: '0.8rem' }}>Hanya file .xlsx atau .xls</div>
-                                            </div>
-                                        )}
-                                    </div>
-
+                                <div className="flex justify-start">
                                     <button
                                         type="submit"
                                         className="btn-primary"
-                                        disabled={importLoading || !selectedFile}
-                                        style={{ background: 'var(--accent-color)', justifyContent: 'center', padding: '1rem' }}
+                                        disabled={passwordLoading}
+                                        style={{
+                                            background: 'var(--danger)',
+                                            padding: '0.75rem 2rem',
+                                            width: 'fit-content'
+                                        }}
                                     >
-                                        {importLoading ? 'Memproses Data...' : 'Mulai Proses Impor'}
-                                    </button>
-                                </form>
-                            </div>
-
-                            {/* Scan Retirees Section */}
-                            <div style={{ gridColumn: 'span 2', background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)', marginTop: '1rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--primary-color)' }}>
-                                        <Users size={24} />
-                                        <h2 style={{ margin: 0 }}>Pindai Anggota Pensiun</h2>
-                                    </div>
-                                    <button
-                                        className="btn-primary"
-                                        onClick={handleScanPensiun}
-                                        disabled={scanLoading}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                                    >
-                                        <Search size={18} />
-                                        {scanLoading ? <Loading variant="inline" text="Memindai..." /> : 'Mulai Pindai Anggota Pensiun'}
+                                        {passwordLoading ? 'Memproses...' : 'Perbarui Password Akun'}
                                     </button>
                                 </div>
-                                <p className="text-muted mb-4">Cari data personel yang telah mencapai atau melewati Tanggal Pensiun namun statusnya masih AKTIF.</p>
+                            </form>
+                        </div>
+                    </div>
+                )}
 
-                                {retiringPersonnel.length > 0 && (
-                                    <div className="animate-fade-in">
-                                        <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '1.5rem' }}>
-                                            <table className="data-table" style={{ margin: 0 }}>
-                                                <thead>
-                                                    <tr>
-                                                        <th>NRP/NIP</th>
-                                                        <th>Nama Lengkap</th>
-                                                        <th>Satker</th>
-                                                        <th>Tgl. Pensiun</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {retiringPersonnel.map(p => (
-                                                        <tr key={p.id}>
-                                                            <td style={{ fontWeight: 600 }}>{p.nrpNip}</td>
-                                                            <td>{p.namaLengkap}</td>
-                                                            <td>{p.satker?.nama}</td>
-                                                            <td className="text-danger font-bold">{format(new Date(p.tanggalPensiun), 'dd/MM/yyyy')}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-
-                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', background: '#f8fafc', padding: '1.5rem', borderRadius: '8px' }}>
-                                            <div style={{ flex: 1 }}>
-                                                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem' }}>Alasan/Keterangan Mutasi Pensiun:</label>
-                                                <input
-                                                    type="text"
-                                                    className="form-input"
-                                                    placeholder="Contoh: Pembersihan database periode Maret 2026"
-                                                    value={retiringAlasan}
-                                                    onChange={(e) => setRetiringAlasan(e.target.value)}
-                                                />
+                {/* TAB: USERS */}
+                {activeTab === 'users' && (
+                    <div>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2>Daftar Akun Pengguna</h2>
+                            <button className="btn-primary" onClick={(e) => handleOpenModal('user', null, e)}><Plus size={18} /> Tambah User</button>
+                        </div>
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Email & Nama</th>
+                                    <th>Role Akses</th>
+                                    <th>No. HP</th>
+                                    <th>Status Auth</th>
+                                    <th>Terakhir Login</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(usersLoading && usersList.length === 0) ? (
+                                    <tr>
+                                        <td colSpan="6" className="text-center py-12">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary-color)]"></div>
+                                                <span className="text-sm font-medium text-gray-500">Sinkronisasi daftar user...</span>
                                             </div>
-                                            <button
-                                                className="btn-primary"
-                                                onClick={handleBulkUpdatePensiun}
-                                                disabled={bulkUpdateLoading}
-                                                style={{ background: 'var(--success-color)', height: '42px', display: 'flex', alignItems: 'center', gap: '8px' }}
-                                            >
-                                                {bulkUpdateLoading ? <Loading variant="inline" text="Memproses..." /> : 'Nonaktifkan Semua Anggota (Pensiun)'}
-                                            </button>
-                                            <button
-                                                onClick={() => { setRetiringPersonnel([]); setRetiringAlasan(''); }}
-                                                className="btn-secondary"
-                                                style={{ height: '42px' }}
-                                            >
-                                                Batal
-                                            </button>
-                                        </div>
-                                    </div>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    usersList.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="6" className="text-center py-8 text-gray-500 italic">Tidak ada user ditemukan.</td>
+                                        </tr>
+                                    ) : (
+                                        usersList.map(u => (
+                                            <tr key={u.id} style={{ opacity: u.supabaseData?.isBanned ? 0.6 : 1 }}>
+                                                <td style={{ fontWeight: 500 }}>
+                                                    <div className="flex flex-col">
+                                                        <span>{u.email}</span>
+                                                        {u.displayName && <span style={{ fontSize: '0.85rem', color: 'var(--primary-color)' }}>{u.displayName}</span>}
+                                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                            {u.satker?.nama || 'Polda Utama'}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span style={{
+                                                        fontSize: '0.75rem',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '12px',
+                                                        background: u.role === 'ADMIN_POLDA' ? 'var(--accent-color)' : 'var(--border-color)',
+                                                        color: u.role === 'ADMIN_POLDA' ? 'white' : 'var(--text-color)',
+                                                        fontWeight: 600
+                                                    }}>
+                                                        {u.role.replace('_', ' ')}
+                                                    </span>
+                                                </td>
+                                                <td style={{ fontSize: '0.9rem' }}>
+                                                    {u.phone || <span className="text-gray-400 italic">N/A</span>}
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
+                                                        {u.supabaseData?.confirmedAt ? (
+                                                            <span className="text-success flex items-center gap-1"><CheckCircle size={14} /> Terverifikasi</span>
+                                                        ) : (
+                                                            <span className="text-warning flex items-center gap-1"><XCircle size={14} /> Belum Konfirmasi</span>
+                                                        )}
+                                                        {u.supabaseData?.isBanned && (
+                                                            <span className="text-danger flex items-center gap-1 ml-2"><Lock size={14} /> Dinonaktifkan</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                                                    {u.supabaseData?.lastSignIn
+                                                        ? format(new Date(u.supabaseData.lastSignIn), 'dd/MM/yyyy HH:mm')
+                                                        : <span className="italic text-gray-400">Belum pernah login</span>}
+                                                </td>
+                                                <td>
+                                                    <div className="action-btns">
+                                                        <button className="btn-icon" onClick={(e) => handleOpenModal('user', u, e)} title="Edit Metadata"><Edit2 size={16} /></button>
+
+                                                        {u.id !== user.id && (
+                                                            <>
+                                                                <button
+                                                                    className="btn-icon"
+                                                                    onClick={() => handleAdminResetPassword(u.id)}
+                                                                    title="Kirim Instruksi Reset Password"
+                                                                    style={{ color: 'var(--primary-color)' }}
+                                                                >
+                                                                    <Mail size={16} />
+                                                                </button>
+
+                                                                {u.supabaseData?.isBanned ? (
+                                                                    <button
+                                                                        className="btn-icon"
+                                                                        onClick={() => handleToggleUserStatus(u.id, false)}
+                                                                        title="Aktifkan Kembali Akun"
+                                                                        style={{ color: 'var(--success-color)' }}
+                                                                    >
+                                                                        <Unlock size={16} />
+                                                                    </button>
+                                                                ) : (
+                                                                    <button
+                                                                        className="btn-icon"
+                                                                        onClick={() => handleToggleUserStatus(u.id, true)}
+                                                                        title="Nonaktifkan Akun (Ban)"
+                                                                        style={{ color: 'var(--warning-color)' }}
+                                                                    >
+                                                                        <Lock size={16} />
+                                                                    </button>
+                                                                )}
+
+                                                                <button className="btn-icon delete" onClick={() => handleDelete('user', u.id)} title="Hapus User Penuh"><Trash2 size={16} /></button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )
                                 )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* TAB: SATKER */}
+                {activeTab === 'satker' && (
+                    <div>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2>Struktur Satuan Kerja</h2>
+                            <button className="btn-primary" onClick={(e) => handleOpenModal('satker', null, e)}><Plus size={18} /> Tambah Satker</button>
+                        </div>
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '80px' }}>URUTAN</th>
+                                    <th>Nama Satker / Kesatuan</th>
+                                    <th>Dibuat Pada</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragEnd={handleDragEnd}
+                                >
+                                    <SortableContext
+                                        items={satkerList.map(s => s.id)}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        {satkerList.map(s => (
+                                            <SortableSatkerRow
+                                                key={s.id}
+                                                s={s}
+                                                format={format}
+                                                handleOpenModal={handleOpenModal}
+                                                handleDelete={handleDelete}
+                                            />
+                                        ))}
+                                    </SortableContext>
+                                </DndContext>
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* TAB: APP SETTINGS */}
+                {activeTab === 'app' && (
+                    <div>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2>Parameter Sistem (Umur Pensiun, dll)</h2>
+                            <p className="text-sm text-gray-500">Nilai diatur secara global untuk validasi input form Personel.</p>
+                        </div>
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Nama Variabel (Sistem)</th>
+                                    <th style={{ textAlign: 'center' }}>Nilai / Value</th>
+                                    <th>Deskripsi Penggunaan</th>
+                                    <th style={{ textAlign: 'center' }}>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {pengaturanList.map(sett => (
+                                    <tr key={sett.key}>
+                                        <td style={{ fontWeight: 600 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-color)' }}>
+                                                <ShieldCheck size={18} />
+                                                {sett.key.replace(/_/g, ' ')}
+                                            </div>
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <span style={{
+                                                fontSize: '1.25rem',
+                                                fontWeight: 800,
+                                                display: 'inline-block',
+                                                padding: '2px 12px',
+                                                background: 'var(--bg-light)',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--border-color)'
+                                            }}>
+                                                {sett.value}
+                                            </span>
+                                        </td>
+                                        <td style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                                            {sett.deskripsi || 'Tidak ada deskripsi'}
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <button className="btn-icon" onClick={(e) => handleOpenModal('app', sett, e)} title="Ubah Konfigurasi">
+                                                <Edit2 size={18} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* TAB: IMPORT & EXPORT */}
+                {activeTab === 'impor_ekspor' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+                        {/* Export & Template */}
+                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--primary-color)' }}>
+                                <Download size={24} />
+                                <h2 style={{ margin: 0 }}>Ekspor & Template</h2>
+                            </div>
+                            <p className="text-muted mb-6">Unduh seluruh data personel atau dapatkan template Excel untuk proses impor data masal.</p>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <button onClick={handleExport} className="btn-primary" style={{ justifyContent: 'center', padding: '1rem' }}>
+                                    <FileText size={20} /> Ekspor Seluruh Data ke Excel
+                                </button>
+
+                                <div style={{ borderTop: '1px solid var(--border-color)', margin: '0.5rem 0', paddingTop: '1.5rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Ekspor Berdasarkan Satuan Kerja (Satker):</label>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <select
+                                            className="form-input"
+                                            value={selectedExportSatker}
+                                            onChange={(e) => setSelectedExportSatker(e.target.value)}
+                                            style={{ flex: 1 }}
+                                        >
+                                            <option value="">-- Pilih Satker --</option>
+                                            {satkerList.map(s => (
+                                                <option key={s.id} value={s.id}>{s.nama}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={(e) => handleExport(e, selectedExportSatker)}
+                                            className="btn-primary"
+                                            disabled={!selectedExportSatker}
+                                            style={{ padding: '0 1.5rem', opacity: !selectedExportSatker ? 0.6 : 1 }}
+                                        >
+                                            Ekspor Satker
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button onClick={handleDownloadTemplate} className="btn-secondary" style={{ justifyContent: 'center', padding: '1rem', border: '2px dashed var(--border-color)' }}>
+                                    <Download size={20} /> Unduh Template Import (.xlsx)
+                                </button>
+                            </div>
+
+                            <div style={{ marginTop: '2rem', padding: '1rem', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7', fontSize: '0.85rem', color: '#92400e' }}>
+                                <strong>Perhatian:</strong> Pastikan data yang diisi dalam template sesuai dengan struktur kolom yang telah ditentukan agar sistem dapat memproses data dengan benar.
                             </div>
                         </div>
-                    )}
 
-                    {/* TAB: AUDIT LOG */}
-                    {activeTab === 'audit' && (
-                        <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <div>
-                                    <h2>Rekam Jejak Sistem (Audit Log)</h2>
-                                    <p className="text-sm text-gray-500">Mencatat seluruh aktivitas berisiko tinggi seperti Mutasi/Penghapusan Personel.</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <div className="search-bar" style={{ flex: 1, minWidth: '250px' }}>
-                                        <Search size={18} />
-                                        <input
-                                            type="text"
-                                            placeholder="Cari Riwayat Audit..."
-                                            value={auditSearch}
-                                            onChange={(e) => setAuditSearch(e.target.value)}
-                                        />
-                                    </div>
-                                    <button className="btn-secondary" onClick={handleDownloadAudit} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
-                                        <Download size={16} /> Unduh CSV
-                                    </button>
-                                </div>
+                        {/* Import */}
+                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', color: 'var(--accent-color)' }}>
+                                <Upload size={24} />
+                                <h2 style={{ margin: 0 }}>Impor Data Masal</h2>
                             </div>
+                            <p className="text-muted mb-6">Unggah file Excel yang telah diisi sesuai template untuk menambahkan data personel dan pelanggaran secara otomatis.</p>
 
-                            {/* Audit Log Summary (Top) */}
-                            {totalAuditItems > 0 && (
-                                <div style={{ marginBottom: '1rem', background: 'var(--bg-color)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                                    Menampilkan <strong>{(auditPage - 1) * auditItemsPerPage + 1} - {Math.min(auditPage * auditItemsPerPage, totalAuditItems)}</strong> dari <strong>{totalAuditItems}</strong> log transaksi keamanan.
+                            <form onSubmit={handleImport} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '2rem', textAlign: 'center', position: 'relative', background: selectedFile ? '#f0fdf4' : 'var(--bg-color)', transition: 'all 0.3s' }}>
+                                    <input
+                                        type="file"
+                                        accept=".xlsx, .xls"
+                                        onChange={(e) => setSelectedFile(e.target.files[0])}
+                                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
+                                    />
+                                    {selectedFile ? (
+                                        <div style={{ color: 'var(--accent-color)', fontWeight: 600 }}>
+                                            <FileText size={32} style={{ margin: '0 auto 0.5rem' }} />
+                                            <div>{selectedFile.name}</div>
+                                            <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>{(selectedFile.size / 1024).toFixed(2)} KB</div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ color: 'var(--text-muted)' }}>
+                                            <Upload size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
+                                            <div>Klik atau seret file Excel ke sini</div>
+                                            <div style={{ fontSize: '0.8rem' }}>Hanya file .xlsx atau .xls</div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    className="btn-primary"
+                                    disabled={importLoading || !selectedFile}
+                                    style={{ background: 'var(--accent-color)', justifyContent: 'center', padding: '1rem' }}
+                                >
+                                    {importLoading ? 'Memproses Data...' : 'Mulai Proses Impor'}
+                                </button>
+                            </form>
+                        </div>
+
+                        {/* Scan Retirees Section */}
+                        <div style={{ gridColumn: 'span 2', background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color)', marginTop: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--primary-color)' }}>
+                                    <Users size={24} />
+                                    <h2 style={{ margin: 0 }}>Pindai Anggota Pensiun</h2>
+                                </div>
+                                <button
+                                    className="btn-primary"
+                                    onClick={handleScanPensiun}
+                                    disabled={scanLoading}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                >
+                                    <Search size={18} />
+                                    {scanLoading ? <Loading variant="inline" text="Memindai..." /> : 'Mulai Pindai Anggota Pensiun'}
+                                </button>
+                            </div>
+                            <p className="text-muted mb-4">Cari data personel yang telah mencapai atau melewati Tanggal Pensiun namun statusnya masih AKTIF.</p>
+
+                            {retiringPersonnel.length > 0 && (
+                                <div className="animate-fade-in">
+                                    <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                                        <table className="data-table" style={{ margin: 0 }}>
+                                            <thead>
+                                                <tr>
+                                                    <th>NRP/NIP</th>
+                                                    <th>Nama Lengkap</th>
+                                                    <th>Satker</th>
+                                                    <th>Tgl. Pensiun</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {retiringPersonnel.map(p => (
+                                                    <tr key={p.id}>
+                                                        <td style={{ fontWeight: 600 }}>{p.nrpNip}</td>
+                                                        <td>{p.namaLengkap}</td>
+                                                        <td>{p.satker?.nama}</td>
+                                                        <td className="text-danger font-bold">{format(new Date(p.tanggalPensiun), 'dd/MM/yyyy')}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', background: '#f8fafc', padding: '1.5rem', borderRadius: '8px' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem' }}>Alasan/Keterangan Mutasi Pensiun:</label>
+                                            <input
+                                                type="text"
+                                                className="form-input"
+                                                placeholder="Contoh: Pembersihan database periode Maret 2026"
+                                                value={retiringAlasan}
+                                                onChange={(e) => setRetiringAlasan(e.target.value)}
+                                            />
+                                        </div>
+                                        <button
+                                            className="btn-primary"
+                                            onClick={handleBulkUpdatePensiun}
+                                            disabled={bulkUpdateLoading}
+                                            style={{ background: 'var(--success-color)', height: '42px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                        >
+                                            {bulkUpdateLoading ? <Loading variant="inline" text="Memproses..." /> : 'Nonaktifkan Semua Anggota (Pensiun)'}
+                                        </button>
+                                        <button
+                                            onClick={() => { setRetiringPersonnel([]); setRetiringAlasan(''); }}
+                                            className="btn-secondary"
+                                            style={{ height: '42px' }}
+                                        >
+                                            Batal
+                                        </button>
+                                    </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
 
-                            <div style={{ overflowX: 'auto' }}>
-                                <table className="data-table" style={{ fontSize: '0.85rem' }}>
-                                    <thead>
-                                        <tr>
-                                            <th>Waktu Eksekusi</th>
-                                            <th>Operator / Aktor</th>
-                                            <th>Tipe Aksi</th>
-                                            <th>Rincian Deskripsi</th>
-                                            <th>Alasan (Input Mandiri)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {paginatedAuditList.map(log => (
-                                            <tr key={log.id}>
-                                                <td style={{ whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{new Date(log.createdAt).toLocaleString('id-ID')}</td>
-                                                <td><span style={{ fontWeight: 600 }}>{log.userEmail}</span><br /><span style={{ fontSize: '0.8em', color: 'var(--primary-color)' }}>{log.satker}</span></td>
-                                                <td><span style={{ background: 'var(--danger)', color: 'white', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>{log.aksi}</span></td>
-                                                <td>{log.deskripsi}</td>
-                                                <td style={{ fontStyle: 'italic', color: '#b45309', fontWeight: 500 }}>"{log.alasan}"</td>
-                                            </tr>
-                                        ))}
-                                        {auditList.length === 0 && (
-                                            <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>Belum ada entri log keamanan yang tercatat.</td></tr>
-                                        )}
-                                        {totalAuditItems === 0 && auditSearch && (
-                                            <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>Pencarian tidak menemukan entri log.</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
-
-                                {/* Audit Pagination Controls */}
-                                {auditTotalPages > 1 && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '0 0.5rem' }}>
-                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                            Menampilkan {(auditPage - 1) * auditItemsPerPage + 1} - {Math.min(auditPage * auditItemsPerPage, totalAuditItems)} dari {totalAuditItems} log
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                                            <button
-                                                onClick={() => setAuditPage(prev => Math.max(prev - 1, 1))}
-                                                disabled={auditPage === 1}
-                                                style={{
-                                                    padding: '0.4rem 0.8rem',
-                                                    borderRadius: '6px',
-                                                    border: '1px solid var(--border-color)',
-                                                    background: 'white',
-                                                    cursor: auditPage === 1 ? 'not-allowed' : 'pointer',
-                                                    opacity: auditPage === 1 ? 0.5 : 1,
-                                                    fontSize: '0.85rem'
-                                                }}
-                                            >
-                                                Sebelumnya
-                                            </button>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                {[...Array(auditTotalPages)].map((_, i) => {
-                                                    const pageNum = i + 1;
-                                                    if (
-                                                        pageNum === 1 ||
-                                                        pageNum === auditTotalPages ||
-                                                        (pageNum >= auditPage - 1 && pageNum <= auditPage + 1)
-                                                    ) {
-                                                        return (
-                                                            <button
-                                                                key={pageNum}
-                                                                onClick={() => setAuditPage(pageNum)}
-                                                                style={{
-                                                                    width: '32px',
-                                                                    height: '32px',
-                                                                    borderRadius: '6px',
-                                                                    border: '1px solid',
-                                                                    borderColor: auditPage === pageNum ? 'var(--primary-color)' : 'var(--border-color)',
-                                                                    background: auditPage === pageNum ? 'var(--primary-color)' : 'white',
-                                                                    color: auditPage === pageNum ? 'white' : 'var(--text-color)',
-                                                                    cursor: 'pointer',
-                                                                    fontSize: '0.85rem',
-                                                                    fontWeight: 600
-                                                                }}
-                                                            >
-                                                                {pageNum}
-                                                            </button>
-                                                        );
-                                                    } else if (
-                                                        (pageNum === 2 && auditPage > 3) ||
-                                                        (pageNum === auditTotalPages - 1 && auditPage < auditTotalPages - 2)
-                                                    ) {
-                                                        return <span key={pageNum} style={{ padding: '0 2px' }}>...</span>;
-                                                    }
-                                                    return null;
-                                                })}
-                                            </div>
-                                            <button
-                                                onClick={() => setAuditPage(prev => Math.min(prev + 1, auditTotalPages))}
-                                                disabled={auditPage === auditTotalPages}
-                                                style={{
-                                                    padding: '0.4rem 0.8rem',
-                                                    borderRadius: '6px',
-                                                    border: '1px solid var(--border-color)',
-                                                    background: 'white',
-                                                    cursor: auditPage === auditTotalPages ? 'not-allowed' : 'pointer',
-                                                    opacity: auditPage === auditTotalPages ? 0.5 : 1,
-                                                    fontSize: '0.85rem'
-                                                }}
-                                            >
-                                                Selanjutnya
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
+                {/* TAB: AUDIT LOG */}
+                {activeTab === 'audit' && (
+                    <div>
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h2>Rekam Jejak Sistem (Audit Log)</h2>
+                                <p className="text-sm text-gray-500">Mencatat seluruh aktivitas berisiko tinggi seperti Mutasi/Penghapusan Personel.</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="search-bar" style={{ flex: 1, minWidth: '250px' }}>
+                                    <Search size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="Cari Riwayat Audit..."
+                                        value={auditSearch}
+                                        onChange={(e) => setAuditSearch(e.target.value)}
+                                    />
+                                </div>
+                                <button className="btn-secondary" onClick={handleDownloadAudit} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+                                    <Download size={16} /> Unduh CSV
+                                </button>
                             </div>
                         </div>
-                    )}
-                </div>
-            )}
+
+                        {/* Audit Log Summary (Top) */}
+                        {totalAuditItems > 0 && (
+                            <div style={{ marginBottom: '1rem', background: 'var(--bg-color)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                                Menampilkan <strong>{(auditPage - 1) * auditItemsPerPage + 1} - {Math.min(auditPage * auditItemsPerPage, totalAuditItems)}</strong> dari <strong>{totalAuditItems}</strong> log transaksi keamanan.
+                            </div>
+                        )}
+
+                        <div style={{ overflowX: 'auto' }}>
+                            <table className="data-table" style={{ fontSize: '0.85rem' }}>
+                                <thead>
+                                    <tr>
+                                        <th>Waktu Eksekusi</th>
+                                        <th>Operator / Aktor</th>
+                                        <th>Tipe Aksi</th>
+                                        <th>Rincian Deskripsi</th>
+                                        <th>Alasan (Input Mandiri)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {paginatedAuditList.map(log => (
+                                        <tr key={log.id}>
+                                            <td style={{ whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{new Date(log.createdAt).toLocaleString('id-ID')}</td>
+                                            <td><span style={{ fontWeight: 600 }}>{log.userEmail}</span><br /><span style={{ fontSize: '0.8em', color: 'var(--primary-color)' }}>{log.satker}</span></td>
+                                            <td><span style={{ background: 'var(--danger)', color: 'white', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>{log.aksi}</span></td>
+                                            <td>{log.deskripsi}</td>
+                                            <td style={{ fontStyle: 'italic', color: '#b45309', fontWeight: 500 }}>"{log.alasan}"</td>
+                                        </tr>
+                                    ))}
+                                    {auditList.length === 0 && (
+                                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>Belum ada entri log keamanan yang tercatat.</td></tr>
+                                    )}
+                                    {totalAuditItems === 0 && auditSearch && (
+                                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>Pencarian tidak menemukan entri log.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+
+                            {/* Audit Pagination Controls */}
+                            {auditTotalPages > 1 && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '0 0.5rem' }}>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                        Menampilkan {(auditPage - 1) * auditItemsPerPage + 1} - {Math.min(auditPage * auditItemsPerPage, totalAuditItems)} dari {totalAuditItems} log
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                        <button
+                                            onClick={() => setAuditPage(prev => Math.max(prev - 1, 1))}
+                                            disabled={auditPage === 1}
+                                            style={{
+                                                padding: '0.4rem 0.8rem',
+                                                borderRadius: '6px',
+                                                border: '1px solid var(--border-color)',
+                                                background: 'white',
+                                                cursor: auditPage === 1 ? 'not-allowed' : 'pointer',
+                                                opacity: auditPage === 1 ? 0.5 : 1,
+                                                fontSize: '0.85rem'
+                                            }}
+                                        >
+                                            Sebelumnya
+                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            {[...Array(auditTotalPages)].map((_, i) => {
+                                                const pageNum = i + 1;
+                                                if (
+                                                    pageNum === 1 ||
+                                                    pageNum === auditTotalPages ||
+                                                    (pageNum >= auditPage - 1 && pageNum <= auditPage + 1)
+                                                ) {
+                                                    return (
+                                                        <button
+                                                            key={pageNum}
+                                                            onClick={() => setAuditPage(pageNum)}
+                                                            style={{
+                                                                width: '32px',
+                                                                height: '32px',
+                                                                borderRadius: '6px',
+                                                                border: '1px solid',
+                                                                borderColor: auditPage === pageNum ? 'var(--primary-color)' : 'var(--border-color)',
+                                                                background: auditPage === pageNum ? 'var(--primary-color)' : 'white',
+                                                                color: auditPage === pageNum ? 'white' : 'var(--text-color)',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.85rem',
+                                                                fontWeight: 600
+                                                            }}
+                                                        >
+                                                            {pageNum}
+                                                        </button>
+                                                    );
+                                                } else if (
+                                                    (pageNum === 2 && auditPage > 3) ||
+                                                    (pageNum === auditTotalPages - 1 && auditPage < auditTotalPages - 2)
+                                                ) {
+                                                    return <span key={pageNum} style={{ padding: '0 2px' }}>...</span>;
+                                                }
+                                                return null;
+                                            })}
+                                        </div>
+                                        <button
+                                            onClick={() => setAuditPage(prev => Math.min(prev + 1, auditTotalPages))}
+                                            disabled={auditPage === auditTotalPages}
+                                            style={{
+                                                padding: '0.4rem 0.8rem',
+                                                borderRadius: '6px',
+                                                border: '1px solid var(--border-color)',
+                                                background: 'white',
+                                                cursor: auditPage === auditTotalPages ? 'not-allowed' : 'pointer',
+                                                opacity: auditPage === auditTotalPages ? 0.5 : 1,
+                                                fontSize: '0.85rem'
+                                            }}
+                                        >
+                                            Selanjutnya
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* MODALS */}
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Form ${modalType.toUpperCase()}`} position={modalPosition}>
