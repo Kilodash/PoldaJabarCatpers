@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Search, FileText, Upload, AlertTriangle, Eye, Plus, Edit2, Trash2, CheckCircle, Copy, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import api from '../utils/api';
 import PersonelHistoryModal from '../components/PersonelHistoryModal';
+import { useDebounce } from '../hooks/useDebounce';
 import './Pencarian.css';
 
 const Pencarian = () => {
@@ -34,7 +35,7 @@ const Pencarian = () => {
         setSortConfig({ key, direction });
     };
 
-    const sortedResults = [...(showAllResults ? searchResults : searchResults.filter(item => item.found))].sort((a, b) => {
+    const sortedResults = [...(showAllResults || searchResults.length < 5 ? searchResults : searchResults.filter(item => item.found))].sort((a, b) => {
         let valA, valB;
         if (sortConfig.key === 'namaSesuai') {
             valA = a.personel?.namaLengkap || (a.found ? '' : 'ZZZ');
@@ -60,30 +61,30 @@ const Pencarian = () => {
         currentPage * itemsPerPage
     );
 
-    const totalPages = Math.ceil(sortedResults.length / itemsPerPage);
+    const debouncedManualInput = useDebounce(manualInput, 500);
 
-    const handleManualSearch = async (e) => {
-        e.preventDefault();
-        if (!manualInput.trim()) {
-            toast.error("Input tidak boleh kosong");
-            return;
-        }
+    const handleManualSearch = useCallback(async (val) => {
+        const input = val || manualInput;
+        if (!input.trim() || input.trim().length < 3) return;
 
         setLoadingManual(true);
         try {
-            const response = await api.post('/pencarian/manual', { textInput: manualInput });
-
+            const response = await api.post('/pencarian/manual', { textInput: input });
             setSearchResults(response.data.data);
             setHasSearched(true);
-            toast.success("Pencarian berhasil");
         } catch (error) {
             console.error(error);
-            toast.error(error.response?.data?.message || "Terjadi kesalahan saat mencari");
         } finally {
             setLoadingManual(false);
             setCurrentPage(1);
         }
-    };
+    }, [manualInput]);
+
+    useEffect(() => {
+        if (debouncedManualInput.trim() && debouncedManualInput.trim().length >= 3) {
+            handleManualSearch(debouncedManualInput);
+        }
+    }, [debouncedManualInput, handleManualSearch]);
 
     const handleFileSearch = async (e) => {
         e.preventDefault();
@@ -132,6 +133,12 @@ const Pencarian = () => {
             console.error("Gagal refresh data:", error);
         }
     };
+
+
+    const selectedPersonelData = useMemo(() => {
+        if (!selectedPersonelId) return null;
+        return searchResults.find(item => item.personel?.id === selectedPersonelId)?.personel;
+    }, [searchResults, selectedPersonelId]);
 
 
     return (
@@ -424,6 +431,7 @@ const Pencarian = () => {
                 isOpen={isMenuOpen}
                 onClose={() => setIsMenuOpen(false)}
                 personelId={selectedPersonelId}
+                initialData={selectedPersonelData}
                 onRefresh={handleRefresh}
             />
         </div>

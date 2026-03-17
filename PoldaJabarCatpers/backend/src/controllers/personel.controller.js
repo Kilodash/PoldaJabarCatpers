@@ -1,3 +1,5 @@
+'use strict';
+
 const prisma = require('../prisma');
 
 // Helper: load semua pengaturan sekaligus (1 query, bukan per-key)
@@ -159,11 +161,11 @@ const getAllPersonel = async (req, res) => {
             showDeleted = true; // Allow finding deleted/inactive if searching specifically
             conditions.push({
                 OR: [
-                    { namaLengkap: { contains: req.query.search } },
-                    { nrpNip: { contains: req.query.search } },
-                    { nrpNip: { contains: `_${req.query.search}` } },
-                    { pangkat: { contains: req.query.search } },
-                    { jabatan: { contains: req.query.search } }
+                    { namaLengkap: { contains: req.query.search, mode: 'insensitive' } },
+                    { nrpNip: { contains: req.query.search, mode: 'insensitive' } },
+                    { nrpNip: { contains: `_${req.query.search}`, mode: 'insensitive' } },
+                    { pangkat: { contains: req.query.search, mode: 'insensitive' } },
+                    { jabatan: { contains: req.query.search, mode: 'insensitive' } }
                 ]
             });
         }
@@ -183,8 +185,13 @@ const getAllPersonel = async (req, res) => {
         }
 
         // 5. Satker & Jenis Pegawai Filters
-        if (req.query.satkerId && req.user.role === 'ADMIN_POLDA') {
-            conditions.push({ satkerId: parseInt(req.query.satkerId) });
+        if (req.query.satkerId) {
+            const parsedId = parseInt(req.query.satkerId);
+            if (!isNaN(parsedId)) {
+                if (req.user.role === 'ADMIN_POLDA' || parsedId === req.user.satkerId) {
+                    conditions.push({ satkerId: parsedId });
+                }
+            }
         }
         if (req.query.jenisPegawai) {
             conditions.push({ jenisPegawai: req.query.jenisPegawai });
@@ -197,7 +204,9 @@ const getAllPersonel = async (req, res) => {
             const cat = req.query.category;
             const catCondition = [];
 
-            if (cat === 'tidakAktif') {
+            if (cat === 'aktif') {
+                conditions.push({ statusKeaktifan: 'AKTIF', deletedAt: null, isDraft: false });
+            } else if (cat === 'tidakAktif') {
                 showDeleted = true;
                 catCondition.push({
                     OR: [
@@ -304,7 +313,7 @@ const getAllPersonel = async (req, res) => {
         }
 
         // Final WHERE clause
-        whereClause = { AND: conditions };
+        const whereClause = { AND: conditions };
 
         // Paginasi opsional — jika ada query `page`, aktifkan paginasi
         const page = req.query.page ? parseInt(req.query.page) : null;

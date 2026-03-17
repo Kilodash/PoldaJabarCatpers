@@ -9,10 +9,11 @@ import Modal from './Modal';
 import PelanggaranFormModal from './PelanggaranFormModal';
 import { useAuth } from '../context/AuthContext';
 
-const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
+const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialData = null }) => {
     const { user } = useAuth();
-    const [personel, setPersonel] = useState(null);
+    const [personel, setPersonel] = useState(initialData);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -25,24 +26,50 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, alasan: '' });
     const [rejectModal, setRejectModal] = useState({ isOpen: false, id: null, catatan: '' });
 
+    // Helper untuk format tanggal aman (tidak crash pada Invalid Date)
+    const formatDateSafe = (dateStr, formatStr = 'dd/MM/yyyy') => {
+        if (!dateStr) return '-';
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return '-';
+            return format(d, formatStr);
+        } catch (e) {
+            return '-';
+        }
+    };
+
     const fetchDetail = async () => {
         if (!personelId) return;
         setLoading(true);
+        setError(null);
         try {
             const res = await api.get(`/personel/${personelId}`);
             setPersonel(res.data);
         } catch (error) {
-            toast.error("Gagal memuat detail riwayat");
-            onClose();
+            console.error("Gagal memuat detail riwayat:", error);
+            setError("Gagal memuat detail riwayat terupdate.");
+            // Don't auto-close immediately, allow user to see current/error state
+            if (!personel) {
+                toast.error("Gagal memuat detail riwayat");
+            }
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        if (isOpen && personelId) {
-            fetchDetail();
-            setCurrentPage(1);
+        if (isOpen) {
+            if (personelId) {
+                // If we have initialData and its ID matches, use it first
+                if (initialData && initialData.id === personelId) {
+                    setPersonel(initialData);
+                } else if (!personel || personel.id !== personelId) {
+                    setPersonel(null);
+                }
+                
+                fetchDetail();
+                setCurrentPage(1);
+            }
         }
     }, [isOpen, personelId]);
 
@@ -64,11 +91,12 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
         text += `Satker          : ${personel.satker?.nama || '-'}\n\n`;
         
         text += `DAFTAR CATATAN / PELANGGARAN:\n`;
-        if (personel.pelanggaran?.length === 0) {
+        const listCatpers = personel.pelanggaran || [];
+        if (listCatpers.length === 0) {
             text += `- Bersih / Tidak ada catatan pelanggaran.\n`;
         } else {
-            personel.pelanggaran.forEach((pel, idx) => {
-                const formatDate = (date) => date ? format(new Date(date), 'dd/MM/yyyy') : '-';
+            listCatpers.forEach((pel, idx) => {
+                const formatDate = (date) => formatDateSafe(date);
                 
                 text += `${idx + 1}. Wujud Perbuatan : ${pel.wujudPerbuatan}\n`;
                 text += `   Informasi Dasar :\n`;
@@ -83,7 +111,7 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
                 ? (pel.nomorSktb || pel.tanggalSktb ? 'TIDAK TERBUKTI SIDANG' : 'TIDAK TERBUKTI RIKSA')
                 : (pel.statusPenyelesaian === 'Belum ada SKTT' ? 'TIDAK TERBUKTI RIKSA (BELUM ADA SKTT)' :
                    pel.statusPenyelesaian === 'Belum ada SKTB' ? 'TIDAK TERBUKTI SIDANG (BELUM ADA SKTB)' :
-                   pel.statusPenyelesaian.replace(/_/g, ' '));
+                   (pel.statusPenyelesaian || 'PROSES').replace(/_/g, ' '));
                 text += `${statusLabel}\n`;
 
                 // Detail Sidang / Putusan
@@ -204,9 +232,28 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
 
     return (
         <>
-            <Modal isOpen={isOpen} onClose={onClose} title={personel ? `Catatan: ${personel.namaLengkap}` : "Memuat..."} maxWidth="90%">
-                {loading ? <div className="loading-state py-8">Memuat Rekam Jejak...</div> : personel && (
-                    <div>
+            <Modal isOpen={isOpen} onClose={onClose} title={personel ? `Catatan: ${personel.namaLengkap}` : (loading ? "Memuat..." : "Detail Personel")} maxWidth="90%">
+                {error && (
+                    <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4 text-red-700 no-print">
+                        <div className="flex items-center gap-2">
+                            <AlertCircle size={18} />
+                            <span>{error}</span>
+                        </div>
+                    </div>
+                )}
+                
+                {!personel ? (
+                    <div className="flex flex-col items-center justify-center py-12 gap-4">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+                        <p className="text-muted font-medium">Memuat Rekam Jejak...</p>
+                    </div>
+                ) : (
+                    <div style={{ opacity: loading ? 0.7 : 1, transition: 'opacity 0.2s' }}>
+                        {loading && (
+                            <div className="no-print" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', paddingBottom: '0.5rem', fontStyle: 'italic' }}>
+                                &#9203; Sedang memperbarui data terbaru...
+                            </div>
+                        )}
                         <style type="text/css" media="print">
                             {`
                             @page {
@@ -218,11 +265,11 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
                         <div className="print-section no-print">
                             <h3>Identitas Personel</h3>
                             <div style={{ fontSize: '1rem', lineHeight: '2.0', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
-                                <div><strong>NRP / NIP:</strong> {personel.nrpNip}</div>
-                                <div><strong>Nama Lengkap:</strong> {personel.namaLengkap}</div>
-                                <div><strong>Pangkat / Gol:</strong> {personel.pangkat}</div>
-                                <div><strong>Jabatan:</strong> {personel.jabatan}</div>
-                                <div><strong>Kesatuan:</strong> {personel.satker?.nama || '-'}</div>
+                                <div><strong>NRP / NIP:</strong> {personel?.nrpNip || '-'}</div>
+                                <div><strong>Nama Lengkap:</strong> {personel?.namaLengkap || '-'}</div>
+                                <div><strong>Pangkat / Gol:</strong> {personel?.pangkat || '-'}</div>
+                                <div><strong>Jabatan:</strong> {personel?.jabatan || '-'}</div>
+                                <div><strong>Kesatuan:</strong> {personel?.satker?.nama || '-'}</div>
                             </div>
                         </div>
 
@@ -259,9 +306,9 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
                                     ) : (
                                         paginatedPelanggaran.map(pel => (
                                             <tr key={pel.id} style={{ background: pel.isDraft ? 'rgba(255, 0, 0, 0.05)' : 'transparent' }}>
-                                                <td>{pel.tanggalSurat ? format(new Date(pel.tanggalSurat), 'dd/MM/yyyy') : '-'}</td>
+                                                <td>{formatDateSafe(pel.tanggalSurat)}</td>
                                                 <td style={{ color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                                                    {format(new Date(pel.createdAt), 'dd/MM/yyyy')}
+                                                    {formatDateSafe(pel.createdAt)}
                                                     {pel.isDraft && <span className="badge-draft" style={{ marginLeft: '5px' }}>DRAFT</span>}
                                                 </td>
                                                 <td>
@@ -275,22 +322,22 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
                                                     )}
                                                 </td>
                                                 <td>
-                                                    <span className={`badge-status status-${pel.statusPenyelesaian.toLowerCase().replace(/ /g, '-')}`}>
+                                                    <span className={`badge-status status-${(pel.statusPenyelesaian || 'PROSES').toLowerCase().replace(/ /g, '-')}`}>
                                                         {pel.statusPenyelesaian === 'PROSES' ? 'DALAM PROSES' :
                                                             pel.statusPenyelesaian === 'MENJALANI_HUKUMAN' ? 'MENJALANI_HUKUMAN' :
                                                                 pel.statusPenyelesaian === 'Belum ada SKTT' ? 'TIDAK TERBUKTI RIKSA (BELUM ADA SKTT)' :
                                                                     pel.statusPenyelesaian === 'Belum ada SKTB' ? 'TIDAK TERBUKTI SIDANG (BELUM ADA SKTB)' :
                                                                         pel.statusPenyelesaian === 'TIDAK_TERBUKTI' ? 
                                                                             (pel.nomorSktb || pel.tanggalSktb || pel.fileSktbUrl ? 'TIDAK TERBUKTI SIDANG' : 'TIDAK TERBUKTI RIKSA') :
-                                                                            pel.statusPenyelesaian.replace(/_/g, ' ')}
+                                                                            (pel.statusPenyelesaian || 'PROSES').replace(/_/g, ' ')}
                                                     </span>
                                                 </td>
                                                 <td>
                                                     {['PROSES', 'TIDAK_TERBUKTI', 'TIDAK_TERBUKTI_RIKSA', 'TIDAK_TERBUKTI_SIDANG', 'PERDAMAIAN', 'Belum ada SKTT', 'Belum ada SKTB'].includes(pel.statusPenyelesaian) ? null : (
                                                         pel.tanggalRekomendasi ? (
-                                                            <div><span style={{ color: 'var(--success)', fontWeight: 'bold' }}>Selesai {format(new Date(pel.tanggalRekomendasi), 'dd/MM/yyyy')}</span></div>
+                                                            <div><span style={{ color: 'var(--success)', fontWeight: 'bold' }}>Selesai {formatDateSafe(pel.tanggalRekomendasi)}</span></div>
                                                         ) : (pel.tanggalBisaAjukanRps && new Date() < new Date(pel.tanggalBisaAjukanRps) ? (
-                                                            <div style={{ color: 'var(--warning)', fontWeight: 600 }}>&#9203; Menunggu {format(new Date(pel.tanggalBisaAjukanRps), 'dd/MM/yyyy')}</div>
+                                                            <div style={{ color: 'var(--warning)', fontWeight: 600 }}>&#9203; Menunggu {formatDateSafe(pel.tanggalBisaAjukanRps)}</div>
                                                         ) : <span style={{ color: 'var(--danger)' }}>Belum Ada</span>)
                                                     )}
                                                 </td>
@@ -355,7 +402,7 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh }) => {
                                 {generateHistoryText()}
                             </div>
                             <div style={{ marginTop: '2rem', textAlign: 'right', fontSize: '9pt' }}>
-                                <p>Dicetak pada: {format(new Date(), 'dd/MM/yyyy HH:mm')}</p>
+                                <p>Dicetak pada: {formatDateSafe(new Date(), 'dd/MM/yyyy HH:mm')}</p>
                             </div>
                         </div>
                     </div>

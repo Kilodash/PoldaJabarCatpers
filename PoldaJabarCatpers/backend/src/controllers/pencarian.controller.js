@@ -1,3 +1,5 @@
+'use strict';
+
 const prisma = require('../prisma');
 const pdfParse = require('pdf-parse');
 const fs = require('fs');
@@ -11,44 +13,15 @@ const parseManualInput = (inputString) => {
         line = line.trim();
         if (!line) continue;
 
-        let nrpNip = '';
-        let extractedName = '';
-        let digitsOnly = line.replace(/\D/g, '');
-
-        if (digitsOnly.length >= 18) {
-            nrpNip = digitsOnly.substring(0, 18);
-            let digitCount = 0;
-            let lastDigitIndex = 0;
-            for (let i = 0; i < line.length; i++) {
-                if (/\d/.test(line[i])) {
-                    digitCount++;
-                    if (digitCount === 18) {
-                        lastDigitIndex = i;
-                        break;
-                    }
-                }
-            }
-            extractedName = line.substring(lastDigitIndex + 1).replace(/^[,|\-\s+]+/, '').trim();
-        } else if (digitsOnly.length >= 8) {
-            nrpNip = digitsOnly.substring(0, 8);
-            let digitCount = 0;
-            let lastDigitIndex = 0;
-            for (let i = 0; i < line.length; i++) {
-                if (/\d/.test(line[i])) {
-                    digitCount++;
-                    if (digitCount === 8) {
-                        lastDigitIndex = i;
-                        break;
-                    }
-                }
-            }
-            extractedName = line.substring(lastDigitIndex + 1).replace(/^[,|\-\s+]+/, '').trim();
-        }
-
-        if (nrpNip) {
+        // Cari grup angka terpanjang (kemungkinan NRP/NIP)
+        const match = line.match(/\d{8,18}/);
+        if (match) {
+            const nrpNip = match[0];
+            const extractedName = line.replace(nrpNip, '').replace(/^[,|\-\s+]+/, '').replace(/[,|\-\s+]+$/, '').trim();
+            
             results.push({
                 nrpNip: nrpNip,
-                inputName: extractedName ? extractedName.trim() : ''
+                inputName: extractedName || ''
             });
         }
     }
