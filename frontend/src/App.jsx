@@ -1,93 +1,123 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { DashboardProvider } from './context/DashboardContext';
 import { Toaster } from 'sonner';
 import Login from './pages/Login';
-
-import Dashboard from './pages/Dashboard';
-import Personel from './pages/Personel';
-import Pelanggaran from './pages/Pelanggaran';
-import Pengaturan from './pages/Pengaturan';
-import Pencarian from './pages/Pencarian';
 import MainLayout from './components/MainLayout';
 
-// Protected Route Component
+// OPTIMIZED: Lazy load pages for better initial load
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Personel = lazy(() => import('./pages/Personel'));
+const Pelanggaran = lazy(() => import('./pages/Pelanggaran'));
+const Pengaturan = lazy(() => import('./pages/Pengaturan'));
+const Pencarian = lazy(() => import('./pages/Pencarian'));
+
+// Loading fallback component
+const PageLoader = () => (
+  <div style={{ 
+    height: '100vh', 
+    display: 'flex', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    background: '#f8f9fa'
+  }}>
+    <div style={{
+      padding: '1.5rem 2rem',
+      background: 'white',
+      borderRadius: '8px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+    }}>
+      <div style={{
+        width: '32px',
+        height: '32px',
+        border: '3px solid #e5e7eb',
+        borderTopColor: '#2563eb',
+        borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite',
+        margin: '0 auto'
+      }} />
+    </div>
+  </div>
+);
+
+// Protected Route Component - OPTIMIZED
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
+  // OPTIMIZED: Only show minimal loading, not full screen blocking
   if (loading) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: '#f8f9fa' }}>
-        <div style={{ padding: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ margin: 0, color: '#2563eb' }}>Memuat Sesi...</h3>
-          <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.5rem' }}>Mohon tunggu sebentar.</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  return <MainLayout>{children}</MainLayout>;
+  return (
+    <MainLayout>
+      <Suspense fallback={<PageLoader />}>
+        {children}
+      </Suspense>
+    </MainLayout>
+  );
 };
 
 function App() {
   const { user, loading } = useAuth();
 
+  // OPTIMIZED: Minimal loading screen, only when absolutely necessary
   if (loading) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: '#f8f9fa' }}>
-        <div style={{ padding: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ margin: 0, color: '#2563eb' }}>Memuat Aplikasi...</h3>
-          <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.5rem' }}>Mohon tunggu sebentar.</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
-    <DashboardProvider>
-      <Toaster position="top-right" richColors toastOptions={{ style: { zIndex: 99999 } }} />
-      <Routes>
-        <Route path="/login" element={<Login />} />
+    <>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      <DashboardProvider>
+        <Toaster position="top-right" richColors toastOptions={{ style: { zIndex: 99999 } }} />
+        <Routes>
+          <Route path="/login" element={<Login />} />
 
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/personel" element={
-          <ProtectedRoute>
-            <Personel />
-          </ProtectedRoute>
-        } />
+          <Route path="/personel" element={
+            <ProtectedRoute>
+              <Personel />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/pelanggaran" element={
-          <ProtectedRoute>
-            <Pelanggaran />
-          </ProtectedRoute>
-        } />
+          <Route path="/pelanggaran" element={
+            <ProtectedRoute>
+              <Pelanggaran />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/pencarian" element={
-          <ProtectedRoute>
-            <Pencarian />
-          </ProtectedRoute>
-        } />
+          <Route path="/pencarian" element={
+            <ProtectedRoute>
+              <Pencarian />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/pengaturan" element={
-          <ProtectedRoute>
-            <Pengaturan />
-          </ProtectedRoute>
-        } />
+          <Route path="/pengaturan" element={
+            <ProtectedRoute>
+              <Pengaturan />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
-        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
-      </Routes>
-    </DashboardProvider>
+          <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+          <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+        </Routes>
+      </DashboardProvider>
+    </>
   );
 }
 

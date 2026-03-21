@@ -8,12 +8,19 @@ const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-    // SWR Pattern: Initialize from cookies if available for instant UI render
+    // OPTIMIZED: Initialize from cookies for instant render
     const [user, setUser] = useState(() => {
         const savedUser = Cookies.get('user');
         return savedUser ? JSON.parse(savedUser) : null;
     });
-    const [loading, setLoading] = useState(!Cookies.get('token'));
+    
+    // OPTIMIZED: Don't block if we have cached user data
+    const [loading, setLoading] = useState(() => {
+        const hasToken = Cookies.get('token');
+        const hasUser = Cookies.get('user');
+        // Only show loading if no cached data exists
+        return !(hasToken && hasUser);
+    });
 
     const login = async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -31,8 +38,6 @@ export const AuthProvider = ({ children }) => {
         const userData = { ...res.data, token: data.session.access_token };
         setUser(userData);
         
-        // We still use cookies for compatibility with existing api.js interceptor if needed,
-        // but Supabase usually handles its own persistence in localStorage.
         Cookies.set('token', data.session.access_token, { expires: 1 });
         Cookies.set('user', JSON.stringify(userData), { expires: 1 });
         
@@ -51,9 +56,27 @@ export const AuthProvider = ({ children }) => {
 
         const checkInitialSession = async () => {
             try {
+                // OPTIMIZED: If we have cached user, verify in background
+                const hasCache = Cookies.get('token') && Cookies.get('user');
+                
                 const { data: { session } } = await supabase.auth.getSession();
+                
                 if (isInstanceMounted && session) {
-                    await syncUserWithBackend(session);
+                    // Only sync if no cache or cache verification needed
+                    if (!hasCache) {
+                        await syncUserWithBackend(session);
+                    } else {
+                        // Verify in background, don't block UI
+                        syncUserWithBackend(session).catch(err => {
+                            console.error("[BACKGROUND_SYNC_FAIL]", err);
+                            // On error, clear cache and force re-auth
+                            if (isInstanceMounted) {
+                                setUser(null);
+                                Cookies.remove('token');
+                                Cookies.remove('user');
+                            }
+                        });
+                    }
                 } else if (isInstanceMounted) {
                     // No session found, clear state
                     setUser(null);
@@ -62,7 +85,14 @@ export const AuthProvider = ({ children }) => {
                 }
             } catch (err) {
                 console.error("[AUTH_INIT_FAIL]", err);
+                // On error, clear cached data
+                if (isInstanceMounted) {
+                    setUser(null);
+                    Cookies.remove('token');
+                    Cookies.remove('user');
+                }
             } finally {
+                // OPTIMIZED: Set loading to false immediately
                 if (isInstanceMounted) setLoading(false);
             }
         };
@@ -75,36 +105,45 @@ export const AuthProvider = ({ children }) => {
                 });
 
                 const userData = { ...res.data, token: session.access_token };
-                setUser(userData);
-                Cookies.set('token', session.access_token, { expires: 1 });
-                Cookies.set('user', JSON.stringify(userData), { expires: 1 });
+                if (isInstanceMounted) {
+                    setUser(userData);
+                    Cookies.set('token', session.access_token, { expires: 1 });
+                    Cookies.set('user', JSON.stringify(userData), { expires: 1 });
+                }
             } catch (error) {
                 console.error("[AUTH_SYNC_FAIL]", error.response?.status, error.message);
-                if (error.response?.status === 401) {
+                if (error.response?.status === 401 || error.response?.status === 403) {
                     await supabase.auth.signOut();
-                    setUser(null);
-                } else if (error.response?.status === 403) {
-                    setUser(null);
+                    if (isInstanceMounted) {
+                        setUser(null);
+                        Cookies.remove('token');
+                        Cookies.remove('user');
+                    }
                 }
+                throw error;
             }
         };
 
+        // Start session check (optimized to not block if cached)
         checkInitialSession();
 
+        // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log(`[AUTH_EVENT] ${event}`, session?.user?.email);
 
             try {
                 if (event === 'SIGNED_OUT') {
-                    setUser(null);
-                    Cookies.remove('token');
-                    Cookies.remove('user');
+                    if (isInstanceMounted) {
+                        setUser(null);
+                        Cookies.remove('token');
+                        Cookies.remove('user');
+                    }
                     return;
                 }
 
-                if (session) {
+                if (session && isInstanceMounted) {
                     await syncUserWithBackend(session);
-                } else {
+                } else if (isInstanceMounted) {
                     setUser(null);
                     Cookies.remove('token');
                     Cookies.remove('user');
@@ -112,7 +151,7 @@ export const AuthProvider = ({ children }) => {
             } catch (err) {
                 console.error("[AUTH_EVENT_ERROR]", err);
             } finally {
-                setLoading(false);
+                if (isInstanceMounted) setLoading(false);
             }
         });
 

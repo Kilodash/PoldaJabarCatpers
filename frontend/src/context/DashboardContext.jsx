@@ -94,15 +94,23 @@ export const DashboardProvider = ({ children }) => {
         }
     }, [user]);
 
-    // Start background refresh when user is logged in
+    // OPTIMIZED: Start background refresh when user is logged in
     useEffect(() => {
         if (user) {
-            // Initial fetch if we don't have data yet
-            if (!lastUpdated) {
-                fetchDashboardData();
+            // OPTIMIZED: Defer initial fetch to not block UI render
+            // Only fetch if we don't have recent data
+            const shouldFetch = !lastUpdated || (Date.now() - lastUpdated.getTime() > 60000);
+            
+            if (shouldFetch) {
+                // Use setTimeout to defer to next tick, allowing UI to render first
+                const timer = setTimeout(() => {
+                    fetchDashboardData(true); // Silent fetch
+                }, 100);
+                
+                return () => clearTimeout(timer);
             }
 
-            // Set up 60s interval
+            // Set up 60s interval for background refresh
             if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
             refreshIntervalRef.current = setInterval(() => {
                 fetchDashboardData(true);

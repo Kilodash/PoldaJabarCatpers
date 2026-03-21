@@ -1,3 +1,8 @@
+/* Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Fonts imported via index.html for better performance and to avoid preload warnings */
 
 .animate-spin {
