@@ -54,8 +54,20 @@ try {
     app.get('/api/debug/ping', async (req, res) => {
         const prisma = require('./prisma');
         try {
+            const start = Date.now();
             await prisma.$queryRaw`SELECT 1`;
-            res.json({ db: 'OK', time: new Date().toISOString() });
+            const dbLatency = Date.now() - start;
+            
+            res.json({ 
+                db: 'OK', 
+                latency: `${dbLatency}ms`,
+                time: new Date().toISOString(),
+                uptime: `${Math.floor(process.uptime())}s`,
+                memory: {
+                    used: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+                    total: `${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)}MB`
+                }
+            });
         } catch (err) {
             res.status(500).json({
                 db: 'FAILED',
