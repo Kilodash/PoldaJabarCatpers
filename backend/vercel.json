@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "regions": ["sin1"],
+  "functions": {
+    "src/server.js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "src/server.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "src/server.js"
+    }
+  ]
+}

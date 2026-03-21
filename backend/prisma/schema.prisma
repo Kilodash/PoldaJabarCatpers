@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Satker {
+  id        Int        @id @default(autoincrement())
+  nama      String     @unique
+  urutan    Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  personel  Personel[]
+  users     User[]
+}
+
+model User {
+  id          Int        @id @default(autoincrement())
+  email       String     @unique
+  password    String
+  displayName String?
+  phone       String?
+  role        String     @default("OPERATOR_SATKER")
+  satkerId    Int?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  auditLogs   AuditLog[]
+  satker      Satker?    @relation(fields: [satkerId], references: [id])
+
+  @@index([satkerId])
+}
+
+model Pengaturan {
+  key       String   @id
+  value     String
+  deskripsi String?
+  updatedAt DateTime @updatedAt
+}
+
+model Personel {
+  id              String        @id @default(uuid())
+  jenisPegawai    String
+  nrpNip          String        @unique
+  namaLengkap     String
+  pangkat         String
+  jabatan         String
+  satkerId        Int
+  tanggalLahir    DateTime
+  tanggalPensiun  DateTime
+  statusKeaktifan String        @default("AKTIF")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+  isDraft         Boolean       @default(false)
+  catatanRevisi   String?
+  pelanggaran     Pelanggaran[]
+  satker          Satker        @relation(fields: [satkerId], references: [id])
+
+  // Index untuk mempercepat query filter utama
+  @@index([satkerId, statusKeaktifan, deletedAt])
+  @@index([isDraft, deletedAt])
+  @@index([tanggalPensiun])
+}
+
+model Pelanggaran {
+  id                   String    @id @default(uuid())
+  personelId           String
+  isDraft              Boolean   @default(false)
+  jenisDasar           String?
+  nomorSurat           String
+  tanggalSurat         DateTime
+  wujudPerbuatan       String
+  pangkatSaatMelanggar String?
+  jabatanSaatMelanggar String?
+  satkerSaatMelanggar  String?
+  keteranganDasar      String?
+  fileDasarUrl         String?
+  jenisSidang          String?
+  hukuman              String?
+  banding              Boolean?
+  nomorSkepBanding     String?
+  tanggalSkepBanding   DateTime?
+  fileBandingUrl       String?
+  nomorSkep            String?
+  tanggalSkep          DateTime?
+  statusPenyelesaian   String
+  nomorSuratSelesai    String?
+  tanggalSuratSelesai  DateTime?
+  keteranganSelesai    String?
+  fileSelesaiUrl       String?
+  filePutusanUrl       String?
+  nomorRekomendasi     String?
+  tanggalBisaAjukanRps DateTime?
+  tanggalRekomendasi   DateTime?
+  fileRekomendasiUrl   String?
+  nomorSktt            String?
+  tanggalSktt          DateTime?
+  fileSkttUrl          String?
+  nomorSp3             String?
+  tanggalSp3           DateTime?
+  fileSp3Url           String?
+  nomorSktb            String?
+  tanggalSktb          DateTime?
+  fileSktbUrl          String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+  catatanRevisi        String?
+  personel             Personel  @relation(fields: [personelId], references: [id], onDelete: Cascade)
+
+  // Index untuk mempercepat query filter dashboard dan daftar pelanggaran
+  @@index([personelId, isDraft, deletedAt])
+  @@index([statusPenyelesaian])
+  @@index([isDraft, deletedAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    Int
+  aksi      String
+  targetId  String?
+  deskripsi String
+  alasan    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
