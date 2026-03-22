@@ -1,7 +1,8 @@
 'use strict';
 
 const prisma = require('../prisma');
-const pdfParse = require('pdf-parse');
+// Gunakan import langsung ke lib untuk menghindari test-runner yang dijalankan saat modul diload
+const pdfParse = require('pdf-parse/lib/pdf-parse');
 const fs = require('fs');
 
 // Helper untuk mengekstrak NRP/NIP beserta namanya dari textarea
@@ -13,10 +14,10 @@ const parseManualInput = (inputString) => {
         line = line.trim();
         if (!line) continue;
 
-        // Cari grup angka terpanjang (kemungkinan NRP/NIP)
-        const match = line.match(/\d{8,18}/);
+        // Cari NRP (8 digit) atau NIP (18 digit) PERSIS — hindari false positive panjang digit lain
+        const match = line.match(/(?<![0-9])([0-9]{18}|[0-9]{8})(?![0-9])/);
         if (match) {
-            const nrpNip = match[0];
+            const nrpNip = match[1];
             const extractedName = line.replace(nrpNip, '').replace(/^[,|\-\s+]+/, '').replace(/[,|\-\s+]+$/, '').trim();
             
             results.push({

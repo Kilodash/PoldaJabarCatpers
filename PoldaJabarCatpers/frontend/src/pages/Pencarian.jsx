@@ -55,6 +55,8 @@ const Pencarian = () => {
         return 0;
     });
 
+    const totalPages = Math.ceil(sortedResults.length / itemsPerPage);
+
     const paginatedResults = sortedResults.slice(
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
@@ -72,6 +74,7 @@ const Pencarian = () => {
             setHasSearched(true);
         } catch (error) {
             console.error(error);
+            toast.error(error.response?.data?.message || "Terjadi kesalahan saat melakukan pencarian");
         } finally {
             setLoadingManual(false);
             setCurrentPage(1);
@@ -92,7 +95,7 @@ const Pencarian = () => {
         formData.append('dokumen', selectedFile);
 
         try {
-            const response = await api.post('/pencarian/document', formData);
+            const response = await api.post('/pencarian/document', formData, { timeout: 60000 });
 
             setSearchResults(response.data.data);
             setHasSearched(true);
