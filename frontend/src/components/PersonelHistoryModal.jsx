@@ -166,9 +166,104 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
         const text = generateHistoryText();
         if (!text || !personel) return;
 
+        // Check if mobile device
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (isMobile) {
+            // Mobile-friendly approach: Create hidden print div in current document
+            handleMobilePrint(text);
+        } else {
+            // Desktop approach: Use popup window
+            handleDesktopPrint(text);
+        }
+    };
+
+    const handleMobilePrint = (text) => {
+        const now = new Date().toLocaleString('id-ID') + ' WIB';
+        const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        // Create temporary print div
+        const printDiv = document.createElement('div');
+        printDiv.id = 'print-content-temp';
+        printDiv.innerHTML = `
+            <div class="print-header">
+                <h2>Riwayat Catatan Personel</h2>
+                <p>Sistem Catatan Personel (CDS) Polda Jabar</p>
+                <p>Dicetak pada: ${now}</p>
+            </div>
+            <pre>${escapedText}</pre>
+            <div class="print-footer">CDS Polda Jabar — ${now}</div>
+        `;
+        
+        // Add print styles
+        const styleEl = document.createElement('style');
+        styleEl.id = 'print-style-temp';
+        styleEl.textContent = `
+            @media print {
+                body * { visibility: hidden; }
+                #print-content-temp, #print-content-temp * { visibility: visible; }
+                #print-content-temp { 
+                    position: absolute; 
+                    left: 0; 
+                    top: 0; 
+                    width: 100%; 
+                    font-family: 'Courier New', Courier, monospace;
+                    font-size: 10pt;
+                    line-height: 1.5;
+                }
+                #print-content-temp .print-header {
+                    text-align: center;
+                    border-bottom: 2px solid #333;
+                    padding-bottom: 10px;
+                    margin-bottom: 16px;
+                }
+                #print-content-temp .print-header h2 {
+                    text-transform: uppercase;
+                    font-size: 12pt;
+                    letter-spacing: 1px;
+                    margin-bottom: 4px;
+                }
+                #print-content-temp .print-header p {
+                    font-size: 9pt;
+                    color: #444;
+                }
+                #print-content-temp pre {
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                    font-family: inherit;
+                    font-size: inherit;
+                    line-height: inherit;
+                }
+                #print-content-temp .print-footer {
+                    margin-top: 24px;
+                    text-align: right;
+                    font-size: 8.5pt;
+                    color: #555;
+                    border-top: 1px solid #ccc;
+                    padding-top: 6px;
+                }
+            }
+        `;
+        
+        document.head.appendChild(styleEl);
+        document.body.appendChild(printDiv);
+        
+        // Print
+        window.print();
+        
+        // Cleanup
+        setTimeout(() => {
+            document.body.removeChild(printDiv);
+            document.head.removeChild(styleEl);
+        }, 100);
+    };
+
+    const handleDesktopPrint = (text) => {
         const printWindow = window.open('', '_blank', 'width=800,height=900');
         if (!printWindow) {
             toast.error('Popup diblokir browser. Izinkan popup untuk fitur cetak.');
+            // Fallback to mobile approach
+            handleMobilePrint(text);
             return;
         }
 
@@ -179,6 +274,7 @@ const PersonelHistoryModal = ({ isOpen, onClose, personelId, onRefresh, initialD
 <html lang="id">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Riwayat Catatan - ${personel.namaLengkap}</title>
 <style>
   @page { size: A4 portrait; margin: 2cm; }

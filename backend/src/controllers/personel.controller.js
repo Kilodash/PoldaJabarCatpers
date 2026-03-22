@@ -159,13 +159,14 @@ const getAllPersonel = async (req, res) => {
         // 3. Search Filter (Highest priority for visibility)
         if (req.query.search) {
             showDeleted = true; // Allow finding deleted/inactive if searching specifically
+            const searchLower = req.query.search.toLowerCase();
             conditions.push({
                 OR: [
-                    { namaLengkap: { contains: req.query.search } },
-                    { nrpNip: { contains: req.query.search } },
-                    { nrpNip: { contains: `_${req.query.search}` } },
-                    { pangkat: { contains: req.query.search } },
-                    { jabatan: { contains: req.query.search } }
+                    { namaLengkap: { contains: req.query.search, mode: 'insensitive' } },
+                    { nrpNip: { contains: req.query.search, mode: 'insensitive' } },
+                    { nrpNip: { contains: `_${req.query.search}`, mode: 'insensitive' } },
+                    { pangkat: { contains: req.query.search, mode: 'insensitive' } },
+                    { jabatan: { contains: req.query.search, mode: 'insensitive' } }
                 ]
             });
         }

@@ -60,6 +60,8 @@ const Pencarian = () => {
         currentPage * itemsPerPage
     );
 
+    const totalPages = Math.ceil(sortedResults.length / itemsPerPage);
+
     const handleManualSearch = useCallback(async (e) => {
         if (e && e.preventDefault) e.preventDefault();
         const input = manualInput;
@@ -186,23 +188,32 @@ const Pencarian = () => {
                         <h2 style={{ textTransform: 'uppercase', margin: '0 0 0.5rem 0' }}>Laporan Hasil Pencarian Data Personel</h2>
                         <p style={{ margin: 0 }}>Dicetak pada: {new Date().toLocaleString('id-ID')}</p>
                     </div>
-                    <div className="results-header no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)', padding: '1rem 1.5rem', borderRadius: '16px', boxShadow: 'var(--shadow-premium)', border: '1px solid var(--border-color)' }}>
+                    <div className="results-header no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)', padding: '1rem 1.5rem', borderRadius: '16px', boxShadow: 'var(--shadow-premium)', border: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '1rem' }}>
                         <h3 style={{ margin: 0, fontWeight: 700, color: 'var(--primary-color)' }}>
                             <CheckCircle size={20} style={{ verticalAlign: 'middle', marginRight: '8px', color: 'var(--success)' }} />
                             Hasil Analisis ({sortedResults.length} Ditampilkan / {searchResults.length} Total)
                         </h3>
-                        <div className="filter-toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <input
-                                type="checkbox"
-                                id="showAllToggle"
-                                checked={showAllResults}
-                                onChange={(e) => {
-                                    setShowAllResults(e.target.checked);
-                                    setCurrentPage(1);
-                                }}
-                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                            />
-                            <label htmlFor="showAllToggle" style={{ fontSize: '14px', color: '#64748b', cursor: 'pointer', userSelect: 'none' }}>Tampilkan Semua (Termasuk Tidak Ditemukan)</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                            <div className="filter-toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input
+                                    type="checkbox"
+                                    id="showAllToggle"
+                                    checked={showAllResults}
+                                    onChange={(e) => {
+                                        setShowAllResults(e.target.checked);
+                                        setCurrentPage(1);
+                                    }}
+                                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                                />
+                                <label htmlFor="showAllToggle" style={{ fontSize: '14px', color: '#64748b', cursor: 'pointer', userSelect: 'none' }}>Tampilkan Semua</label>
+                            </div>
+                            <button
+                                onClick={() => window.print()}
+                                className="btn-primary"
+                                style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}
+                            >
+                                <Printer size={16} /> Cetak Laporan
+                            </button>
                         </div>
                     </div>
                     <div className="table-responsive">
