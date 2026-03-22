@@ -796,6 +796,12 @@ select.form-input {
     visibility: hidden !important;
   }
 
+  /* Sembunyikan kolom Aksi (kolom terakhir) saat cetak - hanya berisi tombol */
+  .modal-table-container table th:last-child,
+  .modal-table-container table td:last-child {
+    display: none !important;
+  }
+
   /* 5. Natural White-space for Monospace text */
   pre,
   [style*="white-space: pre-wrap"] {
