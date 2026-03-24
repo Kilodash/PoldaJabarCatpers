@@ -15,11 +15,26 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'ui-vendor': ['lucide-react', 'sonner', 'react-datepicker'],
-          'utils': ['axios', 'date-fns', 'js-cookie', 'jwt-decode']
+          'utils': ['axios', 'date-fns', 'js-cookie', 'jwt-decode'],
+          'supabase': ['@supabase/supabase-js']
         }
       }
     },
     // Increase chunk size warning limit
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1000,
+    // Enable CSS code splitting
+    cssCodeSplit: true,
+    // Minify for production
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.logs in production
+        drop_debugger: true
+      }
+    }
+  },
+  // Optimize dependencies
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', 'axios']
   }
 })

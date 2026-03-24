@@ -1,44 +1,56 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { DashboardProvider } from './context/DashboardContext';
 import { Toaster } from 'sonner';
 import MainLayout from './components/MainLayout';
 
-// Lazy load pages for better performance
-const Login = lazy(() => import('./pages/Login'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
+// Eager load Login and Dashboard for instant access
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+
+// Lazy load less critical pages
 const Personel = lazy(() => import('./pages/Personel'));
 const Pelanggaran = lazy(() => import('./pages/Pelanggaran'));
 const Pengaturan = lazy(() => import('./pages/Pengaturan'));
 const Pencarian = lazy(() => import('./pages/Pencarian'));
 
-// Loading fallback component
+// Prefetch functions for lazy-loaded routes
+const prefetchPersonel = () => import('./pages/Personel');
+const prefetchPelanggaran = () => import('./pages/Pelanggaran');
+const prefetchPengaturan = () => import('./pages/Pengaturan');
+const prefetchPencarian = () => import('./pages/Pencarian');
+
+// Optimized loading fallback - minimal and fast
 const PageLoader = () => (
   <div style={{ 
-    height: '100vh', 
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     display: 'flex', 
     justifyContent: 'center', 
     alignItems: 'center',
-    background: '#f8f9fa' 
+    background: '#f8f9fa',
+    zIndex: 9999
   }}>
-    <div style={{ 
-      padding: '2rem', 
-      background: 'white', 
-      borderRadius: '12px', 
-      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-      textAlign: 'center'
-    }}>
+    <div style={{ textAlign: 'center' }}>
       <div style={{ 
-        width: '40px', 
-        height: '40px', 
+        width: '48px', 
+        height: '48px', 
         border: '4px solid #e5e7eb', 
         borderTop: '4px solid #2563eb',
         borderRadius: '50%',
-        animation: 'spin 1s linear infinite',
-        margin: '0 auto 1rem'
+        animation: 'spin 0.8s linear infinite',
+        margin: '0 auto 0.75rem'
       }}></div>
-      <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Memuat halaman...</p>
+      <p style={{ 
+        color: '#64748b', 
+        fontSize: '0.875rem',
+        fontWeight: 500,
+        margin: 0
+      }}>Memuat...</p>
     </div>
   </div>
 );
@@ -60,6 +72,24 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   const { user, loading } = useAuth();
+
+  // Prefetch secondary routes after initial render
+  useEffect(() => {
+    if (user) {
+      // Prefetch commonly used pages in background (low priority)
+      const timer = setTimeout(() => {
+        prefetchPersonel();
+        prefetchPelanggaran();
+        // Delay less critical pages
+        setTimeout(() => {
+          prefetchPencarian();
+          prefetchPengaturan();
+        }, 2000);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
 
   // Simplified loading - only show if truly needed
   if (loading) {
