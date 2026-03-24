@@ -5,12 +5,27 @@ import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext'
 import './index.css'
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
+const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// Disable StrictMode in production to prevent double API calls
+const isProduction = import.meta.env.PROD;
+
+if (isProduction) {
+  root.render(
     <BrowserRouter>
       <AuthProvider>
         <App />
       </AuthProvider>
     </BrowserRouter>
-  </React.StrictMode>,
-)
+  );
+} else {
+  root.render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
+    </React.StrictMode>
+  );
+}

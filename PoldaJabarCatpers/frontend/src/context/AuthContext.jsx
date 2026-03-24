@@ -13,7 +13,13 @@ export const AuthProvider = ({ children }) => {
         const savedUser = Cookies.get('user');
         return savedUser ? JSON.parse(savedUser) : null;
     });
-    const [loading, setLoading] = useState(!Cookies.get('token'));
+    // Optimistic loading: If we have a token, assume valid and verify in background
+    const [loading, setLoading] = useState(() => {
+        const hasToken = Cookies.get('token');
+        const hasUser = Cookies.get('user');
+        // Only show loading if we have neither token nor user
+        return !hasToken && !hasUser;
+    });
 
     const login = async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -49,13 +55,40 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         let isInstanceMounted = true;
 
+        const syncUserWithBackend = async (session) => {
+            if (!session) return;
+            try {
+                const res = await api.get('/auth/me', {
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                });
+
+                const userData = { ...res.data, token: session.access_token };
+                if (isInstanceMounted) {
+                    setUser(userData);
+                    Cookies.set('token', session.access_token, { expires: 1 });
+                    Cookies.set('user', JSON.stringify(userData), { expires: 1 });
+                }
+            } catch (error) {
+                console.error("[AUTH_SYNC_FAIL]", error.response?.status, error.message);
+                if (isInstanceMounted) {
+                    if (error.response?.status === 401 || error.response?.status === 403) {
+                        await supabase.auth.signOut();
+                        setUser(null);
+                        Cookies.remove('token');
+                        Cookies.remove('user');
+                    }
+                }
+            }
+        };
+
         const checkInitialSession = async () => {
             try {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (isInstanceMounted && session) {
+                    // Verify session in background, don't block UI
                     await syncUserWithBackend(session);
-                } else if (isInstanceMounted) {
-                    // No session found, clear state
+                } else if (isInstanceMounted && !user) {
+                    // No session and no cached user, clear state
                     setUser(null);
                     Cookies.remove('token');
                     Cookies.remove('user');
@@ -67,27 +100,10 @@ export const AuthProvider = ({ children }) => {
             }
         };
 
-        const syncUserWithBackend = async (session) => {
-            if (!session) return;
-            try {
-                const res = await api.get('/auth/me', {
-                    headers: { Authorization: `Bearer ${session.access_token}` }
-                });
-
-                const userData = { ...res.data, token: session.access_token };
-                setUser(userData);
-                Cookies.set('token', session.access_token, { expires: 1 });
-                Cookies.set('user', JSON.stringify(userData), { expires: 1 });
-            } catch (error) {
-                console.error("[AUTH_SYNC_FAIL]", error.response?.status, error.message);
-                if (error.response?.status === 401) {
-                    await supabase.auth.signOut();
-                    setUser(null);
-                } else if (error.response?.status === 403) {
-                    setUser(null);
-                }
-            }
-        };
+        // Non-blocking: Set loading to false immediately if we have cached user
+        if (user) {
+            setLoading(false);
+        }
 
         checkInitialSession();
 

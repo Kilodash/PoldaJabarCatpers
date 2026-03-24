@@ -32,6 +32,7 @@ export const DashboardProvider = ({ children }) => {
     const [usersList, setUsersList] = useState([]); // Pre-fetched user accounts
     const [loading, setLoading] = useState(false);
     const [statsLoading, setStatsLoading] = useState(false);
+    const [satkerLoading, setSatkerLoading] = useState(false); // Separate loading for satker stats
     const [usersLoading, setUsersLoading] = useState(false);
     const [lastUpdated, setLastUpdated] = useState(null);
 
@@ -57,32 +58,46 @@ export const DashboardProvider = ({ children }) => {
         if (!isSilent) setStatsLoading(true);
 
         try {
-            const [resStats, resSatkerStats] = await Promise.all([
-                api.get('/dashboard/stats'),
-                api.get('/dashboard/satker-stats')
-            ]);
+            // Priority 1: Fetch main stats first (for stat cards)
+            const resStats = await api.get('/dashboard/stats');
 
             if (resStats.data?.stats) {
                 setStats(resStats.data.stats);
             }
-            if (resSatkerStats.data) {
-                setSatkerStatsList(Array.isArray(resSatkerStats.data) ? resSatkerStats.data : []);
-            }
-            
-            // Trigger user pre-fetch if admin
-            if (activeUser.role === 'ADMIN_POLDA') {
-                fetchUsersBackground();
-            }
 
             setLastUpdated(new Date());
-            return { stats: resStats.data?.stats, satkerStats: resSatkerStats.data };
+
+            // Priority 2: Fetch satker stats in background (non-blocking)
+            fetchSatkerStatsBackground();
+
+            // Priority 3: Trigger user pre-fetch if admin (low priority)
+            if (activeUser.role === 'ADMIN_POLDA') {
+                setTimeout(() => fetchUsersBackground(), 500);
+            }
+
+            return { stats: resStats.data?.stats };
         } catch (error) {
             console.error("Gagal mengambil data dashboard", error);
             throw error;
         } finally {
             if (!isSilent) setStatsLoading(false);
         }
-    }, [user, fetchUsersBackground]);
+    }, [user]);
+
+    const fetchSatkerStatsBackground = useCallback(async () => {
+        if (!user) return;
+        try {
+            setSatkerLoading(true);
+            const resSatkerStats = await api.get('/dashboard/satker-stats');
+            if (resSatkerStats.data) {
+                setSatkerStatsList(Array.isArray(resSatkerStats.data) ? resSatkerStats.data : []);
+            }
+        } catch (error) {
+            console.error("Gagal mengambil satker stats", error);
+        } finally {
+            setSatkerLoading(false);
+        }
+    }, [user]);
 
     const fetchPelanggaranBackground = useCallback(async () => {
         if (!user) return;
@@ -102,11 +117,11 @@ export const DashboardProvider = ({ children }) => {
                 fetchDashboardData();
             }
 
-            // Set up 60s interval
+            // Set up 5-minute interval (increased from 60s to reduce load)
             if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
             refreshIntervalRef.current = setInterval(() => {
                 fetchDashboardData(true);
-            }, 60000);
+            }, 300000); // 5 minutes instead of 60 seconds
         } else {
             // Clear interval if user logs out
             if (refreshIntervalRef.current) {
@@ -136,9 +151,11 @@ export const DashboardProvider = ({ children }) => {
         pelanggaranList,
         usersList,
         loading: statsLoading,
+        satkerLoading,
         usersLoading,
         lastUpdated,
         refresh: (u) => fetchDashboardData(true, u),
+        refreshSatkerStats: fetchSatkerStatsBackground,
         refreshPelanggaran: fetchPelanggaranBackground,
         refreshUsers: fetchUsersBackground
     };
