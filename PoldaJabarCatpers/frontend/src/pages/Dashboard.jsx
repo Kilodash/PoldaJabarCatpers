@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
+import React, { useState, useMemo, useCallback, Suspense, lazy } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useDashboard } from '../context/DashboardContext';
-import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     Users, FileWarning, Search, ShieldCheck,
-    Clock, CheckCircle, RefreshCw, Printer, Download, UserMinus, Plus, Trash2, Edit2, XCircle, Eye, ChevronLeft, ChevronRight, History, LayoutDashboard, AlertCircle
+    Clock, CheckCircle, RefreshCw, Printer, UserMinus, Plus, Trash2, Edit2, Eye, History, AlertCircle
 } from 'lucide-react';
-import { format } from 'date-fns';
-import api from '../utils/api';
 import { toast } from 'sonner';
 import './Dashboard.css';
 import Modal from '../components/Modal';
 import { useDebounce } from '../hooks/useDebounce';
 import { useModal } from '../hooks/useModal';
+import { usePersonelList, useDeletePersonel, useRestorePersonel } from '../hooks/useApi';
+import { queryKeys } from '../lib/queryClient';
 
 const PersonelFormModal = lazy(() => import('../components/PersonelFormModal'));
 const PersonelHistoryModal = lazy(() => import('../components/PersonelHistoryModal'));
@@ -141,12 +141,10 @@ const renderBadge = (value, colorVar, condition = value > 0, onClick = null) => 
     );
 };
 
-const STALE_TIME_MS = 30_000; // 30 detik — tidak refetch jika data masih segar
-
 const Dashboard = () => {
     const { user } = useAuth();
-    const { stats, satkerStatsList, loading, refresh: refreshDashboard, refreshPelanggaran } = useDashboard();
-    const navigate = useNavigate();
+    const { stats, satkerStatsList, loading, refresh: refreshDashboard } = useDashboard();
+    const queryClient = useQueryClient();
 
     const [globalSearch, setGlobalSearch] = useState('');
     const [satkerSearch, setSatkerSearch] = useState('');
@@ -156,23 +154,37 @@ const Dashboard = () => {
     const [personelSortConfig, setPersonelSortConfig] = useState({ key: 'nrpNip', direction: 'asc' });
 
     // Centralized Modal Controller
-    const { modalStack, openModal, closeModal, isAnyModalOpen } = useModal();
+    const { modalStack, openModal, closeModal } = useModal();
 
-    // Persisted data for list modal (since we want to keep search state between sub-modal opens)
-    const [listModalState, setListModalState] = useState({
+    // Modal filter state for React Query
+    const [modalFilters, setModalFilters] = useState({
         search: '',
-        currentPage: 1,
-        items: [],
-        loading: false,
-        title: '',
         category: '',
-        satkerId: null
+        satkerId: null,
+        title: '',
+        currentPage: 1
     });
 
-    // Initial load
-    useEffect(() => {
-        refreshPelanggaran();
-    }, [refreshPelanggaran]);
+    // Use React Query for modal list data
+    const { 
+        data: modalItems = [], 
+        isLoading: modalLoading,
+        refetch: refetchModalList
+    } = usePersonelList(
+        { 
+            search: modalFilters.search, 
+            category: modalFilters.category, 
+            satkerId: modalFilters.satkerId 
+        },
+        { 
+            enabled: modalStack.some(m => m.type === 'LIST'),
+            staleTime: 30000 
+        }
+    );
+
+    // Mutations
+    const deletePersonelMutation = useDeletePersonel();
+    const restorePersonelMutation = useRestorePersonel();
 
     const requestSort = useCallback((key) => {
         setSortConfig(prev => ({
@@ -204,55 +216,32 @@ const Dashboard = () => {
         [filteredSatkerStats, sortConfig]
     );
 
-    const fetchModalList = useCallback(async (state) => {
-        if (state.loading) return;
-        setListModalState(prev => ({ ...prev, loading: true }));
-        try {
-            let url = `/personel?search=${encodeURIComponent(state.search)}`;
-            if (state.category) url += `&category=${state.category}`;
-            if (state.satkerId) url += `&satkerId=${state.satkerId}`;
-            const res = await api.get(url);
-            setListModalState(prev => ({ ...prev, items: res.data || [], loading: false }));
-        } catch (error) {
-            console.error('Gagal mengambil data list personel', error);
-            toast.error("Gagal mengambil data personel");
-            setListModalState(prev => ({ ...prev, loading: false }));
-        }
-    }, []);
-
     const [modalSearchInput, setModalSearchInput] = useState('');
 
     const handleModalSearch = useCallback((e) => {
         if (!e || e.key === 'Enter' || e.type === 'click') {
-            setListModalState(prev => {
-                const newState = { ...prev, search: modalSearchInput, currentPage: 1 };
-                fetchModalList(newState);
-                return newState;
-            });
+            setModalFilters(prev => ({ ...prev, search: modalSearchInput, currentPage: 1 }));
         }
-    }, [modalSearchInput, fetchModalList]);
+    }, [modalSearchInput]);
 
-    // Initial load fetch for modal
+    // Open list modal with React Query
     const handleOpenListModal = useCallback((title, category = '', satkerId = null, initialSearch = '') => {
-        const initialState = {
-            search: initialSearch,
-            currentPage: 1,
-            items: [],
-            loading: false,
-            title,
-            category,
-            satkerId
-        };
         setModalSearchInput(initialSearch);
-        setListModalState(initialState);
-        fetchModalList(initialState);
+        setModalFilters({
+            search: initialSearch,
+            category,
+            satkerId,
+            title,
+            currentPage: 1
+        });
         openModal('LIST', { title });
-    }, [openModal, fetchModalList]);
+    }, [openModal]);
 
     const handleActionSuccess = useCallback(() => {
         refreshDashboard();
-        fetchModalList(listModalState);
-    }, [refreshDashboard, fetchModalList, listModalState]);
+        // Invalidate personel queries to refetch
+        queryClient.invalidateQueries({ queryKey: queryKeys.personel.all });
+    }, [refreshDashboard, queryClient]);
 
     const handleGlobalSearch = useCallback((e) => {
         if (e.key === 'Enter' && globalSearch.trim() !== '') {
@@ -381,18 +370,18 @@ const Dashboard = () => {
 
                 if (modal.type === 'LIST') {
                     const itemsPerPage = 8;
-                    const totalPages = Math.ceil(listModalState.items.length / itemsPerPage);
-                    const sortedItems = [...listModalState.items].sort((a, b) => {
+                    const totalPages = Math.ceil(modalItems.length / itemsPerPage);
+                    const sortedItems = [...modalItems].sort((a, b) => {
                         let valA = personelSortConfig.key === 'satker' ? (a.satker?.nama || '') : a[personelSortConfig.key];
                         let valB = personelSortConfig.key === 'satker' ? (b.satker?.nama || '') : b[personelSortConfig.key];
                         if (valA < valB) return personelSortConfig.direction === 'asc' ? -1 : 1;
                         if (valA > valB) return personelSortConfig.direction === 'asc' ? 1 : -1;
                         return 0;
                     });
-                    const currentList = sortedItems.slice((listModalState.currentPage - 1) * itemsPerPage, listModalState.currentPage * itemsPerPage);
+                    const currentList = sortedItems.slice((modalFilters.currentPage - 1) * itemsPerPage, modalFilters.currentPage * itemsPerPage);
 
                     return (
-                        <Modal key={modal.id} isOpen={true} onClose={closeModal} title={`Detail Data: ${listModalState.title}`} maxWidth="80%" zIndex={zIndex}>
+                        <Modal key={modal.id} isOpen={true} onClose={closeModal} title={`Detail Data: ${modalFilters.title}`} maxWidth="80%" zIndex={zIndex}>
                             <div className="page-actions mb-4 no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                     <div className="search-bar" style={{ margin: 0, display: 'flex', alignItems: 'center' }}>
@@ -421,7 +410,7 @@ const Dashboard = () => {
                             `}</style>
 
                             <div className="only-print" style={{ marginBottom: '1.5rem', textAlign: 'center', borderBottom: '2px solid #333', paddingBottom: '0.75rem' }}>
-                                <h2 style={{ textTransform: 'uppercase', margin: '0 0 0.5rem 0' }}>Laporan Detail Data: {listModalState.title}</h2>
+                                <h2 style={{ textTransform: 'uppercase', margin: '0 0 0.5rem 0' }}>Laporan Detail Data: {modalFilters.title}</h2>
                                 <p style={{ margin: 0, fontSize: '0.9rem' }}>Sistem Catatan Personel (CDS) Polda Jabar</p>
                                 <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem' }}>Dicetak pada: {new Date().toLocaleString('id-ID')}</p>
                             </div>
@@ -441,14 +430,14 @@ const Dashboard = () => {
                                     </thead>
                                     {/* SCREEN: paginated (disembunyikan saat cetak) */}
                                     <tbody className="no-print">
-                                        {listModalState.loading ? (
+                                        {modalLoading ? (
                                             Array.from({ length: 5 }).map((_, idx) => <tr key={idx}><td colSpan={7}><div className="skeleton" style={{ height: '30px' }}></div></td></tr>)
                                         ) : currentList.length === 0 ? (
                                             <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>Data tidak ditemukan.</td></tr>
                                         ) : (
                                             currentList.map((p, index) => (
                                                 <tr key={p.id}>
-                                                    <td style={{ textAlign: 'center' }}>{((listModalState.currentPage - 1) * itemsPerPage) + index + 1}</td>
+                                                    <td style={{ textAlign: 'center' }}>{((modalFilters.currentPage - 1) * itemsPerPage) + index + 1}</td>
                                                     <td style={{ fontWeight: 600 }}>{p.nrpNip}</td>
                                                     <td>{p.namaLengkap}</td>
                                                     <td>{p.pangkat}</td>
@@ -518,9 +507,9 @@ const Dashboard = () => {
 
                             {totalPages > 1 && (
                                 <div className="no-print flex justify-between items-center mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-                                    <button className="btn-secondary" disabled={listModalState.currentPage === 1} onClick={() => setListModalState(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}>Prev</button>
-                                    <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Halaman {listModalState.currentPage} dari {totalPages}</span>
-                                    <button className="btn-secondary" disabled={listModalState.currentPage === totalPages} onClick={() => setListModalState(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}>Next</button>
+                                    <button className="btn-secondary" disabled={modalFilters.currentPage === 1} onClick={() => setModalFilters(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}>Prev</button>
+                                    <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Halaman {modalFilters.currentPage} dari {totalPages}</span>
+                                    <button className="btn-secondary" disabled={modalFilters.currentPage === totalPages} onClick={() => setModalFilters(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}>Next</button>
                                 </div>
                             )}
                         </Modal>
@@ -568,7 +557,7 @@ const Dashboard = () => {
                             statusKeaktifan={modal.props.statusKeaktifan || ''}
                             onChange={(updates) => {
                                 modal.props = { ...modal.props, ...updates };
-                                setListModalState(prev => ({ ...prev }));
+                                setModalFilters(prev => ({ ...prev }));
                             }}
                             onConfirm={async () => {
                                 if (!modal.props.alasan?.trim() || !modal.props.statusKeaktifan) {
@@ -576,8 +565,10 @@ const Dashboard = () => {
                                     return;
                                 }
                                 try {
-                                    await api.delete(`/personel/${modal.props.id}`, {
-                                        data: { alasan: modal.props.alasan, statusKeaktifan: modal.props.statusKeaktifan }
+                                    await deletePersonelMutation.mutateAsync({
+                                        id: modal.props.id,
+                                        alasan: modal.props.alasan,
+                                        statusKeaktifan: modal.props.statusKeaktifan
                                     });
                                     toast.success('Berhasil dinonaktifkan.');
                                     closeModal();
@@ -600,7 +591,7 @@ const Dashboard = () => {
                             alasan={modal.props.alasan || ''}
                             onChange={(updates) => {
                                 modal.props = { ...modal.props, ...updates };
-                                setListModalState(prev => ({ ...prev }));
+                                setModalFilters(prev => ({ ...prev }));
                             }}
                             onConfirm={async () => {
                                 if (!modal.props.alasan?.trim()) {
@@ -608,7 +599,8 @@ const Dashboard = () => {
                                     return;
                                 }
                                 try {
-                                    await api.put(`/personel/restore/${modal.props.id}`, {
+                                    await restorePersonelMutation.mutateAsync({
+                                        id: modal.props.id,
                                         alasan: modal.props.alasan
                                     });
                                     toast.success('Personel berhasil dipulihkan menjadi status Aktif.');

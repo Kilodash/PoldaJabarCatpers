@@ -1,25 +1,126 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
 
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="/logo-paminal.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
-  <!-- Preconnect to external resources -->
+  <!-- Preconnect to external resources for faster loading -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   
-  <!-- Preload critical fonts -->
-  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" as="style">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- DNS prefetch for API -->
+  <link rel="dns-prefetch" href="https://supabase.co">
+  
+  <!-- Preload critical font -->
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
   
   <title>CDS-Polda Jabar</title>
+  
+  <!-- Critical inline CSS for instant First Paint -->
+  <style>
+    /* Reset and base */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f8fafc;
+    }
+    
+    /* Initial loading screen - shows immediately */
+    #initial-loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+      z-index: 10000;
+      transition: opacity 0.3s ease-out;
+    }
+    #initial-loader.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #initial-loader img {
+      width: 72px;
+      height: 72px;
+      margin-bottom: 24px;
+      object-fit: contain;
+    }
+    #initial-loader .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.15);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    #initial-loader p {
+      margin-top: 16px;
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Hide loader when React is ready */
+    #root:not(:empty) ~ #initial-loader,
+    #root.ready ~ #initial-loader {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
 </head>
 
 <body>
+  <!-- Main React app container -->
   <div id="root"></div>
+  
+  <!-- Initial loading screen (shows before JS loads) -->
+  <div id="initial-loader">
+    <img src="/logo-paminal.png" alt="Logo" onerror="this.style.display='none'">
+    <div class="spinner"></div>
+    <p>Memuat aplikasi...</p>
+  </div>
+  
+  <!-- Fallback for very slow loads or JS disabled -->
+  <noscript>
+    <div style="padding: 40px; text-align: center; font-family: sans-serif;">
+      <h2>JavaScript Diperlukan</h2>
+      <p>Aplikasi ini memerlukan JavaScript untuk berjalan. Silakan aktifkan JavaScript di browser Anda.</p>
+    </div>
+  </noscript>
+  
+  <!-- Main app script -->
   <script type="module" src="/src/main.jsx"></script>
+  
+  <!-- Hide initial loader after app mounts (backup) -->
+  <script>
+    // Safety: hide loader after 8 seconds max
+    setTimeout(function() {
+      var loader = document.getElementById('initial-loader');
+      if (loader) loader.classList.add('hidden');
+    }, 8000);
+    
+    // Faster hide: when root has content
+    var observer = new MutationObserver(function(mutations) {
+      var root = document.getElementById('root');
+      if (root && root.children.length > 0) {
+        var loader = document.getElementById('initial-loader');
+        if (loader) loader.classList.add('hidden');
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.getElementById('root'), { childList: true, subtree: true });
+  </script>
 </body>
 
 </html>

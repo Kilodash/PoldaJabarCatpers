@@ -9,32 +9,58 @@ export default defineConfig({
     port: 5173
   },
   build: {
-    // Optimize chunk splitting
+    // Optimize chunk splitting for faster initial load
     rollupOptions: {
       output: {
         manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': ['lucide-react', 'sonner', 'react-datepicker'],
-          'utils': ['axios', 'date-fns', 'js-cookie', 'jwt-decode'],
-          'supabase': ['@supabase/supabase-js']
-        }
+          // Core React (needed immediately)
+          'react-core': ['react', 'react-dom'],
+          // Router (needed for navigation)
+          'router': ['react-router-dom'],
+          // UI libraries (can be deferred)
+          'ui-libs': ['lucide-react', 'sonner'],
+          // Date utilities
+          'date-utils': ['react-datepicker', 'date-fns'],
+          // Network and auth
+          'network': ['axios', 'js-cookie', 'jwt-decode'],
+          // Supabase (separate chunk for lazy loading)
+          'supabase': ['@supabase/supabase-js'],
+          // PDF generation (only loaded when needed)
+          'pdf': ['jspdf', 'jspdf-autotable']
+        },
+        // Use content hash for better caching
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
       }
     },
     // Increase chunk size warning limit
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 500,
     // Enable CSS code splitting
     cssCodeSplit: true,
-    // Minify for production
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // Remove console.logs in production
-        drop_debugger: true
-      }
-    }
+    // Use esbuild for faster builds (built-in, no extra dependency needed)
+    minify: 'esbuild',
+    // Target modern browsers for smaller bundles
+    target: 'es2020',
+    // Disable source maps in production for smaller size
+    sourcemap: false,
   },
-  // Optimize dependencies
+  // Optimize dependencies for faster dev server
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', 'axios']
+    include: [
+      'react', 
+      'react-dom', 
+      'react-router-dom', 
+      'axios',
+      'js-cookie'
+    ],
+    // Exclude heavy libraries from pre-bundling
+    exclude: ['jspdf', 'jspdf-autotable']
+  },
+  // Resolve aliases for cleaner imports
+  resolve: {
+    alias: {
+      '@': '/src'
+    }
   }
 })
