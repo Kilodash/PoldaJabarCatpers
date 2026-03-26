@@ -12,130 +12,215 @@ export const useDashboard = () => {
     return context;
 };
 
+// Default stats structure
+const defaultStats = {
+    totalPersonel: 0,
+    tidakAktif: 0,
+    catpersAktif: 0,
+    pernahTercatat: 0,
+    belumRps: 0,
+    belumRekomendasi: 0,
+    perdamaian: 0,
+    tidakTerbukti: 0,
+    belumSktt: 0,
+    belumSktb: 0,
+    butuhApproval: 0
+};
+
+// API timeout for dashboard requests
+const DASHBOARD_API_TIMEOUT = 10000;
+
 export const DashboardProvider = ({ children }) => {
     const { user } = useAuth();
-    const [stats, setStats] = useState({
-        totalPersonel: 0,
-        tidakAktif: 0,
-        catpersAktif: 0,
-        pernahTercatat: 0,
-        belumRps: 0,
-        belumRekomendasi: 0,
-        perdamaian: 0,
-        tidakTerbukti: 0,
-        belumSktt: 0,
-        belumSktb: 0,
-        butuhApproval: 0
-    });
+    const [stats, setStats] = useState(defaultStats);
     const [satkerStatsList, setSatkerStatsList] = useState([]);
-    const [pelanggaranList, setPelanggaranList] = useState([]); // Pre-fetched data
-    const [usersList, setUsersList] = useState([]); // Pre-fetched user accounts
-    const [loading, setLoading] = useState(false);
+    const [pelanggaranList, setPelanggaranList] = useState([]);
+    const [usersList, setUsersList] = useState([]);
+    
+    // Loading states - start as false for instant UI
     const [statsLoading, setStatsLoading] = useState(false);
+    const [satkerLoading, setSatkerLoading] = useState(false);
     const [usersLoading, setUsersLoading] = useState(false);
     const [lastUpdated, setLastUpdated] = useState(null);
+    const [fetchError, setFetchError] = useState(null);
 
     const refreshIntervalRef = useRef(null);
+    const mountedRef = useRef(true);
+    const fetchingRef = useRef(false);
 
+    // Fetch users in background (Admin only)
     const fetchUsersBackground = useCallback(async () => {
-        if (!user || user.role !== 'ADMIN_POLDA') return;
+        if (!user || user.role !== 'ADMIN_POLDA' || !mountedRef.current) return;
+        
         try {
             setUsersLoading(true);
-            const res = await api.get('/users?skipAuthStatus=true');
-            setUsersList(Array.isArray(res.data) ? res.data : []);
+            const res = await api.get('/users?skipAuthStatus=true', {
+                timeout: DASHBOARD_API_TIMEOUT
+            });
+            if (mountedRef.current) {
+                setUsersList(Array.isArray(res.data) ? res.data : []);
+            }
         } catch (error) {
-            console.error("Gagal pre-fetch daftar user", error);
+            console.warn("[Dashboard] Failed to fetch users:", error.message);
         } finally {
-            setUsersLoading(false);
+            if (mountedRef.current) {
+                setUsersLoading(false);
+            }
         }
     }, [user]);
 
+    // Fetch satker stats in background
+    const fetchSatkerStatsBackground = useCallback(async () => {
+        if (!user || !mountedRef.current) return;
+        
+        try {
+            setSatkerLoading(true);
+            const res = await api.get('/dashboard/satker-stats', {
+                timeout: DASHBOARD_API_TIMEOUT
+            });
+            if (mountedRef.current && res.data) {
+                setSatkerStatsList(Array.isArray(res.data) ? res.data : []);
+            }
+        } catch (error) {
+            console.warn("[Dashboard] Failed to fetch satker stats:", error.message);
+        } finally {
+            if (mountedRef.current) {
+                setSatkerLoading(false);
+            }
+        }
+    }, [user]);
+
+    // Main dashboard data fetch with priority loading
     const fetchDashboardData = useCallback(async (isSilent = false, currentUser = null) => {
         const activeUser = currentUser || user;
-        if (!activeUser) return null;
+        if (!activeUser || !mountedRef.current || fetchingRef.current) return null;
 
-        if (!isSilent) setStatsLoading(true);
-
-        try {
-            const [resStats, resSatkerStats] = await Promise.all([
-                api.get('/dashboard/stats'),
-                api.get('/dashboard/satker-stats')
-            ]);
-
-            if (resStats.data?.stats) {
-                setStats(resStats.data.stats);
-            }
-            if (resSatkerStats.data) {
-                setSatkerStatsList(Array.isArray(resSatkerStats.data) ? resSatkerStats.data : []);
-            }
-            
-            // Trigger user pre-fetch if admin
-            if (activeUser.role === 'ADMIN_POLDA') {
-                fetchUsersBackground();
-            }
-
-            setLastUpdated(new Date());
-            return { stats: resStats.data?.stats, satkerStats: resSatkerStats.data };
-        } catch (error) {
-            console.error("Gagal mengambil data dashboard", error);
-            throw error;
-        } finally {
-            if (!isSilent) setStatsLoading(false);
+        fetchingRef.current = true;
+        
+        if (!isSilent) {
+            setStatsLoading(true);
         }
-    }, [user, fetchUsersBackground]);
+        setFetchError(null);
 
-    const fetchPelanggaranBackground = useCallback(async () => {
-        if (!user) return;
         try {
-            const res = await api.get('/personel?search=');
-            setPelanggaranList(res.data);
+            // PRIORITY 1: Fetch main stats first (for stat cards)
+            const resStats = await api.get('/dashboard/stats', {
+                timeout: DASHBOARD_API_TIMEOUT
+            });
+
+            if (mountedRef.current && resStats.data?.stats) {
+                setStats(resStats.data.stats);
+                setLastUpdated(new Date());
+            }
+
+            // PRIORITY 2: Fetch satker stats in background (non-blocking)
+            if (mountedRef.current) {
+                // Use setTimeout to make it truly non-blocking
+                setTimeout(() => {
+                    if (mountedRef.current) {
+                        fetchSatkerStatsBackground();
+                    }
+                }, 100);
+            }
+
+            // PRIORITY 3: Fetch users if admin (low priority)
+            if (activeUser.role === 'ADMIN_POLDA' && mountedRef.current) {
+                setTimeout(() => {
+                    if (mountedRef.current) {
+                        fetchUsersBackground();
+                    }
+                }, 500);
+            }
+
+            return { stats: resStats.data?.stats };
         } catch (error) {
-            console.error("Gagal pre-fetch data pelanggaran", error);
+            console.error("[Dashboard] Failed to fetch data:", error.message);
+            if (mountedRef.current) {
+                setFetchError(error.message);
+            }
+            return null;
+        } finally {
+            fetchingRef.current = false;
+            if (!isSilent && mountedRef.current) {
+                setStatsLoading(false);
+            }
+        }
+    }, [user, fetchSatkerStatsBackground, fetchUsersBackground]);
+
+    // Fetch pelanggaran data (on-demand)
+    const fetchPelanggaranBackground = useCallback(async () => {
+        if (!user || !mountedRef.current) return;
+        
+        try {
+            const res = await api.get('/personel?search=', {
+                timeout: DASHBOARD_API_TIMEOUT
+            });
+            if (mountedRef.current) {
+                setPelanggaranList(res.data || []);
+            }
+        } catch (error) {
+            console.warn("[Dashboard] Failed to fetch pelanggaran:", error.message);
         }
     }, [user]);
 
-    // OPTIMIZED: Start background refresh when user is logged in
+    // Initialize and setup auto-refresh
     useEffect(() => {
+        mountedRef.current = true;
+
         if (user) {
-            // OPTIMIZED: Defer initial fetch to not block UI render
-            // Only fetch if we don't have recent data
-            const shouldFetch = !lastUpdated || (Date.now() - lastUpdated.getTime() > 60000);
-            
-            if (shouldFetch) {
-                // Use setTimeout to defer to next tick, allowing UI to render first
-                const timer = setTimeout(() => {
-                    fetchDashboardData(true); // Silent fetch
-                }, 100);
-                
-                return () => clearTimeout(timer);
+            // Initial fetch only if we don't have data yet
+            if (!lastUpdated) {
+                fetchDashboardData();
             }
 
-            // Set up 60s interval for background refresh
-            if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
+            // Setup 5-minute auto-refresh (reduced frequency for better performance)
+            if (refreshIntervalRef.current) {
+                clearInterval(refreshIntervalRef.current);
+            }
+            
             refreshIntervalRef.current = setInterval(() => {
-                fetchDashboardData(true);
-            }, 60000);
+                if (mountedRef.current && !document.hidden) {
+                    fetchDashboardData(true); // Silent refresh
+                }
+            }, 300000); // 5 minutes
         } else {
-            // Clear interval if user logs out
+            // Clear interval on logout
             if (refreshIntervalRef.current) {
                 clearInterval(refreshIntervalRef.current);
                 refreshIntervalRef.current = null;
             }
+            
             // Reset state
-            setStats({
-                totalPersonel: 0, tidakAktif: 0, catpersAktif: 0, pernahTercatat: 0, belumRps: 0, belumRekomendasi: 0, perdamaian: 0,
-                tidakTerbukti: 0, belumSktt: 0, belumSktb: 0, butuhApproval: 0
-            });
+            setStats(defaultStats);
             setSatkerStatsList([]);
             setUsersList([]);
+            setPelanggaranList([]);
             setLastUpdated(null);
+            setFetchError(null);
         }
 
         return () => {
+            mountedRef.current = false;
             if (refreshIntervalRef.current) {
                 clearInterval(refreshIntervalRef.current);
             }
         };
+    }, [user, lastUpdated, fetchDashboardData]);
+
+    // Visibility change handler - refresh when tab becomes visible
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (!document.hidden && user && lastUpdated) {
+                const timeSinceUpdate = Date.now() - lastUpdated.getTime();
+                // Refresh if data is older than 3 minutes
+                if (timeSinceUpdate > 180000) {
+                    fetchDashboardData(true);
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, [user, lastUpdated, fetchDashboardData]);
 
     const value = {
@@ -144,9 +229,12 @@ export const DashboardProvider = ({ children }) => {
         pelanggaranList,
         usersList,
         loading: statsLoading,
+        satkerLoading,
         usersLoading,
         lastUpdated,
+        fetchError,
         refresh: (u) => fetchDashboardData(true, u),
+        refreshSatkerStats: fetchSatkerStatsBackground,
         refreshPelanggaran: fetchPelanggaranBackground,
         refreshUsers: fetchUsersBackground
     };

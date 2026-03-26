@@ -439,7 +439,8 @@ const Dashboard = () => {
                                             <th style={{ textAlign: 'center' }}>Aksi</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    {/* SCREEN: paginated (disembunyikan saat cetak) */}
+                                    <tbody className="no-print">
                                         {listModalState.loading ? (
                                             Array.from({ length: 5 }).map((_, idx) => <tr key={idx}><td colSpan={7}><div className="skeleton" style={{ height: '30px' }}></div></td></tr>)
                                         ) : currentList.length === 0 ? (
@@ -488,11 +489,35 @@ const Dashboard = () => {
                                             ))
                                         )}
                                     </tbody>
+
+                                    {/* PRINT: semua data sekaligus (hanya muncul saat cetak) */}
+                                    <tbody className="only-print">
+                                        {sortedItems.map((p, index) => (
+                                            <tr key={`print-${p.id}`}>
+                                                <td style={{ textAlign: 'center' }}>{index + 1}</td>
+                                                <td style={{ fontWeight: 600 }}>{p.nrpNip}</td>
+                                                <td>{p.namaLengkap}</td>
+                                                <td>{p.pangkat}</td>
+                                                <td>{p.satker?.nama || '-'}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{p.statusPersonel}</span>
+                                                        {p.statusKeaktifan !== 'AKTIF' && (
+                                                            <span style={{ fontSize: '0.70rem', color: '#475569' }}>
+                                                                {p.statusKeaktifan.replace(/_/g, ' ')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
                                 </table>
                             </div>
 
                             {totalPages > 1 && (
-                                <div className="flex justify-between items-center mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+                                <div className="no-print flex justify-between items-center mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
                                     <button className="btn-secondary" disabled={listModalState.currentPage === 1} onClick={() => setListModalState(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}>Prev</button>
                                     <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Halaman {listModalState.currentPage} dari {totalPages}</span>
                                     <button className="btn-secondary" disabled={listModalState.currentPage === totalPages} onClick={() => setListModalState(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}>Next</button>

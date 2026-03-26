@@ -3,23 +3,71 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext'
-import ErrorBoundary from './components/ErrorBoundary'
-import { initPerformanceMonitoring } from './utils/performanceMonitoring'
 import './index.css'
 
-// Initialize performance monitoring (development only by default)
-if (process.env.NODE_ENV === 'development') {
-  initPerformanceMonitoring();
+// Hide initial HTML loader when React mounts
+const hideInitialLoader = () => {
+  const loader = document.getElementById('initial-loader');
+  if (loader) {
+    loader.classList.add('hidden');
+    // Remove from DOM after animation
+    setTimeout(() => loader.remove(), 300);
+  }
+};
+
+// Mark root as ready
+const markRootReady = () => {
+  const root = document.getElementById('root');
+  if (root) {
+    root.classList.add('ready');
+  }
+};
+
+const rootElement = document.getElementById('root');
+const root = ReactDOM.createRoot(rootElement);
+
+// Production mode - no StrictMode for better performance
+const isProduction = import.meta.env.PROD;
+
+const AppWrapper = () => {
+  // Hide loader after first render
+  React.useEffect(() => {
+    hideInitialLoader();
+    markRootReady();
+  }, []);
+
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+};
+
+if (isProduction) {
+  root.render(<AppWrapper />);
+} else {
+  // Development mode with StrictMode
+  root.render(
+    <React.StrictMode>
+      <AppWrapper />
+    </React.StrictMode>
+  );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
-  </React.StrictMode>,
-)
+// Report web vitals in development
+if (!isProduction && typeof window !== 'undefined') {
+  // Log performance metrics
+  if ('performance' in window && 'getEntriesByType' in window.performance) {
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const [navigation] = performance.getEntriesByType('navigation');
+        if (navigation) {
+          console.log('[Performance] DOM Content Loaded:', Math.round(navigation.domContentLoadedEventEnd), 'ms');
+          console.log('[Performance] Load Complete:', Math.round(navigation.loadEventEnd), 'ms');
+        }
+      }, 0);
+    });
+  }
+}

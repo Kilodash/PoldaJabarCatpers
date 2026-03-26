@@ -159,7 +159,6 @@ const getAllPersonel = async (req, res) => {
         // 3. Search Filter (Highest priority for visibility)
         if (req.query.search) {
             showDeleted = true; // Allow finding deleted/inactive if searching specifically
-            const searchLower = req.query.search.toLowerCase();
             conditions.push({
                 OR: [
                     { namaLengkap: { contains: req.query.search, mode: 'insensitive' } },

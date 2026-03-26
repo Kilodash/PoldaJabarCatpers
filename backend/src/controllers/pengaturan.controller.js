@@ -305,11 +305,22 @@ const scanPensiun = async (req, res) => {
 
         const now = new Date();
 
-        const pnsThresholdDate = new Date();
+        // --- Metode tanggalLahir (fallback jika data tgl lahir benar) ---
+        const pnsThresholdDate = new Date(now);
         pnsThresholdDate.setFullYear(now.getFullYear() - usiaPensiunPNS);
 
-        const polriThresholdDate = new Date();
+        const polriThresholdDate = new Date(now);
         polriThresholdDate.setFullYear(now.getFullYear() - usiaPensiunPolri);
+
+        // --- Metode NRP prefix untuk POLRI ---
+        // Format NRP POLRI: YYMMSSSS (2 digit tahun lahir, 2 digit bulan, 4 digit urut)
+        // NRP 68xxxxxx = lahir 1968, NRP 00xxxxxx = lahir 2000 (abad 21)
+        // Batas abad 21 (terlalu muda): NRP prefix 00 s/d (tahun sekarang % 100)
+        // Abad 20 yang sudah pensiun: prefix 27 s/d cutoffYY (27 = safe lower bound abad 20)
+        const polriCutoffYY = (now.getFullYear() - usiaPensiunPolri) % 100; // Misal: (2026-58)%100 = 68
+        const nrpPrefixMax = String(polriCutoffYY).padStart(2, '0'); // '68'
+        const nrpMinStr = '27000000'; // Batas bawah aman: NRP abad 20 (mulai 1927)
+        const nrpMaxStr = nrpPrefixMax + '999999'; // '68999999'
 
         const potentialRetirees = await prisma.personel.findMany({
             where: {
@@ -317,19 +328,26 @@ const scanPensiun = async (req, res) => {
                 deletedAt: null,
                 isDraft: false,
                 OR: [
-                    { // PNS past their pension age
-                        jenisPegawai: { equals: 'PNS' },
-                        tanggalLahir: { lte: pnsThresholdDate }
+                    // Metode 1: tanggalPensiun sudah lewat (paling akurat jika data benar)
+                    { tanggalPensiun: { lte: now } },
+
+                    // Metode 2: Deteksi NRP prefix untuk POLRI abad 20 yang sudah pensiun
+                    // NRP '27xxxxxx' s/d '68xxxxxx' = lahir 1927-1968 = usia >= pension
+                    // NRP '00xxxxxx' s/d '26xxxxxx' (abad 21) otomatis terkecualikan
+                    {
+                        jenisPegawai: 'POLRI',
+                        nrpNip: { gte: nrpMinStr, lte: nrpMaxStr }
                     },
-                    { // POLRI past their pension age
-                        jenisPegawai: { equals: 'POLRI' },
-                        tanggalLahir: { lte: polriThresholdDate }
-                    }
+
+                    // Metode 3: tanggalLahir sebagai backup (untuk data dengan tgl lahir benar)
+                    { jenisPegawai: 'PNS', tanggalLahir: { lte: pnsThresholdDate } },
+                    { jenisPegawai: 'POLRI', tanggalLahir: { lte: polriThresholdDate } }
                 ]
             },
             include: {
                 satker: true
-            }
+            },
+            orderBy: { nrpNip: 'asc' }
         });
 
         res.json(potentialRetirees);

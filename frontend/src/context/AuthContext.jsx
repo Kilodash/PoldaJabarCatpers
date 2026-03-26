@@ -1,26 +1,39 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import Cookies from 'js-cookie';
 import api from '../utils/api';
-import { supabase } from '../utils/supabase';
+import { supabase, withTimeout } from '../utils/supabase';
 
 const AuthContext = createContext();
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
+// Session check timeout (3 seconds max to prevent stuck loading)
+const SESSION_CHECK_TIMEOUT = 3000;
+const BACKEND_SYNC_TIMEOUT = 5000;
+
 export const AuthProvider = ({ children }) => {
-    // OPTIMIZED: Initialize from cookies for instant render
+    // INSTANT UI: Initialize from cookies for immediate render
     const [user, setUser] = useState(() => {
-        const savedUser = Cookies.get('user');
-        return savedUser ? JSON.parse(savedUser) : null;
+        try {
+            const savedUser = Cookies.get('user');
+            return savedUser ? JSON.parse(savedUser) : null;
+        } catch {
+            return null;
+        }
     });
     
-    // OPTIMIZED: Don't block if we have cached user data
+    // PROGRESSIVE LOADING: Start as NOT loading if we have cached credentials
+    // This prevents the "loading forever" issue
     const [loading, setLoading] = useState(() => {
         const hasToken = Cookies.get('token');
         const hasUser = Cookies.get('user');
-        // Only show loading if no cached data exists
-        return !(hasToken && hasUser);
+        // If we have cached data, DON'T show loading - render immediately
+        return !hasToken && !hasUser;
     });
+
+    const [sessionVerified, setSessionVerified] = useState(false);
+    const mountedRef = useRef(true);
+    const syncingRef = useRef(false);
 
     const login = async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -37,6 +50,7 @@ export const AuthProvider = ({ children }) => {
 
         const userData = { ...res.data, token: data.session.access_token };
         setUser(userData);
+        setSessionVerified(true);
         
         Cookies.set('token', data.session.access_token, { expires: 1 });
         Cookies.set('user', JSON.stringify(userData), { expires: 1 });
@@ -44,125 +58,150 @@ export const AuthProvider = ({ children }) => {
         return { user: userData };
     };
 
-    const logout = async () => {
-        await supabase.auth.signOut();
+    const logout = useCallback(async () => {
+        try {
+            await supabase.auth.signOut();
+        } catch (err) {
+            console.warn('Supabase signOut error (ignored):', err);
+        }
         setUser(null);
+        setSessionVerified(false);
         Cookies.remove('token');
         Cookies.remove('user');
-    };
+    }, []);
+
+    const syncUserWithBackend = useCallback(async (session, isBackground = false) => {
+        if (!session || syncingRef.current) return null;
+        
+        syncingRef.current = true;
+        
+        try {
+            // Use timeout wrapper to prevent infinite waiting
+            const res = await withTimeout(
+                api.get('/auth/me', {
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                }),
+                BACKEND_SYNC_TIMEOUT
+            );
+
+            const userData = { ...res.data, token: session.access_token };
+            
+            if (mountedRef.current) {
+                setUser(userData);
+                setSessionVerified(true);
+                Cookies.set('token', session.access_token, { expires: 1 });
+                Cookies.set('user', JSON.stringify(userData), { expires: 1 });
+            }
+            
+            return userData;
+        } catch (error) {
+            console.error("[AUTH_SYNC_FAIL]", error.message);
+            
+            if (mountedRef.current) {
+                // Only clear session on explicit auth errors, not timeouts
+                if (error.response?.status === 401 || error.response?.status === 403) {
+                    await logout();
+                }
+                // On timeout/network error with cached user, keep using cached data
+                // This ensures app works even if backend is slow
+            }
+            return null;
+        } finally {
+            syncingRef.current = false;
+        }
+    }, [logout]);
 
     useEffect(() => {
-        let isInstanceMounted = true;
+        mountedRef.current = true;
+        let authSubscription = null;
 
-        const checkInitialSession = async () => {
+        const initializeAuth = async () => {
             try {
-                // OPTIMIZED: If we have cached user, verify in background
-                const hasCache = Cookies.get('token') && Cookies.get('user');
-                
-                const { data: { session } } = await supabase.auth.getSession();
-                
-                if (isInstanceMounted && session) {
-                    // Only sync if no cache or cache verification needed
-                    if (!hasCache) {
-                        await syncUserWithBackend(session);
-                    } else {
-                        // Verify in background, don't block UI
-                        syncUserWithBackend(session).catch(err => {
-                            console.error("[BACKGROUND_SYNC_FAIL]", err);
-                            // On error, clear cache and force re-auth
-                            if (isInstanceMounted) {
-                                setUser(null);
-                                Cookies.remove('token');
-                                Cookies.remove('user');
-                            }
-                        });
-                    }
-                } else if (isInstanceMounted) {
-                    // No session found, clear state
-                    setUser(null);
-                    Cookies.remove('token');
-                    Cookies.remove('user');
-                }
-            } catch (err) {
-                console.error("[AUTH_INIT_FAIL]", err);
-                // On error, clear cached data
-                if (isInstanceMounted) {
-                    setUser(null);
-                    Cookies.remove('token');
-                    Cookies.remove('user');
-                }
-            } finally {
-                // OPTIMIZED: Set loading to false immediately
-                if (isInstanceMounted) setLoading(false);
-            }
-        };
+                // RACE PATTERN: Don't block UI, set a timeout
+                const sessionPromise = supabase.auth.getSession();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Session check timeout')), SESSION_CHECK_TIMEOUT)
+                );
 
-        const syncUserWithBackend = async (session) => {
-            if (!session) return;
-            try {
-                const res = await api.get('/auth/me', {
-                    headers: { Authorization: `Bearer ${session.access_token}` }
-                });
-
-                const userData = { ...res.data, token: session.access_token };
-                if (isInstanceMounted) {
-                    setUser(userData);
-                    Cookies.set('token', session.access_token, { expires: 1 });
-                    Cookies.set('user', JSON.stringify(userData), { expires: 1 });
-                }
-            } catch (error) {
-                console.error("[AUTH_SYNC_FAIL]", error.response?.status, error.message);
-                if (error.response?.status === 401 || error.response?.status === 403) {
-                    await supabase.auth.signOut();
-                    if (isInstanceMounted) {
-                        setUser(null);
+                try {
+                    const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
+                    
+                    if (mountedRef.current && session) {
+                        // Background sync - don't block UI
+                        syncUserWithBackend(session, true);
+                    } else if (mountedRef.current && !user) {
+                        // No session and no cached user
                         Cookies.remove('token');
                         Cookies.remove('user');
                     }
+                } catch (timeoutError) {
+                    console.warn('[AUTH] Session check timed out, using cached data if available');
+                    // If we have cached user, continue with that
+                    // If not, app will show login
                 }
-                throw error;
+            } catch (err) {
+                console.error("[AUTH_INIT_ERROR]", err);
+            } finally {
+                // CRITICAL: Always stop loading state
+                if (mountedRef.current) {
+                    setLoading(false);
+                }
             }
         };
 
-        // Start session check (optimized to not block if cached)
-        checkInitialSession();
+        // Setup auth state listener
+        const setupAuthListener = () => {
+            const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+                if (!mountedRef.current) return;
+                
+                console.log(`[AUTH_EVENT] ${event}`);
 
-        // Listen for auth state changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log(`[AUTH_EVENT] ${event}`, session?.user?.email);
-
-            try {
-                if (event === 'SIGNED_OUT') {
-                    if (isInstanceMounted) {
+                switch (event) {
+                    case 'SIGNED_OUT':
                         setUser(null);
+                        setSessionVerified(false);
                         Cookies.remove('token');
                         Cookies.remove('user');
-                    }
-                    return;
+                        break;
+                    
+                    case 'SIGNED_IN':
+                    case 'TOKEN_REFRESHED':
+                        if (session) {
+                            syncUserWithBackend(session, true);
+                        }
+                        break;
+                    
+                    case 'INITIAL_SESSION':
+                        // Handled by initializeAuth
+                        break;
+                    
+                    default:
+                        break;
                 }
+            });
+            
+            return subscription;
+        };
 
-                if (session && isInstanceMounted) {
-                    await syncUserWithBackend(session);
-                } else if (isInstanceMounted) {
-                    setUser(null);
-                    Cookies.remove('token');
-                    Cookies.remove('user');
-                }
-            } catch (err) {
-                console.error("[AUTH_EVENT_ERROR]", err);
-            } finally {
-                if (isInstanceMounted) setLoading(false);
-            }
-        });
+        // Initialize immediately if we have cached user (don't wait)
+        if (user) {
+            setLoading(false);
+        }
+
+        // Start async initialization
+        initializeAuth();
+        authSubscription = setupAuthListener();
 
         return () => {
-            isInstanceMounted = false;
-            subscription.unsubscribe();
+            mountedRef.current = false;
+            if (authSubscription) {
+                authSubscription.unsubscribe();
+            }
         };
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout }}>
+        <AuthContext.Provider value={{ user, loading, sessionVerified, login, logout }}>
             {children}
         </AuthContext.Provider>
     );

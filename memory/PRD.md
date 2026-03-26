@@ -1,62 +1,94 @@
-# PRD - PoldaJabarCatpers (Catatan Personel Polda Jabar)
+# PRD - PoldaJabarCatpers Performance Optimization
 
 ## Problem Statement
-Perbaiki fitur pencarian menggunakan key NRP/NIP dan file PDF pada menu pencarian.
-Repository: https://github.com/Kilodash/PoldaJabarCatpers
+Aplikasi dashboard Polda Jabar Catpers mengalami masalah loading yang sangat lambat atau stuck saat user membuka halaman awal setelah deploy di Vercel. Halaman sering menampilkan animasi loading atau blank dengan indikator loading browser terhenti.
 
-## Tech Stack
-- Frontend: React + Vite, Axios, Lucide React, Sonner (toast), date-fns
-- Backend: Node.js + Express, Prisma ORM, PostgreSQL (Supabase), pdf-parse, multer
-- Database: PostgreSQL via Supabase (cloud)
-- Deployment: Vercel
+## Root Cause Analysis
+1. **Supabase Cold Start**: `getSession()` bisa timeout pada serverless cold start
+2. **Blocking Auth Flow**: AuthContext memblokir render hingga session terverifikasi
+3. **Async API Interceptor**: Request interceptor menunggu async Supabase check
+4. **No Timeout/Fallback**: Tidak ada fallback jika Supabase lambat merespon
 
 ## Architecture
+
+### Tech Stack
+- **Frontend**: React 19 + Vite 7 (SPA)
+- **Backend**: Node.js/Express
+- **Database**: Supabase (PostgreSQL)
+- **Auth**: Supabase Auth
+- **Deployment**: Vercel (Frontend), Vercel/Railway (Backend)
+
+### Loading Strategy: Progressive Hybrid Loading
 ```
-/PoldaJabarCatpers
-  /backend        # Express + Prisma (PostgreSQL)
-    /src/controllers/pencarian.controller.js  # Logic pencarian manual & PDF
-    /src/routes/pencarian.routes.js           # Route /pencarian/manual & /pencarian/document
-  /frontend        # React + Vite
-    /src/pages/Pencarian.jsx                  # UI menu pencarian
-    /src/utils/api.js                         # Axios instance
+HTML Inline Loader → React Mount (cached) → Background Verify → Data Fetch
 ```
 
-## Bug Fixes Implemented (2026-02-XX)
+## What's Been Implemented
 
-### Bug 1 — totalPages tidak terdefinisi [KRITIS]
-- File: `frontend/src/pages/Pencarian.jsx`
-- Issue: `totalPages` digunakan di JSX (baris 344) tapi tidak pernah dideklarasikan → pagination tidak pernah muncul
-- Fix: Tambah `const totalPages = Math.ceil(sortedResults.length / itemsPerPage);`
+### Phase 3 - Anti-Stuck Loading (March 2026)
+- [x] Timeout wrapper untuk Supabase calls (3s max)
+- [x] Race pattern: UI render first, verify later
+- [x] Cached user dari cookies untuk instant render
+- [x] Sync API interceptor (no async blocking)
+- [x] Retry logic untuk cold start (504, network errors)
+- [x] HTML inline loading screen untuk instant First Paint
+- [x] Safety timeout 5s untuk InitialLoader
+- [x] Optimized Vite config (better chunking, esbuild)
+- [x] DashboardContext priority loading (stats → satker → users)
 
-### Bug 2 — Tidak ada feedback error pada pencarian manual
-- File: `frontend/src/pages/Pencarian.jsx`
-- Issue: `catch (error)` di `handleManualSearch` hanya `console.error` tanpa toast
-- Fix: Tambah `toast.error(...)` agar user tahu jika pencarian gagal
+### Previous Optimizations (Phase 1-2)
+- [x] Lazy loading untuk secondary pages
+- [x] Eager loading untuk Login + Dashboard
+- [x] Prefetch routes setelah login
+- [x] Code splitting dengan manualChunks
+- [x] React.memo untuk components
+- [x] Debounced search
+- [x] 5 minute auto-refresh (reduced from 60s)
 
-### Bug 3 — Timeout terlalu pendek untuk PDF
-- File: `frontend/src/pages/Pencarian.jsx`
-- Issue: Global timeout api.js = 10 detik, tidak cukup untuk PDF besar
-- Fix: Override timeout 60 detik khusus pada request `/pencarian/document`
+## User Personas
+1. **Admin Polda**: Akses penuh ke semua fitur
+2. **Operator Satker**: Akses terbatas ke unit sendiri
 
-### Bug 4 — Regex parseManualInput terlalu luas
-- File: `backend/src/controllers/pencarian.controller.js`
-- Issue: Regex `/\d{8,18}/` cocok 8-18 digit → false positive untuk angka 9-17 digit
-- Fix: Ganti ke `/(?<![0-9])([0-9]{18}|[0-9]{8})(?![0-9])/` (hanya 8 digit NRP atau 18 digit NIP persis)
+## Core Requirements (Static)
+- Dashboard harus load dalam < 2 detik
+- Tidak boleh ada blank/stuck state
+- Harus handle cold start dengan graceful
+- Cached credentials untuk instant access
+- Fallback untuk setiap failure point
 
-### Bug 5 — pdf-parse import menjalankan test saat init
-- File: `backend/src/controllers/pencarian.controller.js`
-- Issue: `require('pdf-parse')` menjalankan test file → error di beberapa environment
-- Fix: Ganti ke `require('pdf-parse/lib/pdf-parse')` langsung ke lib
+## Prioritized Backlog
 
-## Core Requirements
-- Pencarian manual: input list NRP/NIP (satu per baris), tampilkan status catatan personel
-- Pencarian PDF: upload dokumen PDF, ekstrak NRP/NIP otomatis, tampilkan hasil
-- Hasil pencarian: nama, satker, status identitas (Sesuai/Tidak Sesuai/Tidak Ditemukan), status catatan (Bersih/Pernah Tercatat/Ada Catatan Aktif)
-- Pagination hasil pencarian
-- Filter tampil semua / hanya yang ditemukan
+### P0 (Critical) - Done
+- [x] Fix loading stuck issue
+- [x] Add timeout fallbacks
+- [x] Implement progressive loading
 
-## Backlog / Next Tasks
-- P1: Tambah loading skeleton saat PDF diproses (UX lebih baik)
-- P1: Validasi format NRP/NIP di frontend sebelum kirim ke backend
-- P2: Export hasil pencarian ke Excel/PDF
-- P2: Simpan riwayat pencarian per user
+### P1 (Important) - Backlog
+- [ ] Add Service Worker untuk offline support
+- [ ] Implement React Query untuk better caching
+- [ ] Add error boundaries per section
+- [ ] Performance monitoring (Web Vitals)
+
+### P2 (Nice to Have) - Future
+- [ ] PWA manifest
+- [ ] Push notifications
+- [ ] Image optimization
+- [ ] Virtual scrolling untuk large lists
+
+## Testing Notes
+- Test dengan Network throttling (Slow 3G)
+- Test cold start setelah 10 menit idle
+- Test dengan Supabase offline (mock client)
+- Verify Lighthouse score > 80
+
+## Files Modified
+- `/frontend/src/context/AuthContext.jsx` - Timeout + race pattern
+- `/frontend/src/utils/supabase.js` - withTimeout helper, optimized config
+- `/frontend/src/utils/api.js` - Sync interceptor, retry logic
+- `/frontend/src/App.jsx` - InitialLoader with timeout
+- `/frontend/src/context/DashboardContext.jsx` - Priority loading
+- `/frontend/index.html` - Inline CSS, HTML loader
+- `/frontend/vite.config.js` - Better chunking, esbuild
+
+---
+Last Updated: March 2026

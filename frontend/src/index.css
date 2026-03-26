@@ -1,8 +1,3 @@
-/* Tailwind CSS */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 /* Fonts imported via index.html for better performance and to avoid preload warnings */
 
 .animate-spin {
@@ -799,6 +794,12 @@ select.form-input {
   .page-actions {
     display: none !important;
     visibility: hidden !important;
+  }
+
+  /* Sembunyikan kolom Aksi (kolom terakhir) saat cetak - hanya berisi tombol */
+  .modal-table-container table th:last-child,
+  .modal-table-container table td:last-child {
+    display: none !important;
   }
 
   /* 5. Natural White-space for Monospace text */
