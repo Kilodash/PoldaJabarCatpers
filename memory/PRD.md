@@ -13,6 +13,7 @@ Aplikasi dashboard Polda Jabar Catpers mengalami masalah loading yang sangat lam
 
 ### Tech Stack
 - **Frontend**: React 19 + Vite 7 (SPA)
+- **State Management**: React Query (TanStack Query) untuk server state
 - **Backend**: Node.js/Express
 - **Database**: Supabase (PostgreSQL)
 - **Auth**: Supabase Auth
@@ -20,10 +21,19 @@ Aplikasi dashboard Polda Jabar Catpers mengalami masalah loading yang sangat lam
 
 ### Loading Strategy: Progressive Hybrid Loading
 ```
-HTML Inline Loader → React Mount (cached) → Background Verify → Data Fetch
+HTML Inline Loader → React Mount (cached) → Background Verify → Data Fetch (React Query)
 ```
 
 ## What's Been Implemented
+
+### Phase 4 - React Query Integration (March 2026)
+- [x] @tanstack/react-query untuk server state management
+- [x] Query client dengan optimized defaults (staleTime, gcTime, retry)
+- [x] Custom hooks: useDashboardStats, useSatkerStats, usePersonelList, dll
+- [x] Query keys factory untuk konsistensi caching
+- [x] Mutations dengan auto-invalidation (useDeletePersonel, useRestorePersonel)
+- [x] DashboardContext refactored menggunakan React Query hooks
+- [x] Dashboard.jsx menggunakan usePersonelList untuk modal data
 
 ### Phase 3 - Anti-Stuck Loading (March 2026)
 - [x] Timeout wrapper untuk Supabase calls (3s max)
@@ -34,7 +44,6 @@ HTML Inline Loader → React Mount (cached) → Background Verify → Data Fetch
 - [x] HTML inline loading screen untuk instant First Paint
 - [x] Safety timeout 5s untuk InitialLoader
 - [x] Optimized Vite config (better chunking, esbuild)
-- [x] DashboardContext priority loading (stats → satker → users)
 
 ### Previous Optimizations (Phase 1-2)
 - [x] Lazy loading untuk secondary pages
@@ -54,7 +63,7 @@ HTML Inline Loader → React Mount (cached) → Background Verify → Data Fetch
 - Tidak boleh ada blank/stuck state
 - Harus handle cold start dengan graceful
 - Cached credentials untuk instant access
-- Fallback untuk setiap failure point
+- Smart caching dengan React Query
 
 ## Prioritized Backlog
 
@@ -62,12 +71,13 @@ HTML Inline Loader → React Mount (cached) → Background Verify → Data Fetch
 - [x] Fix loading stuck issue
 - [x] Add timeout fallbacks
 - [x] Implement progressive loading
+- [x] React Query integration
 
 ### P1 (Important) - Backlog
 - [ ] Add Service Worker untuk offline support
-- [ ] Implement React Query untuk better caching
 - [ ] Add error boundaries per section
 - [ ] Performance monitoring (Web Vitals)
+- [ ] React Query DevTools (development)
 
 ### P2 (Nice to Have) - Future
 - [ ] PWA manifest
@@ -75,20 +85,17 @@ HTML Inline Loader → React Mount (cached) → Background Verify → Data Fetch
 - [ ] Image optimization
 - [ ] Virtual scrolling untuk large lists
 
-## Testing Notes
-- Test dengan Network throttling (Slow 3G)
-- Test cold start setelah 10 menit idle
-- Test dengan Supabase offline (mock client)
-- Verify Lighthouse score > 80
+## Files Modified/Created
 
-## Files Modified
-- `/frontend/src/context/AuthContext.jsx` - Timeout + race pattern
-- `/frontend/src/utils/supabase.js` - withTimeout helper, optimized config
-- `/frontend/src/utils/api.js` - Sync interceptor, retry logic
-- `/frontend/src/App.jsx` - InitialLoader with timeout
-- `/frontend/src/context/DashboardContext.jsx` - Priority loading
-- `/frontend/index.html` - Inline CSS, HTML loader
-- `/frontend/vite.config.js` - Better chunking, esbuild
+### New Files (React Query)
+- `/frontend/src/lib/queryClient.js` - Query client + keys factory
+- `/frontend/src/hooks/useApi.js` - Custom React Query hooks
+
+### Modified Files
+- `/frontend/src/main.jsx` - QueryClientProvider
+- `/frontend/src/context/DashboardContext.jsx` - Refactored dengan React Query
+- `/frontend/src/pages/Dashboard.jsx` - Menggunakan React Query hooks
 
 ---
 Last Updated: March 2026
+Version: 4.0.0 (React Query)
